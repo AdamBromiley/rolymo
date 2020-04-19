@@ -419,12 +419,12 @@ int main(int argc, char **argv) /* Take in command-line options */
 				printf("  -s HEIGHT, --height=HEIGHT   The height of the PPM file in pixels\n");
 				printf("\n  Default parameters:\n");
 				printf("   Julia Set:\n");
-				printf("    XMIN   = %f\n", -ESCAPE_RADIUS);
-				printf("    XMAX   = %f\n", ESCAPE_RADIUS);
-				printf("    YMIN   = %f\n", -ESCAPE_RADIUS);
-				printf("    YMAX   = %f\n", ESCAPE_RADIUS);
-				printf("    WIDTH  = %d\n", (ESCAPE_RADIUS - (-ESCAPE_RADIUS)) * DEFAULT_PX_SCALE);
-				printf("    HEIGHT = %d\n", (ESCAPE_RADIUS - (-ESCAPE_RADIUS)) * DEFAULT_PX_SCALE);
+				printf("    XMIN   = %.2f\n", -ESCAPE_RADIUS);
+				printf("    XMAX   = %.2f\n", ESCAPE_RADIUS);
+				printf("    YMIN   = %.2f\n", -ESCAPE_RADIUS);
+				printf("    YMAX   = %.2f\n", ESCAPE_RADIUS);
+				printf("    WIDTH  = %.2f\n", (ESCAPE_RADIUS - (-ESCAPE_RADIUS)) * DEFAULT_PX_SCALE);
+				printf("    HEIGHT = %.2f\n", (ESCAPE_RADIUS - (-ESCAPE_RADIUS)) * DEFAULT_PX_SCALE);
 				printf("   Mandelbrot set:\n");
 				printf("    XMIN   = %f\n", DEFAULT_XMIN);
 				printf("    XMAX   = %f\n", DEFAULT_XMAX);
@@ -1143,6 +1143,8 @@ int complexParser(struct complex *c) /* Validate input of a complex number in th
 	char *nPtr; /* Newline character pointer */
 
 	_Bool aNegFlag = 0, bNegFlag = 0; /* Negative flags for real and imaginary parts */
+
+	char *rePart, *imPart; /* Complex number */
 	
 	if (validateInput(buffer, sizeof(buffer)) == 1) /* Validate input length */
 	{
@@ -1209,9 +1211,22 @@ int complexParser(struct complex *c) /* Validate input of a complex number in th
 	}
 	
 	inputLength = strlen(buffer);
-	char rePart[inputLength], imPart[inputLength];
-	strcpy(rePart, "0"); /* Cannot initialise variable-length array */
-	strcpy(imPart, "0");
+
+	if ((rePart = malloc(inputLength * sizeof(char))) == NULL)
+	{
+		fprintf(stderr, "[ERROR]     Memory allocation failure\n");
+		
+		return 1;
+	}
+
+	if ((imPart = malloc(inputLength * sizeof(char))) == NULL)
+	{
+		fprintf(stderr, "[ERROR]     Memory allocation failure\n");
+		
+		free(rePart);
+
+		return 1;
+	}
 	
 	/* Read comments for identified input formats with each check */
 	/* "a" and "b" are arbitrary strings and "+/-/i" are special characters */
@@ -1220,12 +1235,18 @@ int complexParser(struct complex *c) /* Validate input of a complex number in th
 	{
 		fprintf(stderr, "[ERROR]     Terminating '+/-'\n");
 		
+		free(rePart);
+		free(imPart);
+
 		return 1;
 	}
 	else if (buffer[0] == '+') /* "+a" */
 	{
 		fprintf(stderr, "[ERROR]     Leading '+'\n");
 		
+		free(rePart);
+		free(imPart);
+
 		return 1;
 	}
 	else if (buffer[0] == '-')
@@ -1234,6 +1255,9 @@ int complexParser(struct complex *c) /* Validate input of a complex number in th
 		{
 			fprintf(stderr, "[ERROR]     Leading '--/-+'\n");
 			
+			free(rePart);
+			free(imPart);
+
 			return 1;
 		}
 	}
@@ -1243,6 +1267,9 @@ int complexParser(struct complex *c) /* Validate input of a complex number in th
 		{
 			fprintf(stderr, "[ERROR]     Preceding 'i'\n");
 			
+			free(rePart);
+			free(imPart);
+
 			return 1;
 		}
 		else
@@ -1265,18 +1292,27 @@ int complexParser(struct complex *c) /* Validate input of a complex number in th
 	{
 		fprintf(stderr, "[ERROR]     Invalid use of '-' operator\n");
 		
+		free(rePart);
+		free(imPart);
+
 		return 1;
 	}
 	else if (minusCount > 1 && buffer[0] != '-') /* "a--i", "a--bi", "a-b-i" */
 	{
 		fprintf(stderr, "[ERROR]     Invalid use of '-' operator\n");
 		
+		free(rePart);
+		free(imPart);
+
 		return 1;
 	}
 	else if (minusCount == 1 && plusCount == 1 && buffer[0] != '-') /* "a+-i", "a-+i", "a+-bi", "a+b-i" */
 	{
 		fprintf(stderr, "[ERROR]     Invalid use of '+/-' operators\n");
 		
+		free(rePart);
+		free(imPart);
+
 		return 1;
 	}
 	else /* All invalid sequences have been removed */
@@ -1374,19 +1410,25 @@ int complexParser(struct complex *c) /* Validate input of a complex number in th
 	switch (formatType)
 	{
 		case 1: /* Valid format will be "a b" */
-			if (sscanf(buffer, "%s%s", &rePart, &imPart) != 2)
+			if (sscanf(buffer, "%s%s", rePart, imPart) != 2)
 			{
 				fprintf(stderr, "[ERROR]     Invalid format\n");
 				
+				free(rePart);
+				free(imPart);
+
 				return 1;
 			}
 				
 			break;
 		case 2: /* Valid format will be "a" */
-			if (sscanf(buffer, "%s", &rePart) != 1)
+			if (sscanf(buffer, "%s", rePart) != 1)
 			{
 				fprintf(stderr, "[ERROR]     Invalid format\n");
 				
+				free(rePart);
+				free(imPart);
+
 				return 1;
 			}
 			
@@ -1396,10 +1438,13 @@ int complexParser(struct complex *c) /* Validate input of a complex number in th
 			
 			if (strcmp(imPart, "0") == 0) /* "b" */
 			{
-				if (sscanf(buffer, "%s", &imPart) != 1)
+				if (sscanf(buffer, "%s", imPart) != 1)
 				{
 					fprintf(stderr, "[ERROR]     Invalid format\n");
 					
+					free(rePart);
+					free(imPart);
+
 					return 1;
 				}
 			}
@@ -1411,6 +1456,9 @@ int complexParser(struct complex *c) /* Validate input of a complex number in th
 	{
 		fprintf(stderr, "[ERROR]     Numerical part(s) is not a real number\n");
 		
+		free(rePart);
+		free(imPart);
+
 		return 1;
 	}
 	
@@ -1419,28 +1467,42 @@ int complexParser(struct complex *c) /* Validate input of a complex number in th
 	{
 		fprintf(stderr, "[ERROR]     Malformed input\n");
 		
+		free(rePart);
+		free(imPart);
+
 		return 1;
 	}
 	else if (errno == ERANGE)
 	{
 		fprintf(stderr, "[ERROR]     Number out of range\n");
 		
+		free(rePart);
+		free(imPart);
+
 		return 1;
 	}
+
+	free(rePart);
 	
 	c->im = stringToDouble(imPart);
 	if (errno == EINVAL)
 	{
 		fprintf(stderr, "[ERROR]     Malformed input\n");
 		
+		free(imPart);
+
 		return 1;
 	}
 	else if (errno == ERANGE)
 	{
 		fprintf(stderr, "[ERROR]     Number out of range\n");
 		
+		free(imPart);
+
 		return 1;
 	}
+
+	free(imPart);
 	
 	if (sqrt(pow(c->re, 2) + pow(c->im, 2)) > ESCAPE_RADIUS)
 	{
@@ -1554,7 +1616,7 @@ void * mandelbrotSet(void *parameters)
 {
 	int xP, yP, n; /* Index variables */
 	
-	struct complex zStart, z, c; /* Function variables */
+	struct complex z, c; /* Function variables */
 	double a; /* Temporary z.re value */
 	
 	int bitCount = 0; /* Index of B&W bit inside byte */
