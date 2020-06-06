@@ -724,6 +724,7 @@ int imageOutput(struct plotSettings *imagePlot, _Bool mFlag, char *fileName)
 	
 	block = &locBlock;
 	block->blockCount = 1;
+	block->remainderRows = 0;
 	
 	if ((ppmFile = fopen(fileName, "wb")) == NULL)
 	{
@@ -888,7 +889,7 @@ int ppmArrayMalloc(void **ppmArray, struct plotSettings *imagePlot, struct block
 	int i; /* Index variable */
 	
 	float elementSize; /* Size of each pixel in bytes */
-	long long int ppmArraySize; /* Size of pixel array in bytes */
+	size_t ppmArraySize; /* Size of pixel array in bytes */
 	
 	switch (imagePlot->colourScheme)
 	{
@@ -910,13 +911,13 @@ int ppmArrayMalloc(void **ppmArray, struct plotSettings *imagePlot, struct block
 			break;
 	}
 	
-	ppmArraySize = imagePlot->yPMax * imagePlot->xPMax * elementSize;
+	ppmArraySize = (size_t) imagePlot->yPMax * (size_t) imagePlot->xPMax * (size_t) elementSize;
 	
 	block->blockRows = imagePlot->yPMax;
 	
 	printf("[MAIN]      Allocating memory...\n");
 	
-	for (i = 1; (*ppmArray = malloc(ppmArraySize)) == NULL; ++i) /* Try to malloc for the pixel array, with each iteration decreasing the array size */
+	for (i = 1; i < 6; ++i) /* Try to malloc for the pixel array, with each iteration decreasing the array size */
 	{
 		if (i == MALLOC_ESC_ITER) /* Set reasonable limit on amount of malloc attempts */
 		{
@@ -939,7 +940,33 @@ int ppmArrayMalloc(void **ppmArray, struct plotSettings *imagePlot, struct block
 		block->blockRows = imagePlot->yPMax / (i + 1);
 		block->remainderRows = imagePlot->yPMax % (i + 1);
 		
-		ppmArraySize = block->blockRows * imagePlot->xPMax * elementSize;
+		ppmArraySize = (size_t) block->blockRows * (size_t) imagePlot->xPMax * (size_t) elementSize;
+	}
+
+	for (i = 6; (*ppmArray = malloc(ppmArraySize)) == NULL; ++i) /* Try to malloc for the pixel array, with each iteration decreasing the array size */
+	{
+		if (i == MALLOC_ESC_ITER) /* Set reasonable limit on amount of malloc attempts */
+		{
+			fprintf(stderr, "[ERROR]     Memory allocation failed\n");
+			
+			return 1;
+		}
+		
+		if (i == 1)
+		{
+			fprintf(stderr, "[WARNING]   Memory allocation of 1 block (block: %d rows, remainder: %d rows) failed\n", block->blockRows, block->remainderRows);
+		}
+		else
+		{
+			fprintf(stderr, "[WARNING]   Memory allocation of %d blocks (block: %d rows, remainder: %d rows) failed\n", i, block->blockRows, block->remainderRows);
+		}
+		
+		printf("[MAIN]      Retrying memory allocation with %d blocks...\n", i + 1);
+		
+		block->blockRows = imagePlot->yPMax / (i + 1);
+		block->remainderRows = imagePlot->yPMax % (i + 1);
+		
+		ppmArraySize = (size_t) block->blockRows * (size_t) imagePlot->xPMax * (size_t) elementSize;
 	}
 	
 	block->blockCount = i;
@@ -950,7 +977,7 @@ int ppmArrayMalloc(void **ppmArray, struct plotSettings *imagePlot, struct block
 	}
 	else
 	{
-		printf("[MAIN]      Memory successfully allocated as %d blocks (block: %d rows, %lld bytes, remainder: %d rows)\n", block->blockCount, block->blockRows, ppmArraySize, block->remainderRows);
+		printf("[MAIN]      Memory successfully allocated as %d blocks (block: %d rows, %zu bytes, remainder: %d rows)\n", block->blockCount, block->blockRows, ppmArraySize, block->remainderRows);
 	}
 	
 	++block->blockCount;
@@ -960,8 +987,8 @@ int ppmArrayMalloc(void **ppmArray, struct plotSettings *imagePlot, struct block
 	block->blockRows = imagePlot->yPMax / block->blockCount;
 	block->remainderRows = imagePlot->yPMax % block->blockCount;
 	
-	ppmArraySize = block->blockRows * imagePlot->xPMax * elementSize;
-	
+	ppmArraySize = (size_t) block->blockRows * (size_t) imagePlot->xPMax * (size_t) elementSize;
+
 	if ((*ppmArray = realloc(*ppmArray, ppmArraySize)) == NULL)
 	{
 		fprintf(stderr, "[ERROR]     Memory reallocation failed\n");
@@ -971,7 +998,7 @@ int ppmArrayMalloc(void **ppmArray, struct plotSettings *imagePlot, struct block
 		return 1;
 	}
 	
-	printf("[MAIN]      Memory successfully reallocated as %d blocks (block: %d rows, %lld bytes, remainder: %d rows)\n", block->blockCount, block->blockRows, ppmArraySize, block->remainderRows);
+	printf("[MAIN]      Memory successfully reallocated as %d blocks (block: %d rows, %zu bytes, remainder: %d rows)\n", block->blockCount, block->blockRows, ppmArraySize, block->remainderRows);
 	
 	return 0;
 }
