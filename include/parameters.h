@@ -2,13 +2,10 @@
 #define PARAMETERS_H
 
 
-#include <limits.h>
-#include <stdint.h>
 #include <stddef.h>
-#include <complex.h>
-#include <float.h>
+#include <stdio.h>
 
-#include <colour.h>
+#include "colour.h"
 
 
 enum PlotType
@@ -34,20 +31,13 @@ struct ComplexNumber
 
 struct PlotCTX
 {
-    /* Minimum/maximum values */
+    enum PlotType type;
     struct ComplexNumber minimum, maximum;
-
-    /* Maximum iterations before being considered to have escaped */
     unsigned int iterations;
-
-    /* Output type: terminal or PPM file */
     enum OutputType output;
-
-    /* Dimensions of output in pixels or columns/lines */
+    FILE *file;
     size_t width, height;
-
-    /* Colour scheme of the PPM image */
-    enum ColourScheme colour;
+    struct ColourScheme colour;
 };
 
 

@@ -1,4 +1,8 @@
-#include <parameters.h>
+#include "parameters.h"
+
+#include <float.h>
+#include <limits.h>
+#include <stdint.h>
 
 
 const struct ComplexNumber COMPLEX_MIN = {DBL_MIN, DBL_MIN};
@@ -21,52 +25,43 @@ const size_t TERMINAL_HEIGHT = 46;
 /* Set default plot settings for Mandelbrot image output */
 int initialiseParameters(struct PlotCTX *parameters, enum PlotType type)
 {
-    /* Minimum and maximum numbers to plot */
-    struct ComplexNumber mandelbrotMinDefault = {-(ESCAPE_RADIUS), -1.25};
-    struct ComplexNumber mandelbrotMaxDefault = {0.75, 1.25};
+    const struct PlotCTX MANDELBROT_PARAMETERS_DEFAULT =
+    {
+        .type = PLOT_MANDELBROT,
+        .minimum = {-2.0, -1.25},
+        .maximum = {0.75, 1.25},
+        .iterations = 100,
+        .output = OUTPUT_PPM,
+        .file = NULL,
+        .width = 550,
+        .height = 500
+    };
 
-    struct ComplexNumber juliaMinDefault = {-(ESCAPE_RADIUS), ESCAPE_RADIUS};
-    struct ComplexNumber juliaMaxDefault = {ESCAPE_RADIUS, ESCAPE_RADIUS};
-
-    /* Maximum iteration count */
-    const unsigned int ITERATIONS_DEFAULT = 100;
-
-    /* Pixels per unit */
-    const double DEFAULT_SCALE_FACTOR = 200.0;
-
-    /* Dimensions */
-    size_t mandelbrotWidthDefault = (mandelbrotMaxDefault.re - mandelbrotMinDefault.re) * DEFAULT_SCALE_FACTOR;
-    size_t mandelbrotHeightDefault = (mandelbrotMaxDefault.im - mandelbrotMinDefault.im) * DEFAULT_SCALE_FACTOR;
-
-    size_t juliaWidthDefault = (juliaMaxDefault.re - juliaMinDefault.re) * DEFAULT_SCALE_FACTOR;
-    size_t juliaHeightDefault = (juliaMaxDefault.im - juliaMinDefault.im) * DEFAULT_SCALE_FACTOR;
-
-    /* Default colour scheme */
-    const enum ColourScheme colour = SCHEME_DEFAULT;
+    const struct PlotCTX JULIA_PARAMETERS_DEFAULT =
+    {
+        .type = PLOT_JULIA,
+        .minimum = {-2.0, 2.0},
+        .maximum = {2.0, 2.0},
+        .iterations = 100,
+        .output = OUTPUT_PPM,
+        .file = NULL,
+        .width = 800,
+        .height = 800
+    };
 
     switch (type)
     {
         case PLOT_MANDELBROT:
-            parameters->minimum     = mandelbrotMinDefault;
-            parameters->maximum     = mandelbrotMaxDefault;
-            parameters->iterations  = ITERATIONS_DEFAULT;
-            parameters->output      = OUTPUT_PPM;
-            parameters->width       = mandelbrotWidthDefault;
-            parameters->height      = mandelbrotHeightDefault;
-            parameters->colour      = SCHEME_DEFAULT;
+            *parameters = MANDELBROT_PARAMETERS_DEFAULT;
             break;
         case PLOT_JULIA:
-            parameters->minimum     = juliaMinDefault;
-            parameters->maximum     = juliaMaxDefault;
-            parameters->iterations  = ITERATIONS_DEFAULT;
-            parameters->output      = OUTPUT_PPM;
-            parameters->width       = juliaWidthDefault;
-            parameters->height      = juliaHeightDefault;
-            parameters->colour      = SCHEME_DEFAULT;
+            *parameters = JULIA_PARAMETERS_DEFAULT;
             break;
         default:
             return 1;
     }
+
+    initialiseColourScheme(&(parameters->colour), COLOUR_SCHEME_TYPE_DEFAULT);
 
     return 0;
 }
