@@ -564,15 +564,8 @@ void * juliaSet(void *parameters)
                         *((unsigned char *) plotParameters->ppmArray + yP * imagePlot->xPMax / 8 + xP / 8) = blackAndWhiteBitField;
                         bitCount = 0;
                     }
-                    
-                    if (n == imagePlot->nMax)
-                    {
-                        blackAndWhiteBitField |= 1 << (7 - bitCount); /* Set bitCount'th bit of the byte */
-                    }
-                    else
-                    {
-                        blackAndWhiteBitField &= ~(1 << (7 - bitCount)); /* Unset bitCount'th bit of the byte */
-                    }
+
+                    /* SET BIT FIELD */
                 }
                 else if (imagePlot->colourScheme == 2) /* White and black */
                 {
@@ -584,14 +577,7 @@ void * juliaSet(void *parameters)
                         bitCount = 0;
                     }
                     
-                    if (n == imagePlot->nMax)
-                    {
-                        blackAndWhiteBitField &= ~(1 << (7 - bitCount)); /* Unset bitCount'th bit of the byte */
-                    }
-                    else
-                    {
-                        blackAndWhiteBitField |= 1 << (7 - bitCount); /* Set bitCount'th bit of the byte */
-                    }
+                    /* SET BIT FIELD */
                 }
                 else if (imagePlot->colourScheme == 3) /* Grayscale */
                 {
