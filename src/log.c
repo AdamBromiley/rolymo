@@ -1,59 +1,27 @@
-#include <log.h>
+#include "log.h"
+
+#include <stdarg.h>
+#include <stdio.h>
+#include <string.h>
+#include <time.h>
 
 
-_Bool verbose = DEFAULT_VERBOSITY;
-enum LogSeverity loggingLevel = DEFAULT_LOGGING_LEVEL;
+#define TIME_STRING_LENGTH_MAX 32
+#define SEVERITY_STRING_LENGTH_MAX 10
+#define LOG_MESSAGE_LENGTH_MAX 256
+#define LOG_ENTRY_LENGTH_MAX 512
 
+
+static enum Verbosity verbose = QUIET;
+static enum LogSeverity loggingLevel = INFO;
 static FILE *logFile = NULL;
 
 
-/* Get date and time in RFC 3339 format - YYYY-MM-DD hh:mm:ss */
-void getTime(char *buffer, size_t bufferSize)
-{
-    const char *RFC3339_TIME_FORMAT_STRING = "%Y-%m-%d %H:%M:%S";
-
-    const time_t CURRENT_TIME = time(NULL);
-    struct tm *CURRENT_TIME_STRUCTURED = localtime(&CURRENT_TIME);
-
-    strftime(buffer, bufferSize, RFC3339_TIME_FORMAT_STRING, CURRENT_TIME_STRUCTURED);
-
-    buffer[bufferSize - 1] = 0;
-
-    return;
-}
+static void getTime(char *buffer, size_t bufferSize);
+static void getSeverityString(char *buffer, enum LogSeverity messageLevel, size_t bufferSize);
 
 
-/* Convert severity level to a string */
-void getSeverityString(char *buffer, enum LogSeverity messageLevel, size_t bufferSize)
-{
-    switch (messageLevel)
-    {
-        case DEBUG:
-            strncpy(buffer, "DEBUG", bufferSize);
-            break;
-        case INFO:
-            strncpy(buffer, "INFO", bufferSize);
-            break;
-        case WARNING:
-            strncpy(buffer, "WARNING", bufferSize);
-            break;
-        case ERROR:
-            strncpy(buffer, "ERROR", bufferSize);
-            break;
-        case FATAL:
-            strncpy(buffer, "FATAL", bufferSize);
-            break;
-        default:
-            strncpy(buffer, "NONE", bufferSize);
-            break;
-    }
-
-    buffer[bufferSize - 1] = 0;
-
-    return;
-}
-
-
+/* Write to log */
 void logMessage(enum LogSeverity messageLevel, const char *formatString, ...)
 {
     va_list formatArguments;
@@ -64,7 +32,7 @@ void logMessage(enum LogSeverity messageLevel, const char *formatString, ...)
     char logEntry[LOG_ENTRY_LENGTH_MAX + 1];
     
     /* Ignore if there's nowhere to log to */
-    if (logFile == NULL && verbose != 1)
+    if (logFile == NULL && verbose == QUIET)
     {
         return;
     }
@@ -94,7 +62,7 @@ void logMessage(enum LogSeverity messageLevel, const char *formatString, ...)
         fprintf(logFile, "%s", logEntry);
     }
 
-    if (verbose == 1)
+    if (verbose == VERBOSE)
     {
         fprintf(stderr, "%s", logEntry);
     }
@@ -103,13 +71,17 @@ void logMessage(enum LogSeverity messageLevel, const char *formatString, ...)
 }
 
 
-int initialiseLog(const char *logFilePath, const char *programName)
+/* Open log file */
+int initialiseLog(enum Verbosity mode, enum LogSeverity level, const char *filePath)
 {
-    logMessage(DEBUG, "Initialising log file \"%s\"", logFilePath);
+    logMessage(DEBUG, "Initialising log file \'%s\'", filePath);
 
-    if ((logFile = fopen(logFilePath, "a")) == NULL)
+    verbose = mode;
+    loggingLevel = level;
+
+    if ((logFile = fopen(filePath, "a")) == NULL)
     {
-        fprintf(stderr, "%s: Log file could not be intialised\n", programName);
+        logMessage(ERROR, "Log file could not be opened");
         return 1;
     }
 
@@ -118,6 +90,7 @@ int initialiseLog(const char *logFilePath, const char *programName)
 }
 
 
+/* Close log file */
 int closeLog(void)
 {
     logMessage(DEBUG, "Closing log file");
@@ -125,9 +98,58 @@ int closeLog(void)
     if (fclose(logFile) != 0)
     {
         logFile = NULL;
-        logMessage(WARNING, "Log file could not be closed");
+        logMessage(ERROR, "Log file could not be closed");
         return 1;
     }
 
+    logFile = NULL;
+    logMessage(DEBUG, "Log file closed");
     return 0;
+}
+
+
+/* Get date and time in RFC 3339 format - YYYY-MM-DD hh:mm:ss */
+static void getTime(char *buffer, size_t bufferSize)
+{
+    const char *RFC3339_TIME_FORMAT_STRING = "%Y-%m-%d %H:%M:%S";
+
+    const time_t CURRENT_TIME = time(NULL);
+    const struct tm *CURRENT_TIME_STRUCTURED = localtime(&CURRENT_TIME);
+
+    strftime(buffer, bufferSize, RFC3339_TIME_FORMAT_STRING, CURRENT_TIME_STRUCTURED);
+
+    buffer[bufferSize - 1] = 0;
+
+    return;
+}
+
+
+/* Convert severity level to a string */
+static void getSeverityString(char *buffer, enum LogSeverity messageLevel, size_t bufferSize)
+{
+    switch (messageLevel)
+    {
+        case DEBUG:
+            strncpy(buffer, "DEBUG", bufferSize);
+            break;
+        case INFO:
+            strncpy(buffer, "INFO", bufferSize);
+            break;
+        case WARNING:
+            strncpy(buffer, "WARNING", bufferSize);
+            break;
+        case ERROR:
+            strncpy(buffer, "ERROR", bufferSize);
+            break;
+        case FATAL:
+            strncpy(buffer, "FATAL", bufferSize);
+            break;
+        default:
+            strncpy(buffer, "NONE", bufferSize);
+            break;
+    }
+
+    buffer[bufferSize - 1] = 0;
+
+    return;
 }
