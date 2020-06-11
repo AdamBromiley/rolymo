@@ -2,10 +2,7 @@
 #define PARSER_H
 
 
-#include <stdlib.h>
 #include <stdint.h>
-#include <inttypes.h>
-#include <errno.h>
 
 
 enum ParserErrorCode

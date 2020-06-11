@@ -1,4 +1,10 @@
-#include <parser.h>
+#include "parser.h"
+
+#include <ctype.h>
+#include <errno.h>
+#include <inttypes.h>
+#include <stdint.h>
+#include <stdlib.h>
 
 
 /* Convert string to double and handle errors */
