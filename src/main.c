@@ -1,31 +1,50 @@
-#include <main.h>
+#include <getopt.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <sys/sysinfo.h>
+
+#include "log.h"
+#include "parameters.h"
+#include "parser.h"
+
+
+enum GetoptError
+{
+    OPT_NONE,
+    OPT_ERROR,
+    OPT_EOPT,
+    OPT_ENOARG,
+    OPT_EARG,
+    OPT_EMANY,
+    OPT_EARGC_LOW,
+    OPT_EARGC_HIGH
+};
+
+
+int usage(void);
+int doubleArgument(double *x, const char *argument, double xMin, double xMax, char optionID);
+int uLongArgument(unsigned long int *x, const char *argument, unsigned long int xMin, unsigned long int xMax,
+                     char optionID);
+int uIntMaxArgument(uintmax_t *x, const char *argument, uintmax_t xMin, uintmax_t xMax, char optionID);
+int getoptErrorMessage(enum GetoptError optionError, char shortOption, const char *longOption);
+
+
+static const char *PROGRAM_NAME;
+static const char *OUTPUT_FILE_PATH_DEFAULT = "output.ppm";
+static const int DBL_PRINTF_PRECISION = 2;
 
 
 int main(int argc, char **argv) /* Take in command-line options */
 {
-    const char *programName = argv[0];
+    const char *GETOPT_STRING = ":jto:x:X:y:Y:i:r:s:c:h";
 
-    int optionID;
-
-    int result;
-
-    enum PlotType plotType = PLOT_NONE;
-    struct PlotCTX parameters;
-
-    char *outputFilePath;
-    FILE *outputFile;
-    
-    #include <sys/sysinfo.h>
-
-/* Get number of online processors */
-    processorCount = get_nprocs();
-
-    /* Command-line options */
-    struct option longOptions[] =
+    int optionID, argError;
+    const struct option longOptions[] =
     {
         {"j", no_argument, NULL, 'j'}, /* Plot a Julia set */
-        {"m", no_argument, NULL, 'm'}, /* Plot the Mandlebrot set */
-        {"t", no_argument, &parameters.output, OUTPUT_TERMINAL}, /* Output to terminal */
+        {"t", no_argument, NULL, 't'}, /* Output to terminal */
         {"o", required_argument, NULL, 'o'}, /* Output PPM file name */
         {"xmin", required_argument, NULL, 'x'}, /* Minimum/maximum X and Y coordinates */
         {"xmax", required_argument, NULL, 'X'},
@@ -38,289 +57,155 @@ int main(int argc, char **argv) /* Take in command-line options */
         {"help", no_argument, NULL, 'h'}, /* For guidance on command-line options */
         {0, 0, 0, 0}
     };
+
+    struct PlotCTX parameters;
+    char *outputFilePath = NULL;
+    
+    /* Get number of online processors */
+    int processorCount = get_nprocs();
+
+    PROGRAM_NAME = argv[0];
+
+    if ((parameters.type = getPlotType(argc, argv, longOptions)) == PLOT_NONE)
+    {
+        return getoptErrorMessage(OPT_NONE, 0, NULL);
+    }
+
+    if (initialiseParameters(&parameters, parameters.type) != 0)
+    {
+        return getoptErrorMessage(OPT_ERROR, 0, NULL);
+    }
     
     opterr = 0;
     
-    while ((optionID = getopt_long(argc, argv, OPTSTRING, longOptions, NULL)) != -1)
+    while ((optionID = getopt_long(argc, argv, GETOPT_STRING, longOptions, NULL)) != -1)
     {
-        /* Set default parameters for plot type */
-        if (optind == 1)
-        {
-            switch (optionID)
-            {
-                case 'j':
-                    plotType = PLOT_JULIA;
-                    break;
-                case 'm':
-                    plotType = PLOT_MANDELBROT;
-                    break;
-                default:
-                    fprintf(stderr, "%s: First option must specify plot type\n", programName);
-                    return getoptErrorMessage(OPT_NONE, programName, 0, NULL);
-            }
-
-            if (initialiseParameters(&parameters, plotType) != 0)
-            {
-                return getoptErrorMessage(OPT_ERROR, programName, 0, NULL);
-            }
-
-            continue;
-        }
+        argError = PARSER_NONE;
 
         switch (optionID)
         {
-            case 0:
-                break;
             case 'j':
-                return getoptErrorMessage(OPT_EMANY, programName, optionID, NULL);
-            case 'm':
-                return getoptErrorMessage(OPT_EMANY, programName, optionID, NULL);
+                break;
             case 't':
+                parameters.output = OUTPUT_TERMINAL;
                 break;
             case 'o':
                 outputFilePath = optarg;
                 break;
             case 'x':
-                result = doubleArgument(&(parameters.minimum.re), optarg, COMPLEX_MIN.re, COMPLEX_MAX.re, programName, optionID);
-
-                if (result == PARSER_ERANGE)
-                {
-                    return getoptErrorMessage(OPT_NONE, programName, optionID, NULL);
-                }
-                else if (result != PARSER_NONE)
-                {
-                    return getoptErrorMessage(OPT_EARG, programName, optionID, NULL);
-                }
-
+                argError = doubleArgument(&(parameters.minimum.re), optarg, COMPLEX_MIN.re, COMPLEX_MAX.re, optionID);
                 break;
             case 'X':
-                result = doubleArgument(&(parameters.maximum.re), optarg, COMPLEX_MIN.re, COMPLEX_MAX.re, programName, optionID);
-
-                if (result == PARSER_ERANGE)
-                {
-                    return getoptErrorMessage(OPT_NONE, programName, optionID, NULL);
-                }
-                else if (result != PARSER_NONE)
-                {
-                    return getoptErrorMessage(OPT_EARG, programName, optionID, NULL);
-                }
-
+                argError = doubleArgument(&(parameters.maximum.re), optarg, COMPLEX_MIN.re, COMPLEX_MAX.re, optionID);
                 break;
             case 'y':
-                result = doubleArgument(&(parameters.minimum.im), optarg, COMPLEX_MIN.im, COMPLEX_MAX.im, programName, optionID);
-
-                if (result == PARSER_ERANGE)
-                {
-                    return getoptErrorMessage(OPT_NONE, programName, optionID, NULL);
-                }
-                else if (result != PARSER_NONE)
-                {
-                    return getoptErrorMessage(OPT_EARG, programName, optionID, NULL);
-                }
-
+                argError = doubleArgument(&(parameters.minimum.im), optarg, COMPLEX_MIN.im, COMPLEX_MAX.im, optionID);
                 break;
             case 'Y':
-                result = doubleArgument(&(parameters.maximum.im), optarg, COMPLEX_MIN.im, COMPLEX_MAX.im, programName, optionID);
-
-                if (result == PARSER_ERANGE)
-                {
-                    return getoptErrorMessage(OPT_NONE, programName, optionID, NULL);
-                }
-                else if (result != PARSER_NONE)
-                {
-                    return getoptErrorMessage(OPT_EARG, programName, optionID, NULL);
-                }
-
+                argError = doubleArgument(&(parameters.maximum.im), optarg, COMPLEX_MIN.im, COMPLEX_MAX.im, optionID);
                 break;
             case 'i':
-                result = uLongArgument(&(parameters.iterations), optarg, ITERATIONS_MIN, ITERATIONS_MAX, programName, optionID);
-
-                if (result == PARSER_ERANGE)
-                {
-                    return getoptErrorMessage(OPT_NONE, programName, optionID, NULL);
-                }
-                else if (result != PARSER_NONE)
-                {
-                    return getoptErrorMessage(OPT_EARG, programName, optionID, NULL);
-                }
-
+                argError = uLongArgument(&(parameters.iterations), optarg, ITERATIONS_MIN, ITERATIONS_MAX, optionID);
                 break;
             case 'r':
-                result = uIntMaxArgument(&(parameters.width), optarg, WIDTH_MIN, WIDTH_MAX, programName, optionID);
-
-                if (result == PARSER_ERANGE)
-                {
-                    return getoptErrorMessage(OPT_NONE, programName, optionID, NULL);
-                }
-                else if (result != PARSER_NONE)
-                {
-                    return getoptErrorMessage(OPT_EARG, programName, optionID, NULL);
-                }
-
+                argError = uIntMaxArgument(&(parameters.width), optarg, WIDTH_MIN, WIDTH_MAX, optionID);
                 break;
             case 's':
-                result = uIntMaxArgument(&(parameters.height), optarg, HEIGHT_MIN, HEIGHT_MAX, programName, optionID);
-
-                if (result == PARSER_ERANGE)
-                {
-                    return getoptErrorMessage(OPT_NONE, programName, optionID, NULL);
-                }
-                else if (result != PARSER_NONE)
-                {
-                    return getoptErrorMessage(OPT_EARG, programName, optionID, NULL);
-                }
-
+                argError = uIntMaxArgument(&(parameters.height), optarg, HEIGHT_MIN, HEIGHT_MAX, optionID);
                 break;
             case 'c':
-                result = uLongArgument(&(parameters.colour), optarg, COLOUR_MIN, COLOUR_MAX, programName, optionID);
-
-                if (result == PARSER_ERANGE)
-                {
-                    return getoptErrorMessage(OPT_NONE, programName, optionID, NULL);
-                }
-                else if (result != PARSER_NONE)
-                {
-                    return getoptErrorMessage(OPT_EARG, programName, optionID, NULL);
-                }
-
+                argError = uLongArgument(&(parameters.colour), optarg, COLOUR_SCHEME_TYPE_MIN,
+                             COLOUR_SCHEME_TYPE_MAX, optionID);
                 break;
             case 'h':
-                return usage(programName);
+                return usage();
             case '?':
-                return getoptErrorMessage(OPT_EOPT, programName, optionID, NULL);
+                return getoptErrorMessage(OPT_EOPT, optopt, argv[optind - 1]);
             case ':':
-                return getoptErrorMessage(OPT_ENOARG, programName, optionID, NULL);
+                return getoptErrorMessage(OPT_ENOARG, optopt, NULL);
             default:
-                return getoptErrorMessage(OPT_ERROR, programName, optionID, NULL);
+                return getoptErrorMessage(OPT_ERROR, 0, NULL);
+        }
+
+        if (argError == PARSER_ERANGE)
+        {
+            return getoptErrorMessage(OPT_NONE, 0, NULL);
+        }
+        else if (argError != PARSER_NONE)
+        {
+            return getoptErrorMessage(OPT_EARG, optionID, NULL);
         }
     }
 
-    if ((imagePlot.colourScheme == 1 || imagePlot.colourScheme == 2) && imagePlot.xPMax % 8 != 0)
+    if (parameters.output != OUTPUT_TERMINAL)
     {
-        fprintf(stderr, "[ERROR]     Width must be a multiple of 8 for a B&W image because each pixel is a bit wide\n");
-        return exitError(fileName);
-    }
-    
-    if (imagePlot.xCMax <= imagePlot.xCMin)
-    {
-        fprintf(stderr, "[ERROR]     Invalid x-coordinate range\n");
-        return exitError(fileName);
-    }
-    else if (imagePlot.yCMax <= imagePlot.yCMin)
-    {
-        fprintf(stderr, "[ERROR]     Invalid y-coordinate range\n");
-        return exitError(fileName);
-    }
-    
-    if (fileName != NULL && imagePlot.pFlag == 0)
-    {
-        fprintf(stderr, "[ERROR]     Terminal output does not generate a file\n");
-        return exitError(fileName);
-    }
-    else if (pFlag == 1 && tFlag == 1)
-    {
-        fprintf(stderr, "[ERROR]     Multiple output types selected\n");
-        return exitError(fileName);
-    }
-    else if (jFlag == mFlag)
-    {
-        if (jFlag == 1)
+        if (outputFilePath == NULL)
         {
-            fprintf(stderr, "[ERROR]     Multiple plot types selected\n");
+            outputFilePath = OUTPUT_FILE_PATH_DEFAULT;
         }
-        else
-        {
-            fprintf(stderr, "[ERROR]     No plot type selected\n");
-        }
-        return exitError(fileName);
-    }
-    else if (fileName == NULL && imagePlot.pFlag == 1)
-    {
-        fprintf(stderr, "[WARNING]   No output file name specified... defaulted to 'output.ppm'\n");
 
-        if ((fileName = malloc((strlen(DEFAULT_FILENAME) + 1) * sizeof(char))) == NULL)
+        if ((parameters.file = fopen(outputFilePath, "w")) == NULL)
         {
-            fprintf(stderr, "[ERROR]     Memory allocation failure\n");
-            return exitError(fileName);
+            fprintf(stderr, "%s: %s: Could not open file\n", PROGRAM_NAME, outputFilePath);
+            return getoptErrorMessage(OPT_NONE, 0, NULL);
         }
-        strcpy(fileName, DEFAULT_FILENAME);
-    }
-
-    if (imagePlot.nMax < MIN_ITERMAX)
-    {
-        fprintf(stderr, "[WARNING]   Maximum iteration count is low and may result in an unsatisfactory plot. Recommended range is between %d and %d\n", MIN_ITERMAX, MAX_ITERMAX);
-    }
-    else if (imagePlot.nMax > MAX_ITERMAX)
-    {
-        fprintf(stderr, "[WARNING]   Maximum iteration count is high and may not noticeably increase the quality of the plot. Recommended range is between %d and %d\n", MIN_ITERMAX, MAX_ITERMAX);
-    }
-    
-    if (ESCAPE_RADIUS > 2)
-    {
-        fprintf(stderr, "[WARNING]   Escape radius is greater than 2. A number, z, is guaranteed to escape if |z| > 2 so there will be unecessary calculations\n");
-    }
-    else if (ESCAPE_RADIUS < 2)
-    {
-        fprintf(stderr, "[WARNING]   Escape radius is less than 2. This will result in some points incorrectly being classified as within the set. Recommended value is 2\n");
-    }
-    
-    if (imagePlot.xPMax > MAX_WIDTH)
-    {
-        fprintf(stderr, "[WARNING]   Image width is very high; the program may be killed unexpectedly by the kernel. Recommend range is below %dpx\n", MAX_WIDTH);
-    }
-    else if (imagePlot.yPMax > MAX_HEIGHT)
-    {
-        fprintf(stderr, "[WARNING]   Image height is very high; the program may be killed unexpectedly by the kernel. Recommended range is below %dpx\n", MAX_HEIGHT);
-    }
-    
-    if (imagePlot.xCMax > 2 || imagePlot.xCMin < -2 || imagePlot.yCMax > 2 || imagePlot.yCMin < -2)
-    {
-        fprintf(stderr, "[WARNING]   The coordinate range extends outside [(-2, -2), (2, 2)] (where Mandelbrot/Julia sets are contained). This will lead to redundant points being calulated\n");
-    }
-    
-    if ((rFlag == 1 || sFlag == 1) && tFlag == 1)
-    {
-        fprintf(stderr, "[WARNING]   Resolution of the terminal output defaults back to %d by %d\n", TERMINAL_WIDTH, TERMINAL_HEIGHT);
-    }
-    
-    if (tFlag == 1 && cFlag == 1)
-    {
-        fprintf(stderr, "[WARNING]   --colour has no effect on terminal output\n");
-    }
-    
-    if (imagePlot.pFlag == 0)
-    {	
-        struct plotSettings *terminalPlot;
-        terminalPlot = &imagePlot;
-        terminalOutput(terminalPlot, mFlag);
     }
     else
     {
-        if (imageOutput(&imagePlot, mFlag, fileName) == 1)
-        {
-            return exitError(fileName);
-        }
+        parameters.file = stdout;
     }
     
-    return exitSuccess(fileName);
+    
+    if (validateParameters(parameters) != 0)
+    {
+        return getoptErrorMessage(OPT_NONE, 0, NULL);
+    }
+    
+
+    return EXIT_SUCCESS;
 }
 
 
-int usage(const char *programName)
+enum PlotType getPlotType(int argc, char **argv, const struct option longOptions[])
 {
-    printf("Usage: %s [-j|-m] [-t|-p [-o FILENAME] [--colour=SCHEME]] [PLOT PARAMETERS...]\n", programName);
-    printf("       %s --help\n\n", programName);
+    const enum PlotType PLOT_TYPE_DEFAULT = PLOT_MANDELBROT;
+    enum PlotType type = PLOT_NONE;
+
+    int optionID;
+
+    while ((optionID = getopt_long(argc, argv, "j", longOptions, NULL)) != -1)
+    {
+        if (optionID == 'j')
+        {
+            type = PLOT_JULIA;
+            break;
+        }
+    }
+
+    optind = 1;
+
+    if (type == PLOT_NONE)
+    {
+        type = PLOT_TYPE_DEFAULT;
+    }
+
+    return type;
+}
+
+
+int usage(void)
+{
+    printf("Usage: %s [-j] [-t|[-o FILENAME --colour=SCHEME]] [PLOT PARAMETERS...]\n", PROGRAM_NAME);
+    printf("       %s --help\n\n", PROGRAM_NAME);
     printf("A Mandelbrot and Julia set plotter.\n\n");
     printf("Mandatory arguments to long options are mandatory for short options too.\n");
     printf("Plot type:\n");
     printf("  -j                           Julia set (c variable is prompted for during execution)\n");
-    printf("  -m                           Mandelbrot set\n\n");
     printf("Output formatting:\n");
     printf("  -t                           Output to terminal using ASCII characters as shading\n");
-    printf("  -p                           Output to PPM image file (default)\n");
-    printf("  -o FILENAME                  With -p: Specify output file name\n");
-    printf("                               [+] Default = \"%s\"\n", DEFAULT_FILENAME);
-    printf("  -c SCHEME, --colour=SCHEME   With -p: Specify colour palette to use\n");
+    printf("  -o FILENAME                  Specify output file name\n");
+    printf("                               [+] Default = \'%s\'\n", OUTPUT_FILE_PATH_DEFAULT);
+    printf("  -c SCHEME, --colour=SCHEME   Specify colour palette to use\n");
     printf("                               [+] Default = 0\n");
     printf("                               [+] SCHEME may be:\n");
     printf("                                   0 = All hues\n");
@@ -374,18 +259,18 @@ int usage(const char *programName)
 
 
 /* Wrapper for stringToDouble() */
-int doubleArgument(double *x, const char *argument, double xMin, double xMax, char *programName, char optionID)
+int doubleArgument(double *x, const char *argument, double xMin, double xMax, char optionID)
 {
-    int result;
+    int argError;
 
-    result = stringToDouble(argument, x, xMin, xMax);
+    argError = stringToDouble(argument, x, xMin, xMax);
                 
-    if (result != PARSER_NONE)
+    if (argError != PARSER_NONE)
     {
-        if (result == PARSER_ERANGE || result == PARSER_EMIN || result == PARSER_EMAX)
+        if (argError == PARSER_ERANGE || argError == PARSER_EMIN || argError == PARSER_EMAX)
         {
             fprintf(stderr, "%s: -%c: Argument out of range, it must be between %.*g and %.*g\n", 
-                programName, optionID, DBL_PRECISION, xMin, DBL_PRECISION, xMax);
+                PROGRAM_NAME, optionID, DBL_PRINTF_PRECISION, xMin, DBL_PRINTF_PRECISION, xMax);
             return PARSER_ERANGE;
         }
 
@@ -398,19 +283,19 @@ int doubleArgument(double *x, const char *argument, double xMin, double xMax, ch
 
 /* Wrapper for stringToULong() */
 int uLongArgument(unsigned long int *x, const char *argument, unsigned long int xMin, unsigned long int xMax,
-                     char *programName, char optionID)
+                     char optionID)
 {
     const int BASE = 10;
-    int result;
+    int argError;
 
-    result = stringToULong(argument, x, xMin, xMax, BASE);
+    argError = stringToULong(argument, x, xMin, xMax, BASE);
                 
-    if (result != PARSER_NONE)
+    if (argError != PARSER_NONE)
     {
-        if (result == PARSER_ERANGE || result == PARSER_EMIN || result == PARSER_EMAX)
+        if (argError == PARSER_ERANGE || argError == PARSER_EMIN || argError == PARSER_EMAX)
         {
             fprintf(stderr, "%s: -%c: Argument out of range, it must be between %lu and %lu\n", 
-                programName, optionID, xMin, xMax);
+                PROGRAM_NAME, optionID, xMin, xMax);
             return PARSER_ERANGE;
         }
 
@@ -422,20 +307,19 @@ int uLongArgument(unsigned long int *x, const char *argument, unsigned long int 
 
 
 /* Wrapper for stringToUIntMax() */
-int uIntMaxArgument(uintmax_t *x, const char *argument, uintmax_t xMin, uintmax_t xMax,
-                       char *programName, char optionID)
+int uIntMaxArgument(uintmax_t *x, const char *argument, uintmax_t xMin, uintmax_t xMax, char optionID)
 {
     const int BASE = 10;
-    int result;
+    int argError;
 
-    result = stringToUIntMax(argument, x, xMin, xMax, BASE);
+    argError = stringToUIntMax(argument, x, xMin, xMax, BASE);
                 
-    if (result != PARSER_NONE)
+    if (argError != PARSER_NONE)
     {
-        if (result == PARSER_ERANGE || result == PARSER_EMIN || result == PARSER_EMAX)
+        if (argError == PARSER_ERANGE || argError == PARSER_EMIN || argError == PARSER_EMAX)
         {
             fprintf(stderr, "%s: -%c: Argument out of range, it must be between %" PRIuMAX " and %" PRIuMAX "\n", 
-                programName, optionID, xMin, xMax);
+                PROGRAM_NAME, optionID, xMin, xMax);
             return PARSER_ERANGE;
         }
 
@@ -447,44 +331,93 @@ int uIntMaxArgument(uintmax_t *x, const char *argument, uintmax_t xMin, uintmax_
 
 
 /* Convert error code to message when parsing command line arguments */
-int getoptErrorMessage(enum GetoptError optionError, const char *programName, char shortOption, const char *longOption)
+int getoptErrorMessage(enum GetoptError optionError, char shortOption, const char *longOption)
 {
     switch (optionError)
     {
         case OPT_NONE:
             break;
         case OPT_ERROR:
-            fprintf(stderr, "%s: Unknown error when reading command-line options\n", programName);
+            fprintf(stderr, "%s: Unknown error when reading command-line options\n", PROGRAM_NAME);
             break;
         case OPT_EOPT:
             if (shortOption == 0)
             {
-                fprintf(stderr, "%s: Invalid option: \'%s\'\n", programName, longOption);
+                fprintf(stderr, "%s: Invalid option: \'%s\'\n", PROGRAM_NAME, longOption);
             }
             else
             {
-                fprintf(stderr, "%s: Invalid option: \'-%c\'\n", programName, shortOption);
+                fprintf(stderr, "%s: Invalid option: \'-%c\'\n", PROGRAM_NAME, shortOption);
             }
             break;
         case OPT_ENOARG:
-            fprintf(stderr, "%s: -%c: Option argument required\n", programName, shortOption);
+            fprintf(stderr, "%s: -%c: Option argument required\n", PROGRAM_NAME, shortOption);
             break;
         case OPT_EARG:
-            fprintf(stderr, "%s: -%c: Failed to parse argument\n", programName, shortOption);
+            fprintf(stderr, "%s: -%c: Failed to parse argument\n", PROGRAM_NAME, shortOption);
             break;
         case OPT_EMANY:
-            fprintf(stderr, "%s: -%c: Option can only appear once\n", programName, shortOption);
+            fprintf(stderr, "%s: -%c: Option can only appear once\n", PROGRAM_NAME, shortOption);
             break;
         case OPT_EARGC_LOW:
-            fprintf(stderr, "%s: Too few arguments supplied\n", programName);
+            fprintf(stderr, "%s: Too few arguments supplied\n", PROGRAM_NAME);
             break;
         case OPT_EARGC_HIGH:
-            fprintf(stderr, "%s: Too many arguments supplied\n", programName);
+            fprintf(stderr, "%s: Too many arguments supplied\n", PROGRAM_NAME);
             break;
         default:
             break;
     }
 
-    fprintf(stderr, "Try \'%s --help\' for more information\n", programName);
+    fprintf(stderr, "Try \'%s --help\' for more information\n", PROGRAM_NAME);
     return EXIT_FAILURE;
+}
+
+
+/* Check user-supplied parameters */
+int validateParameters(struct PlotCTX parameters)
+{
+    const unsigned int ITERATIONS_RECOMMENDED_MIN = 50;
+    const unsigned int ITERATIONS_RECOMMENDED_MAX = 200;
+    
+    if (parameters.maximum.re <= parameters.minimum.re)
+    {
+        fprintf(stderr, "%s: Invalid real number range\n", PROGRAM_NAME);
+        return 1;
+    }
+    else if (parameters.maximum.im <= parameters.minimum.im)
+    {
+        fprintf(stderr, "%s: Invalid imaginary number range\n", PROGRAM_NAME);
+        return 1;
+    }
+
+    if (parameters.colour.depth == BIT_DEPTH_1 && parameters.width % CHAR_BIT != 0)
+    {
+        parameters.width = parameters.width + CHAR_BIT - (parameters.width % CHAR_BIT);
+        logMessage(WARNING, "For 1-bit pixel colour schemes, the width must be a multiple of %zu. Width set to %zu",
+            CHAR_BIT, parameters.width);
+    }
+
+    if (parameters.iterations < ITERATIONS_RECOMMENDED_MIN)
+    {
+        logMessage(WARNING, "Maximum iteration count is low and may argError in an imprecise plot, "
+            "recommended range is %u to %u", ITERATIONS_RECOMMENDED_MIN, ITERATIONS_RECOMMENDED_MAX);
+    }
+    else if (parameters.iterations > ITERATIONS_RECOMMENDED_MAX)
+    {
+        logMessage(WARNING, "Maximum iteration count is high and may needlessly use resources without a "
+            "noticeable precision increase, recommended range is %u to %u",
+            ITERATIONS_RECOMMENDED_MIN, ITERATIONS_RECOMMENDED_MAX);
+    }
+
+    if (parameters.minimum.re < -(ESCAPE_RADIUS) || parameters.minimum.im < -(ESCAPE_RADIUS) ||
+           parameters.maximum.re > ESCAPE_RADIUS || parameters.maximum.im > ESCAPE_RADIUS)
+    {
+        logMessage(WARNING, "The sample set of complex numbers extends outside (%.*g, %.*g) to (%.*g, %.*g) "
+            "- the set in which the Mandelbrot/Julia sets are guaranteed to be contained within",
+            DBL_PRINTF_PRECISION, -(ESCAPE_RADIUS), DBL_PRINTF_PRECISION, -(ESCAPE_RADIUS),
+            DBL_PRINTF_PRECISION, ESCAPE_RADIUS, DBL_PRINTF_PRECISION, ESCAPE_RADIUS);
+    }
+
+    return 0;
 }
