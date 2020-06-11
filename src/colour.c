@@ -1,243 +1,418 @@
-#include <colour.h>
+#include "colour.h"
 
-const enum ColourScheme COLOUR_MIN;
-const enum ColourScheme COLOUR_MAX;
+#include <math.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
 
 
-int mapASCII(int n, struct complex zN, int nMax, int bitDepth) /* Maps a given iteration count to an index of outputChars[] */
+#define OUTPUT_TERMINAL_CHARSET_ " .:-=+*#%@"
+
+
+const enum ColourSchemeType COLOUR_SCHEME_TYPE_MIN = COLOUR_SCHEME_TYPE_ALL;
+const enum ColourSchemeType COLOUR_SCHEME_TYPE_MAX = COLOUR_SCHEME_TYPE_MATRIX;
+
+
+static const char *OUTPUT_TERMINAL_CHARSET = OUTPUT_TERMINAL_CHARSET_;
+static const size_t OUTPUT_TERMINAL_CHARSET_LENGTH = (sizeof(OUTPUT_TERMINAL_CHARSET_) - 1) / sizeof(char);
+static const int COLOUR_SCALE_MULTIPLIER = 20;
+static const double CHAR_SCALE_MULTIPLIER = 0.3;
+
+static double smoothFactor;
+
+
+static int mapColourSchemeAll(struct ColourRGB *rgb, unsigned int n, enum EscapeStatus status);
+static int mapColourSchemeBlackWhite(struct ColourRGB *rgb, double n, enum EscapeStatus status);
+static int mapColourSchemeWhiteBlack(struct ColourRGB *rgb, double n, enum EscapeStatus status);
+static int mapColourSchemeGreyscale(struct ColourRGB *rgb, double n, enum EscapeStatus status);
+static int mapColourSchemeRedWhite(struct ColourRGB *rgb, double n, enum EscapeStatus status);
+static int mapColourSchemeFire(struct ColourRGB *rgb, double n, enum EscapeStatus status);
+static int mapColourSchemeAllVibrant(struct ColourRGB *rgb, double n, enum EscapeStatus status);
+static int mapColourSchemeRedHot(struct ColourRGB *rgb, double n, enum EscapeStatus status);
+static int mapColourSchemeMatrix(struct ColourRGB *rgb, double n, enum EscapeStatus status);
+static int mapColourSchemeASCII(struct ColourRGB *rgb, double n, enum EscapeStatus status);
+static void hsvToRGB(struct ColourRGB *rgb, struct ColourHSV *hsv);
+static double smooth(unsigned int iterations);
+
+
+void initialiseColourScheme(struct ColourScheme *scheme, enum ColourSchemeType colour)
 {
-    double smoothedN;
-    
-    int charIndex = bitDepth - 1;
-    
-    if (n == nMax)
+    const struct ColourScheme COLOUR_SCHEME_DEFAULT =
     {
-        return charIndex; /* Black */
-    }
-    else
+        COLOUR_SCHEME_TYPE_ALL,
+        BIT_DEPTH_24,
+        mapColourSchemeAll
+    };
+
+    scheme->colour = colour;
+
+    switch (colour)
     {
-        smoothedN = n + 1 - log(log(sqrt(pow(zN.re, 2) + pow(zN.im, 2)))) / log(ESCAPE_RADIUS); /* Makes discrete iteration count a continuous value */
+        case COLOUR_SCHEME_TYPE_DEFAULT:
+            scheme->colour = COLOUR_SCHEME_DEFAULT.colour;
+            scheme->depth = COLOUR_SCHEME_DEFAULT.depth;
+            scheme->mapColour = COLOUR_SCHEME_DEFAULT.mapColour;
+        case COLOUR_SCHEME_TYPE_ASCII:
+            scheme->depth = BIT_DEPTH_ASCII;
+            scheme->mapColour = mapColourSchemeASCII;
+            break;
+        case COLOUR_SCHEME_TYPE_ALL:
+            scheme->depth = BIT_DEPTH_24;
+            scheme->mapColour = mapColourSchemeAll;
+            break;
+        case COLOUR_SCHEME_TYPE_BLACK_WHITE:
+            scheme->depth = BIT_DEPTH_1;
+            scheme->mapColour = mapColourSchemeBlackWhite;
+            break;
+        case COLOUR_SCHEME_TYPE_WHITE_BLACK:
+            scheme->depth = BIT_DEPTH_1;
+            scheme->mapColour = mapColourSchemeWhiteBlack;
+            break;
+        case COLOUR_SCHEME_TYPE_GREYSCALE:
+            scheme->depth = BIT_DEPTH_8;
+            scheme->mapColour = mapColourSchemeGreyscale;
+            break;
+        case COLOUR_SCHEME_TYPE_RED_WHITE:
+            scheme->depth = BIT_DEPTH_24;
+            scheme->mapColour = mapColourSchemeRedWhite;
+            break;
+        case COLOUR_SCHEME_TYPE_FIRE:
+            scheme->depth = BIT_DEPTH_24;
+            scheme->mapColour = mapColourSchemeFire;
+            break;
+        case COLOUR_SCHEME_TYPE_ALL_VIBRANT:
+            scheme->depth = BIT_DEPTH_24;
+            scheme->mapColour = mapColourSchemeAllVibrant;
+            break;
+        case COLOUR_SCHEME_TYPE_RED_HOT:
+            scheme->depth = BIT_DEPTH_24;
+            scheme->mapColour = mapColourSchemeRedHot;
+            break;
+        case COLOUR_SCHEME_TYPE_MATRIX:
+            scheme->depth = BIT_DEPTH_24;
+            scheme->mapColour = mapColourSchemeMatrix;
+            break;
+        default:
+            scheme->colour = COLOUR_SCHEME_DEFAULT.colour;
+            scheme->depth = COLOUR_SCHEME_DEFAULT.depth;
+            scheme->mapColour = COLOUR_SCHEME_DEFAULT.mapColour;
+            break;
     }
-    
-    charIndex = fmod((CHAR_SCALE_MULTIPLIER * smoothedN), charIndex); /* Excludes the black value */
-    
-    return charIndex;
+
+    return;
 }
 
 
-void mapGrayscale(int n, struct complex zN, int nMax, unsigned char *grayscaleShade) /* Maps a given iteration count to a grayscale shade */
+/* Set iteration count smoothing factor */
+void setSmoothFactor(double escapeRadius)
 {
-    double smoothedN;
-    
-    if (n != nMax)
+    smoothFactor = log(log(escapeRadius)) / log(escapeRadius);
+    return;
+}
+
+
+/* Maps an iteration count to an RGB value */
+int mapColour(struct ColourRGB *rgb, struct ColourScheme *scheme, unsigned int iterations, enum EscapeStatus status)
+{
+    double n;
+
+    if (status == ESCAPED)
     {
-        smoothedN = n + 1 - log(log(sqrt(pow(zN.re, 2) + pow(zN.im, 2)))) / log(ESCAPE_RADIUS); /* Makes discrete iteration count a continuous value */
+        n = smooth(iterations);
+    }
+
+    return (scheme->mapColour(rgb, n, status));
+}
+
+
+int mapColourSchemeAll(struct ColourRGB *rgb, unsigned int n, enum EscapeStatus status)
+{
+    struct ColourHSV hsv =
+    {
+        .s = 0.6,
+        .v = 0.0
+    };
+
+    if (status == ESCAPED)
+    {
+        hsv.h = fmod(COLOUR_SCALE_MULTIPLIER * n, 360.0);
+        hsv.v = 0.8;
+    }
+
+    hsvToRGB(rgb, &hsv);
+
+    return 0;
+}
+
+
+int mapColourSchemeBlackWhite(struct ColourRGB *rgb, double n, enum EscapeStatus status)
+{
+    if (status == UNESCAPED)
+    {
+        /* Set n'th bit of the byte */
+        rgb->r |= 1 << (7 - (unsigned int) n);
+    }
+    else if (status == ESCAPED)
+    {
+        /* Unset n'th bit of the byte */
+        rgb->r &= ~(1 << (7 - (unsigned int) n));
+    }
+
+    return 0;
+}
+
+
+int mapColourSchemeWhiteBlack(struct ColourRGB *rgb, double n, enum EscapeStatus status)
+{
+    if (status == UNESCAPED)
+    {
+        /* Unset n'th bit of the byte */
+        rgb->r &= ~(1 << (7 - (unsigned int) n));
+    }
+    else if (status == ESCAPED)
+    {
+        /* Set n'th bit of the byte */
+        rgb->r |= 1 << (7 - (unsigned int) n);
+    }
+
+    return 0;
+}
+
+
+int mapColourSchemeGreyscale(struct ColourRGB *rgb, double n, enum EscapeStatus status)
+{
+    rgb->r = 0;
+
+    if (status == UNESCAPED)
+    {
+        /* Gets values between 0 and 255 */
+        rgb->r = (uint8_t) (255 - fabs(fmod(n * 8.5, 510) - 255));
         
-        *grayscaleShade = 255 - fabs(fmod(smoothedN * 8.5, 510) - 255); /* Gets values between 0 and 255 */
-        
-        if (*grayscaleShade < 30)
+        if (rgb->r < 30)
         {
-            *grayscaleShade = 30; /* Prevents shade getting too dark */
+            /* Prevents shade getting too dark */
+            rgb->r = 30;
         }
     }
-    else /* If inside set, colour black */
-    {
-        *grayscaleShade = 0;
-    }
+
+    return 0;
 }
 
 
-void mapColour(int n, struct complex zN, int nMax, struct rgb *rgbColour, int colourScheme) /* Maps an iteration count to an HSV value */
+int mapColourSchemeRedWhite(struct ColourRGB *rgb, double n, enum EscapeStatus status)
 {
-    double smoothedN;
-    
-    double hue = 0, saturation = 0, value = 0;
-    
-    if (n != nMax)
+    struct ColourHSV hsv =
     {
-        smoothedN = n + 1 - log(log(sqrt(pow(zN.re, 2) + pow(zN.im, 2)))) / log(ESCAPE_RADIUS); /* Makes discrete iteration count a continuous value */
-    }
-    
-    switch (colourScheme)
+        .h = 0.0,
+        .s = 1.0,
+        .v = 1.0
+    };
+
+    if (status == ESCAPED)
     {
-        case 0: /* Default - all colours */
-            value = 0.8;
-            saturation = 0.6;
-            
-            if (n == nMax) /* If inside set */
-            {
-                value = 0; /* Black */
-            }
-            else
-            {
-                hue = fmod(COLOUR_SCALE_MULTIPLIER * smoothedN, 360); /* Any colour */
-            }
-            
-            break;
-        case 4: /* Red and white */
-            hue = 0; /* Red */
-            value = 1;
-            
-            if (n == nMax) /* If inside set */
-            {
-                saturation = 1;
-            }
-            else
-            {
-                saturation = 0.7 - fabs(fmod(smoothedN / 20, 1.4) - 0.7); /* Varies saturation of red between 0 and 0.7 */
-                
-                if (saturation > 0.7)
-                {
-                    saturation = 0.7;
-                }
-                else if (saturation < 0)
-                {
-                    saturation = 0;
-                }
-            }
-            
-            break;
-        case 5: /* Fire */
-            saturation = 0.85;
-            value = 0.85;
-            
-            if (n == nMax) /* If inside set */
-            {
-                value = 0; /* Black */
-            }
-            else
-            {
-                hue = 50 - fabs(fmod(smoothedN * 2, 100) - 50); /* Varies hue between 0 and 50 - red to yellow */
-            }
-            
-            break;
-        case 6: /* Vibrant */
-            saturation = 1;
-            value = 1;
-            
-            if (n == nMax) /* If inside set */
-            {
-                value = 0; /* Black */
-            }
-            else
-            {
-                hue = fmod(COLOUR_SCALE_MULTIPLIER * smoothedN, 360); /* Any colour */
-            }
-            
-            break;
-        case 7: /* Red hot */
-            if (n == nMax) /* If inside set */
-            {
-                value = 0; /* Black */
-            }
-            else
-            {
-                smoothedN = 90 - fabs(fmod(smoothedN * 2, 180) - 90); /* Gets values between 0 and 90 */
-                
-                if (smoothedN <= 30) /* Varying brightness of red */
-                {
-                    hue = 0;
-                    saturation = 1;
-                    value = smoothedN / 30;
-                }
-                else /* Varying hue between 0 and 60 - red to yellow */
-                {
-                    hue = smoothedN - 30;
-                    saturation = 1;
-                    value = 1;
-                }
-            }
-            
-            break;
-        case 8: /* Matrix */
-            if (n == nMax) /* If inside set */
-            {
-                value = 0; /* Black */
-            }
-            else /* Varying brightness of green */
-            {
-                hue = 120;
-                saturation = 1;
-                value =  (90 - fabs(fmod(smoothedN * 2, 180) - 90)) / 90;
-            }
-            
-            break;
+        hsv.s = 0.7 - fabs(fmod(n / 20.0, 1.4) - 0.7);
+
+        if (hsv.s > 0.7)
+        {
+            hsv.s = 0.7;
+        }
     }
-        
-    hsvToRGB(hue, saturation, value, rgbColour); /* Convert HSV value to an RGB value */
+
+    hsvToRGB(rgb, &hsv);
+
+    return 0;
 }
 
 
-void hsvToRGB(double h, double s, double v, struct rgb *rgbColour)
+int mapColourSchemeFire(struct ColourRGB *rgb, double n, enum EscapeStatus status)
 {
-    int i; /* Intermediate value for calculation */
-    
-    double p, q, t; /* RGB values */
-    
-    double rgbArray[3];
-    
-    if (v == 0)
+    struct ColourHSV hsv =
     {
-        rgbColour->r = rgbColour->g = rgbColour->b = 0; /* Black */
-        
+        .s = 0.85,
+        .v = 0.0
+    };
+
+    if (status == ESCAPED)
+    {
+        /* Varies hue between 0 and 50 - red to yellow */
+        hsv.h = 50.0 - fabs(fmod(n * 2.0, 100.0) - 50.0);
+        hsv.v = 0.85;
+    }
+
+    hsvToRGB(rgb, &hsv);
+
+    return 0;
+}
+
+
+int mapColourSchemeAllVibrant(struct ColourRGB *rgb, double n, enum EscapeStatus status)
+{
+    struct ColourHSV hsv =
+    {
+        .s = 1.0,
+        .v = 0.0
+    };
+
+    if (status == ESCAPED)
+    {
+        hsv.h = fmod(COLOUR_SCALE_MULTIPLIER * n, 360.0);
+        hsv.v = 1.0;
+    }
+
+    hsvToRGB(rgb, &hsv);
+
+    return 0;
+}
+
+
+int mapColourSchemeRedHot(struct ColourRGB *rgb, double n, enum EscapeStatus status)
+{
+    struct ColourHSV hsv =
+    {
+        .h = 0.0,
+        .s = 1.0,
+        .v = 0.0
+    };
+
+    if (status == ESCAPED)
+    {
+        /* Gets values between 0 and 90 */
+        n = 90.0 - fabs(fmod(n * 2.0, 180.0) - 90.0);
+
+        if (n <= 30.0)
+        {
+            /* Varies brightness of red */
+            hsv.v = n / 30.0;
+        }
+        else
+        {
+            /* Varies hue between 0 and 60 - red to yellow */
+            hsv.h = n - 30.0;
+            hsv.v = 1.0;
+        }
+    }
+
+    hsvToRGB(rgb, &hsv);
+
+    return 0;
+}
+
+
+int mapColourSchemeMatrix(struct ColourRGB *rgb, double n, enum EscapeStatus status)
+{
+    struct ColourHSV hsv =
+    {
+        .h = 120.0,
+        .s = 1.0,
+        .v = 0.0
+    };
+
+    if (status == ESCAPED)
+    {
+        hsv.v = (90.0 - fabs(fmod(n * 2.0, 180.0) - 90.0)) / 90.0;
+    }
+
+    hsvToRGB(rgb, &hsv);
+
+    return 0;
+}
+
+
+/* Maps a given iteration count to an index of outputChars[] */
+int mapASCII(struct ColourRGB *rgb, double n, enum EscapeStatus status)
+{
+    size_t i = OUTPUT_TERMINAL_CHARSET_LENGTH - 1;
+
+    if (status == ESCAPED)
+    {
+        i = (int) fmod((CHAR_SCALE_MULTIPLIER * n), i);
+    }
+
+    return OUTPUT_TERMINAL_CHARSET[i];
+}
+
+
+
+
+static void hsvToRGB(struct ColourRGB *rgb, struct ColourHSV *hsv)
+{
+    unsigned char i;    
+    double p, q, r;
+
+    if (hsv->h < 0.0)
+    {
+        hsv->h = 0.0;
+    }
+
+    if (hsv->s < 0.0)
+    {
+        hsv->s = 0.0;
+    }
+
+    if (hsv->v < 0.0)
+    {
+        hsv->v = 0.0;
+    }
+    
+    if (hsv->v == 0.0)
+    {
+        rgb->r = rgb->g = rgb->b = 0.0;
         return;
     }
     
-    i = floor(h / 60); /* Integer from 0 to 6 */
-    
-    h = (h / 60) - i;
-    
-    p = v * (1 - s);
-    q = v * (1 - s * h);
-    t = v * (1 - s * (1 - h));
-    
+    i = (unsigned char) floor(hsv->h / 60.0);
+
+    hsv->h = (hsv->h / 60.0) - i;
+
+    p = hsv->v * (1.0 - hsv->s) * 255.0;
+    q = hsv->v * (1.0 - hsv->s * hsv->h) * 255.0;
+    r = hsv->v * (1.0 - hsv->s * (1.0 - hsv->h)) * 255.0;
+
     switch (i)
     {
         case 0:
-            rgbArray[0] = v;
-            rgbArray[1] = t;
-            rgbArray[2] = p;
-            
+            rgb->r = hsv->v;
+            rgb->g = r;
+            rgb->b = p;
             break;
         case 1:
-            rgbArray[0] = q;
-            rgbArray[1] = v;
-            rgbArray[2] = p;
-            
+            rgb->r = q;
+            rgb->g = hsv->v;
+            rgb->b = p;
             break;
         case 2:
-            rgbArray[0] = p;
-            rgbArray[1] = v;
-            rgbArray[2] = t;
-            
+            rgb->r = p;
+            rgb->g = hsv->v;
+            rgb->b = r;
             break;
         case 3:
-            rgbArray[0] = p;
-            rgbArray[1] = q;
-            rgbArray[2] = v;
-            
+            rgb->r = p;
+            rgb->g = q;
+            rgb->b = hsv->v;
             break;
         case 4:
-            rgbArray[0] = t;
-            rgbArray[1] = p;
-            rgbArray[2] = v;
-            
+            rgb->r = r;
+            rgb->g = p;
+            rgb->b = hsv->v;
             break;
         case 5:
-            rgbArray[0] = v;
-            rgbArray[1] = p;
-            rgbArray[2] = q;
+            rgb->r = hsv->v;
+            rgb->g = p;
+            rgb->b = q;
             break;
-        case 6: /* Error handling - same as case 0 */
-            rgbArray[0] = v;
-            rgbArray[1] = t;
-            rgbArray[2] = p;
-            
+        default:
+            rgb->r = hsv->v;
+            rgb->g = r;
+            rgb->b = p;
             break;
     }
-    
-    /* Normalise to integer 0-255 ranges */
-    rgbColour->r = 255 * rgbArray[0];
-    rgbColour->g = 255 * rgbArray[1];
-    rgbColour->b = 255 * rgbArray[2];
+
+    return;
+}
+
+
+/* Makes discrete iteration count a continuous value */
+static double smooth(unsigned int iterations)
+{
+    return (iterations + 1.0 - smoothFactor);
 }
