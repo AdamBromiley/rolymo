@@ -3,6 +3,7 @@
 #include <float.h>
 #include <limits.h>
 #include <stdint.h>
+#include <stdio.h.>
 
 
 const struct ComplexNumber COMPLEX_MIN = {DBL_MIN, DBL_MIN};
@@ -17,9 +18,6 @@ const size_t WIDTH_MIN = 0;
 const size_t WIDTH_MAX = SIZE_MAX;
 const size_t HEIGHT_MIN = 0;
 const size_t HEIGHT_MAX = SIZE_MAX;
-
-const size_t TERMINAL_WIDTH = 80;
-const size_t TERMINAL_HEIGHT = 46;
 
 
 /* Set default plot settings for Mandelbrot image output */
@@ -64,4 +62,17 @@ int initialiseParameters(struct PlotCTX *parameters, enum PlotType type)
     initialiseColourScheme(&(parameters->colour), COLOUR_SCHEME_TYPE_DEFAULT);
 
     return 0;
+}
+
+
+void initialiseTerminalOutputParameters(struct PlotCTX *parameters)
+{
+    const size_t TERMINAL_WIDTH = 80;
+    const size_t TERMINAL_HEIGHT = 46;
+
+    parameters->file = stdout;
+    parameters->width = TERMINAL_WIDTH;
+    parameters->height = TERMINAL_HEIGHT;
+
+    return;
 }
