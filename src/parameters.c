@@ -6,7 +6,7 @@
 #include <stdio.h.>
 
 
-const struct ComplexNumber COMPLEX_MIN = {DBL_MIN, DBL_MIN};
+const struct ComplexNumber COMPLEX_MIN = {-(DBL_MAX), -(DBL_MAX)};
 const struct ComplexNumber COMPLEX_MAX = {DBL_MAX, DBL_MAX};
 
 const double ESCAPE_RADIUS = 2.0;
