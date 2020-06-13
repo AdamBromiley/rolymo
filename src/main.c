@@ -152,15 +152,13 @@ int main(int argc, char **argv) /* Take in command-line options */
     }
     else
     {
-        parameters.file = stdout;
+        initialiseTerminalOutputParameters(&parameters);
     }
-    
     
     if (validateParameters(parameters) != 0)
     {
         return getoptErrorMessage(OPT_NONE, 0, NULL);
     }
-    
 
     return EXIT_SUCCESS;
 }
@@ -261,9 +259,10 @@ int usage(void)
 /* Wrapper for stringToDouble() */
 int doubleArgument(double *x, const char *argument, double xMin, double xMax, char optionID)
 {
+    char *endptr;
     int argError;
 
-    argError = stringToDouble(argument, x, xMin, xMax);
+    argError = stringToDouble(argument, x, xMin, xMax, &endptr);
                 
     if (argError != PARSER_NONE)
     {
@@ -285,10 +284,11 @@ int doubleArgument(double *x, const char *argument, double xMin, double xMax, ch
 int uLongArgument(unsigned long int *x, const char *argument, unsigned long int xMin, unsigned long int xMax,
                      char optionID)
 {
+    char *endptr;
     const int BASE = 10;
     int argError;
 
-    argError = stringToULong(argument, x, xMin, xMax, BASE);
+    argError = stringToULong(argument, x, xMin, xMax, &endptr, BASE);
                 
     if (argError != PARSER_NONE)
     {
@@ -309,10 +309,11 @@ int uLongArgument(unsigned long int *x, const char *argument, unsigned long int 
 /* Wrapper for stringToUIntMax() */
 int uIntMaxArgument(uintmax_t *x, const char *argument, uintmax_t xMin, uintmax_t xMax, char optionID)
 {
+    char *endptr;
     const int BASE = 10;
     int argError;
 
-    argError = stringToUIntMax(argument, x, xMin, xMax, BASE);
+    argError = stringToUIntMax(argument, x, xMin, xMax, &endptr, BASE);
                 
     if (argError != PARSER_NONE)
     {
