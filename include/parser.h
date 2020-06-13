@@ -4,6 +4,8 @@
 
 #include <stdint.h>
 
+#include "parameters.h"
+
 
 enum ParserErrorCode
 {
@@ -17,9 +19,12 @@ enum ParserErrorCode
 };
 
 
-int stringToDouble(char *string, double *x, double xMin, double xMax);
-int stringToULong(const char *string, unsigned long int *x, unsigned long int xMin, unsigned long int xMax, int base);
-int stringToUIntMax(const char *string, uintmax_t *x, uintmax_t xMin, uintmax_t xMax, int base);
+int stringToULong(unsigned long int *x, const char *nptr, unsigned long int min, unsigned long int max,
+                     const char **endptr, int base);
+int stringToUIntMax(uintmax_t *x, const char *nptr, uintmax_t min, uintmax_t max, const char **endptr, int base);
+int stringToDouble(double *x, const char *nptr, double min, double max, const char **endptr);
+int stringToImaginary(struct ComplexNumber *z, const char *nptr, double min, double max, const char **endptr);
+int stringToComplex(struct ComplexNumber *z, const char *nptr, double min, double max, const char **endptr);
 
 
 #endif
