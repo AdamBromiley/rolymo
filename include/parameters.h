@@ -54,11 +54,9 @@ extern const size_t WIDTH_MAX;
 extern const size_t HEIGHT_MIN;
 extern const size_t HEIGHT_MAX;
 
-extern const size_t TERMINAL_WIDTH;
-extern const size_t TERMINAL_HEIGHT;
-
 
 int initialiseParameters(struct PlotCTX *parameters, enum PlotType type);
+void initialiseTerminalOutputParameters(struct PlotCTX *parameters);
 
 
 #endif
