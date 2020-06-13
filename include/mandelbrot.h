@@ -15,11 +15,6 @@
 #include <sys/sysinfo.h>
 
 
-#define FILENAME_MAX_LEN 255
-#define DEFAULT_FILENAME "output"
-
-
-
 #define MALLOC_ESC_ITER 15
 
 #define BUF_SIZE 1024
