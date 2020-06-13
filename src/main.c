@@ -1,4 +1,5 @@
 #include <getopt.h>
+#include <limits.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -24,10 +25,10 @@ enum GetoptError
 
 
 int usage(void);
-int doubleArgument(double *x, const char *argument, double xMin, double xMax, char optionID);
-int uLongArgument(unsigned long int *x, const char *argument, unsigned long int xMin, unsigned long int xMax,
+int doubleArgument(double *x, const char *argument, double min, double max, char optionID);
+int uLongArgument(unsigned long int *x, const char *argument, unsigned long int min, unsigned long int max,
                      char optionID);
-int uIntMaxArgument(uintmax_t *x, const char *argument, uintmax_t xMin, uintmax_t xMax, char optionID);
+int uIntMaxArgument(uintmax_t *x, const char *argument, uintmax_t min, uintmax_t max, char optionID);
 int getoptErrorMessage(enum GetoptError optionError, char shortOption, const char *longOption);
 
 
@@ -46,8 +47,8 @@ int main(int argc, char **argv) /* Take in command-line options */
         {"j", no_argument, NULL, 'j'}, /* Plot a Julia set */
         {"t", no_argument, NULL, 't'}, /* Output to terminal */
         {"o", required_argument, NULL, 'o'}, /* Output PPM file name */
-        {"xmin", required_argument, NULL, 'x'}, /* Minimum/maximum X and Y coordinates */
-        {"xmax", required_argument, NULL, 'X'},
+        {"min", required_argument, NULL, 'x'}, /* Minimum/maximum X and Y coordinates */
+        {"max", required_argument, NULL, 'X'},
         {"ymin", required_argument, NULL, 'y'},
         {"ymax", required_argument, NULL, 'Y'},
         {"itermax", required_argument, NULL, 'i'}, /* Maximum iteration count of calculation */
@@ -66,18 +67,15 @@ int main(int argc, char **argv) /* Take in command-line options */
 
     PROGRAM_NAME = argv[0];
 
-    if ((parameters.type = getPlotType(argc, argv, longOptions)) == PLOT_NONE)
-    {
-        return getoptErrorMessage(OPT_NONE, 0, NULL);
-    }
+    parameters.type = getPlotType(argc, argv, longOptions);
 
-    if (initialiseParameters(&parameters, parameters.type) != 0)
-    {
+    if (parameters.type == PLOT_NONE)
+        return getoptErrorMessage(OPT_NONE, 0, NULL);
+
+    if (initialiseParameters(&parameters, parameters.type))
         return getoptErrorMessage(OPT_ERROR, 0, NULL);
-    }
     
     opterr = 0;
-    
     while ((optionID = getopt_long(argc, argv, GETOPT_STRING, longOptions, NULL)) != -1)
     {
         argError = PARSER_NONE;
@@ -128,23 +126,19 @@ int main(int argc, char **argv) /* Take in command-line options */
         }
 
         if (argError == PARSER_ERANGE)
-        {
             return getoptErrorMessage(OPT_NONE, 0, NULL);
-        }
         else if (argError != PARSER_NONE)
-        {
             return getoptErrorMessage(OPT_EARG, optionID, NULL);
-        }
     }
 
     if (parameters.output != OUTPUT_TERMINAL)
     {
-        if (outputFilePath == NULL)
-        {
+        if (!outputFilePath)
             outputFilePath = OUTPUT_FILE_PATH_DEFAULT;
-        }
 
-        if ((parameters.file = fopen(outputFilePath, "w")) == NULL)
+        parameters.file = fopen(outputFilePath, "w");
+
+        if (!parameters.file)
         {
             fprintf(stderr, "%s: %s: Could not open file\n", PROGRAM_NAME, outputFilePath);
             return getoptErrorMessage(OPT_NONE, 0, NULL);
@@ -156,9 +150,7 @@ int main(int argc, char **argv) /* Take in command-line options */
     }
     
     if (validateParameters(parameters) != 0)
-    {
         return getoptErrorMessage(OPT_NONE, 0, NULL);
-    }
 
     return EXIT_SUCCESS;
 }
@@ -182,12 +174,7 @@ enum PlotType getPlotType(int argc, char **argv, const struct option longOptions
 
     optind = 1;
 
-    if (type == PLOT_NONE)
-    {
-        type = PLOT_TYPE_DEFAULT;
-    }
-
-    return type;
+    return (type == PLOT_NONE) ? PLOT_TYPE_DEFAULT : type;
 }
 
 
@@ -219,8 +206,8 @@ int usage(void)
     printf("                               [+] 3 has a bit depth of 8 bits\n");
     printf("                               [+] Others are full colour with a bit depth of 24 bits\n\n");
     printf("Plot parameters:\n");
-    printf("  -x XMIN,   --xmin=XMIN       Minimum x (real) value to plot\n");
-    printf("  -X XMAX,   --xmax=XMAX       Maximum x (real) value to plot\n");
+    printf("  -x min,   --min=min       Minimum x (real) value to plot\n");
+    printf("  -X max,   --max=max       Maximum x (real) value to plot\n");
     printf("  -y YMIN,   --ymin=YMIN       Minimum y (imaginary) value to plot\n");
     printf("  -Y YMAX,   --ymax=YMAX       Maximum y (imaginary) value to plot\n");
     printf("  -i NMAX,   --itermax=NMAX    The maximum number of function iterations before a number is deemed to be within the set\n");
@@ -231,15 +218,15 @@ int usage(void)
     printf("  -s HEIGHT, --height=HEIGHT   The height of the PPM file in pixels\n\n");
     printf("  Default parameters:\n");
     printf("   Julia Set:\n");
-    printf("    XMIN   = %.2f\n", -ESCAPE_RADIUS);
-    printf("    XMAX   = %.2f\n", ESCAPE_RADIUS);
+    printf("    min   = %.2f\n", -ESCAPE_RADIUS);
+    printf("    max   = %.2f\n", ESCAPE_RADIUS);
     printf("    YMIN   = %.2f\n", -ESCAPE_RADIUS);
     printf("    YMAX   = %.2f\n", ESCAPE_RADIUS);
     printf("    WIDTH  = %.2f\n", (ESCAPE_RADIUS - (-ESCAPE_RADIUS)) * DEFAULT_PX_SCALE);
     printf("    HEIGHT = %.2f\n", (ESCAPE_RADIUS - (-ESCAPE_RADIUS)) * DEFAULT_PX_SCALE);
     printf("   Mandelbrot set:\n");
-    printf("    XMIN   = %f\n", DEFAULT_XMIN);
-    printf("    XMAX   = %f\n", DEFAULT_XMAX);
+    printf("    min   = %f\n", DEFAULT_min);
+    printf("    max   = %f\n", DEFAULT_max);
     printf("    YMIN   = %f\n", DEFAULT_YMIN);
     printf("    YMAX   = %f\n", DEFAULT_YMAX);
     printf("    WIDTH  = %d\n", DEFAULT_WIDTH);
@@ -257,19 +244,19 @@ int usage(void)
 
 
 /* Wrapper for stringToDouble() */
-int doubleArgument(double *x, const char *argument, double xMin, double xMax, char optionID)
+int doubleArgument(double *x, const char *argument, double min, double max, char optionID)
 {
     char *endptr;
     int argError;
 
-    argError = stringToDouble(argument, x, xMin, xMax, &endptr);
+    argError = stringToDouble(x, argument, min, max, &endptr);
                 
     if (argError != PARSER_NONE)
     {
         if (argError == PARSER_ERANGE || argError == PARSER_EMIN || argError == PARSER_EMAX)
         {
             fprintf(stderr, "%s: -%c: Argument out of range, it must be between %.*g and %.*g\n", 
-                PROGRAM_NAME, optionID, DBL_PRINTF_PRECISION, xMin, DBL_PRINTF_PRECISION, xMax);
+                PROGRAM_NAME, optionID, DBL_PRINTF_PRECISION, min, DBL_PRINTF_PRECISION, max);
             return PARSER_ERANGE;
         }
 
@@ -281,21 +268,21 @@ int doubleArgument(double *x, const char *argument, double xMin, double xMax, ch
 
 
 /* Wrapper for stringToULong() */
-int uLongArgument(unsigned long int *x, const char *argument, unsigned long int xMin, unsigned long int xMax,
+int uLongArgument(unsigned long int *x, const char *argument, unsigned long int min, unsigned long int max,
                      char optionID)
 {
     char *endptr;
     const int BASE = 10;
     int argError;
 
-    argError = stringToULong(argument, x, xMin, xMax, &endptr, BASE);
+    argError = stringToULong(x, argument, min, max, &endptr, BASE);
                 
     if (argError != PARSER_NONE)
     {
         if (argError == PARSER_ERANGE || argError == PARSER_EMIN || argError == PARSER_EMAX)
         {
             fprintf(stderr, "%s: -%c: Argument out of range, it must be between %lu and %lu\n", 
-                PROGRAM_NAME, optionID, xMin, xMax);
+                PROGRAM_NAME, optionID, min, max);
             return PARSER_ERANGE;
         }
 
@@ -307,20 +294,20 @@ int uLongArgument(unsigned long int *x, const char *argument, unsigned long int 
 
 
 /* Wrapper for stringToUIntMax() */
-int uIntMaxArgument(uintmax_t *x, const char *argument, uintmax_t xMin, uintmax_t xMax, char optionID)
+int uIntMaxArgument(uintmax_t *x, const char *argument, uintmax_t min, uintmax_t max, char optionID)
 {
     char *endptr;
     const int BASE = 10;
     int argError;
 
-    argError = stringToUIntMax(argument, x, xMin, xMax, &endptr, BASE);
+    argError = stringToUIntMax(x, argument, min, max, &endptr, BASE);
                 
     if (argError != PARSER_NONE)
     {
         if (argError == PARSER_ERANGE || argError == PARSER_EMIN || argError == PARSER_EMAX)
         {
             fprintf(stderr, "%s: -%c: Argument out of range, it must be between %" PRIuMAX " and %" PRIuMAX "\n", 
-                PROGRAM_NAME, optionID, xMin, xMax);
+                PROGRAM_NAME, optionID, min, max);
             return PARSER_ERANGE;
         }
 
@@ -342,14 +329,10 @@ int getoptErrorMessage(enum GetoptError optionError, char shortOption, const cha
             fprintf(stderr, "%s: Unknown error when reading command-line options\n", PROGRAM_NAME);
             break;
         case OPT_EOPT:
-            if (shortOption == 0)
-            {
+            if (shortOption == '\0')
                 fprintf(stderr, "%s: Invalid option: \'%s\'\n", PROGRAM_NAME, longOption);
-            }
             else
-            {
                 fprintf(stderr, "%s: Invalid option: \'-%c\'\n", PROGRAM_NAME, shortOption);
-            }
             break;
         case OPT_ENOARG:
             fprintf(stderr, "%s: -%c: Option argument required\n", PROGRAM_NAME, shortOption);

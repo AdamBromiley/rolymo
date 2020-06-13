@@ -17,8 +17,8 @@ static enum LogSeverity loggingLevel = INFO;
 static FILE *logFile = NULL;
 
 
-static void getTime(char *buffer, size_t bufferSize);
-static void getSeverityString(char *buffer, enum LogSeverity messageLevel, size_t bufferSize);
+static void getTime(char *dest, size_t n);
+static void getSeverityString(char *dest, enum LogSeverity severity, size_t n);
 
 
 /* Write to log */
@@ -32,22 +32,18 @@ void logMessage(enum LogSeverity messageLevel, const char *formatString, ...)
     char logEntry[LOG_ENTRY_LENGTH_MAX + 1];
     
     /* Ignore if there's nowhere to log to */
-    if (logFile == NULL && verbose == QUIET)
-    {
+    if (!logFile && verbose == QUIET)
         return;
-    }
 
     /* Ignore if message not severe enough for the chosen logging level */
     if (loggingLevel < messageLevel)
-    {
         return;
-    }
 
     /* Get date and time in RFC 3339 format - YYYY-MM-DD hh:mm:ss */
     getTime(timeString, sizeof(timeString));
 
     /* Convert severity level to a string */
-    getSeverityString(messageLevel, severityString, sizeof(severityString));
+    getSeverityString(severityString, messageLevel, sizeof(severityString));
 
     /* Read all arguments to logMessage() after the format string */
     va_start(formatArguments, formatString);
@@ -57,15 +53,11 @@ void logMessage(enum LogSeverity messageLevel, const char *formatString, ...)
     /* Construct log message */
     snprintf(logEntry, sizeof(logEntry), "[%s] %-*s %s\n", timeString, sizeof(severityString) - 1, severityString, message);
 
-    if (logFile != NULL)
-    {
+    if (logFile)
         fprintf(logFile, "%s", logEntry);
-    }
 
     if (verbose == VERBOSE)
-    {
         fprintf(stderr, "%s", logEntry);
-    }
 
     return;
 }
@@ -79,7 +71,9 @@ int initialiseLog(enum Verbosity mode, enum LogSeverity level, const char *fileP
     verbose = mode;
     loggingLevel = level;
 
-    if ((logFile = fopen(filePath, "a")) == NULL)
+    logFile = fopen(filePath, "a");
+
+    if (!logFile)
     {
         logMessage(ERROR, "Log file could not be opened");
         return 1;
@@ -95,7 +89,7 @@ int closeLog(void)
 {
     logMessage(DEBUG, "Closing log file");
 
-    if (fclose(logFile) != 0)
+    if (fclose(logFile))
     {
         logFile = NULL;
         logMessage(ERROR, "Log file could not be closed");
@@ -109,47 +103,47 @@ int closeLog(void)
 
 
 /* Get date and time in RFC 3339 format - YYYY-MM-DD hh:mm:ss */
-static void getTime(char *buffer, size_t bufferSize)
+static void getTime(char *dest, size_t n)
 {
     const char *RFC3339_TIME_FORMAT_STRING = "%Y-%m-%d %H:%M:%S";
 
     const time_t CURRENT_TIME = time(NULL);
     const struct tm *CURRENT_TIME_STRUCTURED = localtime(&CURRENT_TIME);
 
-    strftime(buffer, bufferSize, RFC3339_TIME_FORMAT_STRING, CURRENT_TIME_STRUCTURED);
+    strftime(dest, n, RFC3339_TIME_FORMAT_STRING, CURRENT_TIME_STRUCTURED);
 
-    buffer[bufferSize - 1] = 0;
+    dest[n - 1] = '\0';
 
     return;
 }
 
 
 /* Convert severity level to a string */
-static void getSeverityString(char *buffer, enum LogSeverity messageLevel, size_t bufferSize)
+static void getSeverityString(char *dest, enum LogSeverity severity, size_t n)
 {
-    switch (messageLevel)
+    switch (severity)
     {
         case DEBUG:
-            strncpy(buffer, "DEBUG", bufferSize);
+            strncpy(dest, "DEBUG", n);
             break;
         case INFO:
-            strncpy(buffer, "INFO", bufferSize);
+            strncpy(dest, "INFO", n);
             break;
         case WARNING:
-            strncpy(buffer, "WARNING", bufferSize);
+            strncpy(dest, "WARNING", n);
             break;
         case ERROR:
-            strncpy(buffer, "ERROR", bufferSize);
+            strncpy(dest, "ERROR", n);
             break;
         case FATAL:
-            strncpy(buffer, "FATAL", bufferSize);
+            strncpy(dest, "FATAL", n);
             break;
         default:
-            strncpy(buffer, "NONE", bufferSize);
+            strncpy(dest, "NONE", n);
             break;
     }
 
-    buffer[bufferSize - 1] = 0;
+    dest[n - 1] = '\0';
 
     return;
 }
