@@ -1,0 +1,19 @@
+<complex-number> ::= <real-number> <operator> <imaginary-number> | <imaginary-number> <operator> <real-number>
+
+<real-number> ::= <sign> <double> <exponential>
+<imaginary-number> ::= <sign> <double> "i" <exponential>
+
+<operator> ::= "-" | "+"
+
+<sign> ::= "-" | "+" | ""
+
+<double> ::= <integer> | <integer> "." <integer>
+
+<imaginary> ::= "i" | ""
+
+<exponential> ::= <exponential-symbol> <sign> <integer>
+<exponential-symbol> ::= "e" | "E"
+
+<integer> ::= <digit> | <positive-digit> <integer>
+<digit> ::= "0" | <positive-digit>
+<positive-digit> ::= "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
