@@ -7,14 +7,17 @@
 
 # Unignore useful, extensionless files
 !LICENSE
+!Makefile
 
 # Object files
 *.o
 *.so
 **/obj
 
-# Compiled binaries
-**/bin
+# Program files
+**/var
+*.log
+*.ppm
 
 # Visual Studio Code configuration
 .vscode/
