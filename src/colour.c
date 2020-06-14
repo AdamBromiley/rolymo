@@ -9,19 +9,19 @@
 #define OUTPUT_TERMINAL_CHARSET_ " .:-=+*#%@"
 
 
-const enum ColourSchemeType COLOUR_SCHEME_TYPE_MIN = COLOUR_SCHEME_TYPE_ALL;
+const enum ColourSchemeType COLOUR_SCHEME_TYPE_MIN = COLOUR_SCHEME_TYPE_DEFAULT;
 const enum ColourSchemeType COLOUR_SCHEME_TYPE_MAX = COLOUR_SCHEME_TYPE_MATRIX;
 
 
 static const char *OUTPUT_TERMINAL_CHARSET = OUTPUT_TERMINAL_CHARSET_;
 static const size_t OUTPUT_TERMINAL_CHARSET_LENGTH = (sizeof(OUTPUT_TERMINAL_CHARSET_) - 1) / sizeof(char);
-static const int COLOUR_SCALE_MULTIPLIER = 20;
+static const double COLOUR_SCALE_MULTIPLIER = 20.0;
 static const double CHAR_SCALE_MULTIPLIER = 0.3;
 
 static double smoothFactor;
 
 
-static int mapColourSchemeAll(struct ColourRGB *rgb, unsigned int n, enum EscapeStatus status);
+static int mapColourSchemeAll(struct ColourRGB *rgb, double n, enum EscapeStatus status);
 static int mapColourSchemeBlackWhite(struct ColourRGB *rgb, double n, enum EscapeStatus status);
 static int mapColourSchemeWhiteBlack(struct ColourRGB *rgb, double n, enum EscapeStatus status);
 static int mapColourSchemeGreyscale(struct ColourRGB *rgb, double n, enum EscapeStatus status);
@@ -52,6 +52,7 @@ void initialiseColourScheme(struct ColourScheme *scheme, enum ColourSchemeType c
             scheme->colour = COLOUR_SCHEME_DEFAULT.colour;
             scheme->depth = COLOUR_SCHEME_DEFAULT.depth;
             scheme->mapColour = COLOUR_SCHEME_DEFAULT.mapColour;
+            break;
         case COLOUR_SCHEME_TYPE_ASCII:
             scheme->depth = BIT_DEPTH_ASCII;
             scheme->mapColour = mapColourSchemeASCII;
@@ -123,7 +124,7 @@ int mapColour(struct ColourRGB *rgb, struct ColourScheme *scheme, unsigned int i
 }
 
 
-static int mapColourSchemeAll(struct ColourRGB *rgb, unsigned int n, enum EscapeStatus status)
+static int mapColourSchemeAll(struct ColourRGB *rgb, double n, enum EscapeStatus status)
 {
     struct ColourHSV hsv =
     {
@@ -299,14 +300,16 @@ static int mapColourSchemeMatrix(struct ColourRGB *rgb, double n, enum EscapeSta
 
 
 /* Maps a given iteration count to an index of outputChars[] */
-static int mapASCII(struct ColourRGB *rgb, double n, enum EscapeStatus status)
+static int mapColourSchemeASCII(struct ColourRGB *rgb, double n, enum EscapeStatus status)
 {
     size_t i = OUTPUT_TERMINAL_CHARSET_LENGTH - 1;
 
     if (status == ESCAPED)
-        i = (int) fmod((CHAR_SCALE_MULTIPLIER * n), i);
+        i = (size_t) fmod((CHAR_SCALE_MULTIPLIER * n), i);
 
-    return OUTPUT_TERMINAL_CHARSET[i];
+    rgb->r = (uint8_t) OUTPUT_TERMINAL_CHARSET[i];
+
+    return 0;
 }
 
 
