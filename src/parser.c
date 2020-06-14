@@ -2,10 +2,12 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <float.h>
 #include <inttypes.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "parameters.h"
 
@@ -23,14 +25,14 @@ static const char IMAGINARY_UPPER = 'I';
 static const char IMAGINARY_LOWER = 'i';
 
 
-static int parseSign(const char *c, const char **endptr);
-static int parseImaginaryUnit(const char *c, const char **endptr);
+static int parseSign(char *c, char **endptr);
+static int parseImaginaryUnit(char *c, char **endptr);
 static size_t stripWhitespace(char *dest, const char *src, size_t n);
 
 
 /* Convert string to unsigned long and handle errors */
 int stringToULong(unsigned long int *x, const char *nptr, unsigned long int min, unsigned long int max,
-                     const char **endptr, int base)
+                     char **endptr, int base)
 {
     char sign;
 
@@ -44,7 +46,7 @@ int stringToULong(unsigned long int *x, const char *nptr, unsigned long int min,
     sign = *nptr;
 
     errno = 0;
-    *x = strtoul(nptr, (char **) endptr, base);
+    *x = strtoul(nptr, endptr, base);
     
     /* Conversion check */
     if (*endptr == nptr || errno == EINVAL)
@@ -69,7 +71,7 @@ int stringToULong(unsigned long int *x, const char *nptr, unsigned long int min,
 
 
 /* Convert string to uintmax_t and handle errors */
-int stringToUIntMax(uintmax_t *x, const char *nptr, uintmax_t min, uintmax_t max, const char **endptr, int base)
+int stringToUIntMax(uintmax_t *x, const char *nptr, uintmax_t min, uintmax_t max, char **endptr, int base)
 {
     char sign;
 
@@ -83,7 +85,7 @@ int stringToUIntMax(uintmax_t *x, const char *nptr, uintmax_t min, uintmax_t max
     sign = *nptr;
 
     errno = 0;
-    *x = strtoumax(nptr, (char **) endptr, base);
+    *x = strtoumax(nptr, endptr, base);
     
     /* Conversion check */
     if (*endptr == nptr || errno == EINVAL)
@@ -108,10 +110,10 @@ int stringToUIntMax(uintmax_t *x, const char *nptr, uintmax_t min, uintmax_t max
 
 
 /* Convert string to double and handle errors */
-int stringToDouble(double *x, const char *nptr, double min, double max, const char **endptr)
+int stringToDouble(double *x, const char *nptr, double min, double max, char **endptr)
 {
     errno = 0;
-    *x = strtod(nptr, (char **) endptr);
+    *x = strtod(nptr, endptr);
     
     /* Conversion check */
     if (*endptr == nptr)
@@ -143,7 +145,8 @@ int stringToDouble(double *x, const char *nptr, double min, double max, const ch
  *   - It can be preceded by an optional '+' or '-' sign
  *   - An imaginary number must be followed by the imaginary unit
  */
-int stringToImaginary(struct ComplexNumber *z, const char *nptr, double min, double max, const char **endptr)
+int stringToImaginary(struct ComplexNumber *z, char *nptr, struct ComplexNumber min, struct ComplexNumber max,
+                         char **endptr, int *type)
 {
     double x;
     int sign;
@@ -163,39 +166,41 @@ int stringToImaginary(struct ComplexNumber *z, const char *nptr, double min, dou
     if (parseSign(nptr, endptr) != 0)
         return PARSER_ERROR;
 
-    /* 
-     * `(char **)` cast on `endptr` is to remove compiler warning due to bad
-     * standard library function signatures
-     */
     nptr = *endptr;
-    parseError = stringToDouble(&x, nptr, min, max, (char **) endptr);
+    parseError = stringToDouble(&x, nptr, -(DBL_MAX), DBL_MAX, endptr);
 
     if (parseError == PARSER_ERROR)
     {
         if (**endptr != IMAGINARY_UPPER && **endptr != IMAGINARY_LOWER)
-            return COMPLEX_NONE;
+            return PARSER_ERROR;
 
         /* Failed conversion must be an imaginary unit without coefficient */
         x = 1.0;
     }
     else if (parseError != PARSER_NONE && parseError != PARSER_EEND)
     {
-        return COMPLEX_NONE;
+        return parseError;
     }
 
     x *= sign;
     
     nptr = *endptr;
-    switch (parseImaginaryUnit(nptr, endptr))
+    *type = parseImaginaryUnit(nptr, endptr);
+    
+    switch(*type)
     {
         case COMPLEX_REAL:
+            if (x < min.re || x > max.re)
+                return PARSER_ERANGE;
             z->re = x;
-            return COMPLEX_REAL;
+            return PARSER_NONE;
         case COMPLEX_IMAGINARY:
+            if (x < min.im || x > max.im)
+                return PARSER_ERANGE;
             z->im = x;
-            return COMPLEX_IMAGINARY;
+            return PARSER_NONE;
         default:
-            return COMPLEX_NONE;
+            return PARSER_ERROR;
     }
 }
 
@@ -215,16 +220,19 @@ int stringToImaginary(struct ComplexNumber *z, const char *nptr, double min, dou
  *     invalid)
  *   - Either parts can be omitted - the missing part will be interpreted as 0.0
  */
-int stringToComplex(struct ComplexNumber *z, const char *nptr, double min, double max, const char **endptr)
+int stringToComplex(struct ComplexNumber *z, char *nptr, struct ComplexNumber min, struct ComplexNumber max, 
+                       char **endptr)
 {
     char *buffer;
     size_t nptrSize = strlen(nptr) + 1;
 
-    const char *nptr;
+    int parseError, type;
     _Bool reFlag = 0, imFlag = 0;
     int operator;
 
-    if ((buffer = malloc(nptrSize)) == NULL)
+    buffer = malloc(nptrSize);
+    
+    if (!buffer)
         return PARSER_ERROR;
 
     stripWhitespace(buffer, nptr, nptrSize);
@@ -235,7 +243,15 @@ int stringToComplex(struct ComplexNumber *z, const char *nptr, double min, doubl
     z->re = z->im = 0.0;
 
     /* Get first operand in complex number */
-    switch (stringToImaginary(z, nptr, min, max, endptr))
+    parseError = stringToImaginary(z, nptr, min, max, endptr, &type);
+
+    if (parseError != PARSER_NONE)
+    {
+        free(buffer);
+        return parseError;
+    }
+
+    switch (type)
     {
         case COMPLEX_REAL:
             reFlag = 1;
@@ -264,7 +280,15 @@ int stringToComplex(struct ComplexNumber *z, const char *nptr, double min, doubl
 
     /* Get second operand in complex number */
     nptr = *endptr;
-    switch (stringToImaginary(z, nptr, min, max, endptr))
+    parseError = stringToImaginary(z, nptr, min, max, endptr, &type);
+
+    if (parseError != PARSER_NONE)
+    {
+        free(buffer);
+        return parseError;
+    }
+
+    switch (type)
     {
         case COMPLEX_REAL:
             reFlag = 1;
@@ -280,8 +304,10 @@ int stringToComplex(struct ComplexNumber *z, const char *nptr, double min, doubl
     }
 
     if (**endptr != '\0')
+    {
         free(buffer);
         return PARSER_EEND;
+    }
 
     free(buffer);
 
@@ -294,7 +320,7 @@ int stringToComplex(struct ComplexNumber *z, const char *nptr, double min, doubl
 
 
 /* Parse the sign of a number */
-static int parseSign(const char *c, const char **endptr)
+static int parseSign(char *c, char **endptr)
 {
     *endptr = c;
     switch (*c)
@@ -312,7 +338,7 @@ static int parseSign(const char *c, const char **endptr)
 
 
 /* Parse the imaginary unit, or lack thereof */
-static int parseImaginaryUnit(const char *c, const char **endptr)
+static int parseImaginaryUnit(char *c, char **endptr)
 {
     *endptr = c;
     if (*c != IMAGINARY_UPPER && *c != IMAGINARY_LOWER)

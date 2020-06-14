@@ -20,11 +20,13 @@ enum ParserErrorCode
 
 
 int stringToULong(unsigned long int *x, const char *nptr, unsigned long int min, unsigned long int max,
-                     const char **endptr, int base);
-int stringToUIntMax(uintmax_t *x, const char *nptr, uintmax_t min, uintmax_t max, const char **endptr, int base);
-int stringToDouble(double *x, const char *nptr, double min, double max, const char **endptr);
-int stringToImaginary(struct ComplexNumber *z, const char *nptr, double min, double max, const char **endptr);
-int stringToComplex(struct ComplexNumber *z, const char *nptr, double min, double max, const char **endptr);
+                     char **endptr, int base);
+int stringToUIntMax(uintmax_t *x, const char *nptr, uintmax_t min, uintmax_t max, char **endptr, int base);
+int stringToDouble(double *x, const char *nptr, double min, double max, char **endptr);
+int stringToImaginary(struct ComplexNumber *z, char *nptr, struct ComplexNumber min, struct ComplexNumber max,
+                         char **endptr, int *type);
+int stringToComplex(struct ComplexNumber *z, char *nptr, struct ComplexNumber min, struct ComplexNumber max,
+                       char **endptr);
 
 
 #endif
