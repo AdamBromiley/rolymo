@@ -11,12 +11,17 @@ enum Verbosity
 
 enum LogSeverity
 {
+        LOG_NONE,
         FATAL,
         ERROR,
         WARNING,
         INFO,
         DEBUG
 };
+
+
+const enum LogSeverity LOG_SEVERITY_MIN;
+const enum LogSeverity LOG_SEVERITY_MAX;
 
 
 void logMessage(enum LogSeverity messageLevel, const char *formatString, ...);
