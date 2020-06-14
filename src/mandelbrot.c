@@ -30,17 +30,9 @@ static int processorCount; /* Number of processors */
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER; /* Mutex so threads can get unique IDs */
 
-
-
-
 struct blockInfo /* Outline of PPM file data blocks to be wrote to */
 {
     int blockCount, blockRows, remainderRows;
-};
-
-struct complex /* Complex number */
-{
-    double re, im;
 };
 
 struct plottingParameters /* Parameters to be passed into the generator (pthread_create() takes one argument) */
@@ -51,11 +43,6 @@ struct plottingParameters /* Parameters to be passed into the generator (pthread
     int blockId;
     _Bool pFlag;
     int threadId;
-};
-
-struct rgb /* RGB colour */
-{
-    unsigned char r, g, b;
 };
 
 
@@ -84,7 +71,9 @@ int exitError(char *fileName);
 int exitSuccess(char *fileName);
 
 
-
+#include <sys/sysinfo.h>
+/* Get number of online processors */
+    int processorCount = get_nprocs();
 
 
 int exitSuccess(char *fileName)
@@ -133,16 +122,6 @@ int exitError(char *fileName)
 void terminalOutput(struct plotSettings *terminalPlot, _Bool mFlag) /* For outputting a plot with ASCII characters instead of a PPM file */
 {
     struct complex *c = malloc(sizeof(struct complex));
-    
-    if (mFlag == 0)
-    {		
-        do /* Input constant value of Julia set */
-        {
-            printf("\nInput the constant value, c, of the Julia set in the form a + bi: ");
-        }
-        while (complexParser(c) == 1);
-    }
-    
     struct plottingParameters plotParameters =
     {
         terminalPlot, NULL, *c, 0, 0, 0
@@ -215,14 +194,6 @@ int imageOutput(struct plotSettings *imagePlot, _Bool mFlag, char *fileName)
         fprintf(stderr, "[ERROR]     Memory allocation failure\n");
         
         return 1;
-    }
-    
-    if (mFlag == 0)
-    {		
-        do /* Input constant value of Julia set */
-        {
-            printf("\nInput the constant value, c, of the Julia set in the form a + bi: ");
-        } while (complexParser(c) == 1);
     }
     
     if (ppmArrayMalloc(&ppmArray, imagePlot, block) == 1) /* To prevent memory overcommitment, the pixel array must be divided into blocks */
