@@ -8,6 +8,9 @@
 #include "colour.h"
 
 
+#define ITERATIONS_DEFAULT 100
+
+
 enum PlotType
 {
     PLOT_NONE,
@@ -32,8 +35,8 @@ struct ComplexNumber
 struct PlotCTX
 {
     enum PlotType type;
-    struct ComplexNumber minimum, maximum;
-    unsigned int iterations;
+    struct ComplexNumber minimum, maximum, c;
+    unsigned long int iterations;
     enum OutputType output;
     FILE *file;
     size_t width, height;
@@ -43,16 +46,21 @@ struct PlotCTX
 
 extern const struct ComplexNumber COMPLEX_MIN;
 extern const struct ComplexNumber COMPLEX_MAX;
+extern const struct ComplexNumber C_MIN;
+extern const struct ComplexNumber C_MAX;
 
 extern const double ESCAPE_RADIUS;
 
-extern const int ITERATIONS_MIN;
-extern const int ITERATIONS_MAX;
+extern const unsigned long int ITERATIONS_MIN;
+extern const unsigned long int ITERATIONS_MAX;
 
 extern const size_t WIDTH_MIN;
 extern const size_t WIDTH_MAX;
 extern const size_t HEIGHT_MIN;
 extern const size_t HEIGHT_MAX;
+
+const struct PlotCTX MANDELBROT_PARAMETERS_DEFAULT;
+const struct PlotCTX JULIA_PARAMETERS_DEFAULT;
 
 
 int initialiseParameters(struct PlotCTX *parameters, enum PlotType type);
