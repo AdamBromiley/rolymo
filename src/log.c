@@ -11,6 +11,12 @@
 #define LOG_MESSAGE_LENGTH_MAX 256
 #define LOG_ENTRY_LENGTH_MAX 512
 
+#define RFC3339_TIME_FORMAT_STRING "%Y-%m-%d %H:%M:%S"
+
+
+const enum LogSeverity LOG_SEVERITY_MIN = LOG_NONE;
+const enum LogSeverity LOG_SEVERITY_MAX = DEBUG;
+
 
 static enum Verbosity verbose = QUIET;
 static enum LogSeverity loggingLevel = INFO;
@@ -36,7 +42,7 @@ void logMessage(enum LogSeverity messageLevel, const char *formatString, ...)
         return;
 
     /* Ignore if message not severe enough for the chosen logging level */
-    if (loggingLevel < messageLevel)
+    if (loggingLevel < messageLevel || loggingLevel == LOG_NONE)
         return;
 
     /* Get date and time in RFC 3339 format - YYYY-MM-DD hh:mm:ss */
@@ -51,7 +57,7 @@ void logMessage(enum LogSeverity messageLevel, const char *formatString, ...)
     va_end(formatArguments);
 
     /* Construct log message */
-    snprintf(logEntry, sizeof(logEntry), "[%s] %-*s %s\n", timeString, sizeof(severityString) - 1, severityString, message);
+    snprintf(logEntry, sizeof(logEntry), "[%s] %-*s %s\n", timeString, SEVERITY_STRING_LENGTH_MAX, severityString, message);
 
     if (logFile)
         fprintf(logFile, "%s", logEntry);
@@ -66,17 +72,21 @@ void logMessage(enum LogSeverity messageLevel, const char *formatString, ...)
 /* Open log file */
 int initialiseLog(enum Verbosity mode, enum LogSeverity level, const char *filePath)
 {
-    logMessage(DEBUG, "Initialising log file \'%s\'", filePath);
-
     verbose = mode;
     loggingLevel = level;
 
-    logFile = fopen(filePath, "a");
+    if (loggingLevel == LOG_NONE)
+        return 0;
 
-    if (!logFile)
+    if (filePath)
     {
-        logMessage(ERROR, "Log file could not be opened");
-        return 1;
+        logFile = fopen(filePath, "a");
+
+        if (!logFile)
+        {
+            logMessage(ERROR, "Log file could not be opened");
+            return 1;
+        }
     }
 
     logMessage(DEBUG, "Log file initialised");
@@ -105,8 +115,6 @@ int closeLog(void)
 /* Get date and time in RFC 3339 format - YYYY-MM-DD hh:mm:ss */
 static void getTime(char *dest, size_t n)
 {
-    const char *RFC3339_TIME_FORMAT_STRING = "%Y-%m-%d %H:%M:%S";
-
     const time_t CURRENT_TIME = time(NULL);
     const struct tm *CURRENT_TIME_STRUCTURED = localtime(&CURRENT_TIME);
 
