@@ -2,6 +2,9 @@
 #define COLOUR_H
 
 
+#include <stdint.h>
+
+
 enum EscapeStatus
 {
     UNESCAPED,
@@ -50,7 +53,7 @@ struct ColourScheme
 {
     enum ColourSchemeType colour;
     enum BitDepth depth;
-    int (*mapColour) (struct ColourRGB *rgb, unsigned int n, enum EscapeStatus status);
+    int (*mapColour) (struct ColourRGB *rgb, double n, enum EscapeStatus status);
 };
 
 
