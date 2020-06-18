@@ -59,8 +59,8 @@ extern const size_t WIDTH_MAX;
 extern const size_t HEIGHT_MIN;
 extern const size_t HEIGHT_MAX;
 
-const struct PlotCTX MANDELBROT_PARAMETERS_DEFAULT;
-const struct PlotCTX JULIA_PARAMETERS_DEFAULT;
+extern const struct PlotCTX MANDELBROT_PARAMETERS_DEFAULT;
+extern const struct PlotCTX JULIA_PARAMETERS_DEFAULT;
 
 
 int initialiseParameters(struct PlotCTX *parameters, enum PlotType type);
