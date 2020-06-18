@@ -10,7 +10,7 @@ BDIR = .
 BIN = $(BDIR)/$(_BIN)
 
 # Source code
-_SRC = colour.c log.c main.c parameters.c parser.c
+_SRC = colour.c log.c mandelbrot.c parameters.c parser.c
 SDIR = src
 SRC = $(patsubst %,$(SDIR)/%,$(_SRC))
 
@@ -20,7 +20,7 @@ HDIR = include
 DEPS = $(patsubst %,$(HDIR)/%,$(_DEPS))
 
 # Object files
-_OBJS = colour.o log.o main.o parameters.o parser.o
+_OBJS = colour.o log.o mandelbrot.o parameters.o parser.o
 ODIR = obj
 OBJS = $(patsubst %,$(ODIR)/%,$(_OBJS))
 
