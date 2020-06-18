@@ -15,9 +15,4 @@
 #include <sys/sysinfo.h>
 
 
-#define MALLOC_ESC_ITER 15
-
-#define BUF_SIZE 1024
-
-
 #endif
