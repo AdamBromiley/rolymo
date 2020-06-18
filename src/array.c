@@ -4,7 +4,10 @@
 #include <stdlib.h>
 #include <sys/sysinfo.h>
 
+#include "parameters.h"
 
+
+/* Create array metadata structure */
 struct ArrayCTX * createArrayCTX(const struct PlotCTX *parameters)
 {
     struct ArrayCTX *ctx;
@@ -15,6 +18,8 @@ struct ArrayCTX * createArrayCTX(const struct PlotCTX *parameters)
         return NULL;
 
     ctx->array = NULL;
+    
+    /* Most optimised solution is using one thread per processing core */
     ctx->threadCount = get_nprocs();
     ctx->parameters = parameters;
 
@@ -50,6 +55,7 @@ struct Block * mallocArray(struct ArrayCTX *array)
     {
         if (ctx->blockCount == MALLOC_ESCAPE_ITERATIONS)
         {
+            /* If too many malloc() calls have failed */
             if (array)
                 free(array);
 
@@ -68,6 +74,7 @@ struct Block * mallocArray(struct ArrayCTX *array)
 
     ctx->array = array;
 
+    /* Create block structure */
     block = malloc(sizeof(*block));
 
     if (!block)
@@ -85,6 +92,7 @@ struct Block * mallocArray(struct ArrayCTX *array)
 }
 
 
+/* Generate a list of threads */
 struct Thread * createThreads(const struct ArrayCTX *ctx, const struct Block *block)
 {
     struct Thread *threads;
@@ -100,6 +108,7 @@ struct Thread * createThreads(const struct ArrayCTX *ctx, const struct Block *bl
     
     for (i = 0; i < ctx->threadCount; ++i)
     {
+        /* Consecutive IDs allow for threads to work on different array rows */
         threads[i].threadID = i;
         threads[i].block = block;
     }
@@ -108,6 +117,7 @@ struct Thread * createThreads(const struct ArrayCTX *ctx, const struct Block *bl
 }
 
 
+/* Free ArrayCTX struct */
 void freeArrayCTX(struct ArrayCTX *ctx)
 {
     if (ctx)
@@ -122,6 +132,7 @@ void freeArrayCTX(struct ArrayCTX *ctx)
 }
 
 
+/* Free Block and nested BlockCTX structs */
 void freeBlock(struct Block *block)
 {
     if (block)
@@ -136,9 +147,11 @@ void freeBlock(struct Block *block)
 }
 
 
+/* Free thread list */
 void freeThreads(struct Thread *threads)
 {
     if (threads)
         free(threads);
+
     return;
 }

@@ -23,7 +23,7 @@ int initialiseImage(struct PlotCTX *parameters, const char *filePath)
     if (!parameters->file)
         return 1;
 
-    /* Write NetPBM file header */
+    /* Write PNM file header */
     switch (parameters->colour.depth)
     {
         case BIT_DEPTH_1:
@@ -43,6 +43,7 @@ int initialiseImage(struct PlotCTX *parameters, const char *filePath)
 }
 
 
+/* Initialise plot array, run function, then write to file */
 int imageOutput(const struct PlotCTX *parameters)
 {
     unsigned int i;
@@ -55,11 +56,13 @@ int imageOutput(const struct PlotCTX *parameters)
     struct Thread *threads;
     struct Thread *thread;
 
+    /* Create array metadata struct */
     array = createArrayCTX(parameters);
 
     if (!array)
         return 1;
 
+    /* Allocate memory to the array in manageable blocks */
     block = mallocArray(array);
 
     if (!block)
@@ -68,6 +71,7 @@ int imageOutput(const struct PlotCTX *parameters)
         return 1;
     }
 
+    /* Create list of processing threads */
     threads = createThreads(array, block);
 
     if (!threads)
@@ -77,17 +81,30 @@ int imageOutput(const struct PlotCTX *parameters)
         return 1;
     }
 
-    block->rows = block->ctx->rows;
-
+    /*
+     * Because image dimensions can lead to billions of pixels, the plot array
+     * may not be able to be stored in one whole memory chunk. Therefore, as per
+     * the preceding functions, a block size is determined. A block is a section
+     * of N rows of the image array that allow threads will perform on at once.
+     * Once all threads have finished, the block gets written to the image file
+     * and the cycle continues. The array may not divide evenly into blocks, so
+     * the reminader rows are calculated prior and stored in the block context
+     * structure
+     */
     for (block->blockID = 0; block->blockID <= block->ctx->blockCount; ++(block->blockID))
     {
         if (block->blockID == block->ctx->blockCount)
         {
+            /* If there are no remainder rows */
             if (!(block->ctx->remainderRows))
                 break;
 
             /* If there's remaining rows */
             block->rows = block->ctx->remainderRows;
+        }
+        else
+        {
+            block->rows = block->ctx->rows;
         }
 
         /* Create threads to significantly decrease execution time */
@@ -123,6 +140,7 @@ int imageOutput(const struct PlotCTX *parameters)
     freeArrayCTX(array);
     freeBlock(block);
     freeThreads(threads);
+
     return 0;
 }
 
@@ -145,32 +163,36 @@ int closeImage(struct PlotCTX *parameters)
 static int blockToImage(const struct Block *block)
 {
     size_t x, y;
-    size_t width = block->ctx->array->parameters->width;
-    size_t height = block->rows;
+
+    /* Caching the struct values optimises the array iteration */
+
+    size_t columns = block->ctx->array->parameters->width;
+    size_t rows = block->rows;
 
     unsigned long int **array = block->ctx->array->array;
 
     unsigned long int iterations;
     unsigned long int maxIterations = block->ctx->array->parameters->iterations;
+    enum EscapeStatus status;
 
     unsigned char bitOffset = 0;
+    struct ColourRGB rgb;
     struct ColourScheme colour = block->ctx->array->parameters->colour;
 
     FILE *image = block->ctx->array->parameters->file;
 
-    enum EscapeStatus status;
-    struct ColourRGB rgb;
-
-    for (y = 0; y < height; ++y)
+    for (y = 0; y < rows; ++y)
     {
-        for (x = 0; x < width; ++x)
+        for (x = 0; x < columns; ++x)
         {
             iterations = array[y][x];
             status = (iterations < maxIterations) ? ESCAPED : UNESCAPED;
 
+            /* Write colour value to the file */
             switch (colour.depth)
             {
                 case BIT_DEPTH_1:
+                    /* Only write every byte */
                     ++bitOffset;
                     if (bitOffset == CHAR_BIT)
                     {

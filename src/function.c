@@ -3,7 +3,6 @@
 #include <complex.h>
 #include <pthread.h>
 #include <stddef.h>
-#include <stdlib.h>
 
 #include "array.h"
 #include "parameters.h"
@@ -28,6 +27,7 @@ void * mandelbrot(void *threadInfo)
     complex z, c;
     unsigned long int n;
 
+    /* Set to top left of plot block (minimum real, maximum block imaginary) */
     c = parameters->minimum.re +
         (parameters->maximum.im - (thread->block->blockID * rows) * pixelHeight) * I;
     
@@ -35,26 +35,30 @@ void * mandelbrot(void *threadInfo)
     for (y = 0 + thread->threadID; y < rows; y += blockCount)
     {
         /* Centers the plot vertically - noticeable with the terminal output */
-        /*if (parameters->output == OUTPUT_TERMINAL && y == 0)
-            continue;*/
+        /*** NOT IMPLEMENTED YET ***
+        if (parameters->output == OUTPUT_TERMINAL && y == 0)
+            continue;
+        *** NOT IMPLEMENTED YET ***/
 
-        c -= (columns - 1) * pixelWidth;
-        c -= y * pixelHeight * I;
-        
+        /* Iterate over the row */
         for (x = 0; x < columns; ++x, c += pixelWidth)
         {
             z = 0.0 + 0.0 * I;
+
+            /* Perform mandelbrot function */
             for (n = 0; n < parameters->iterations && cabs(z) < ESCAPE_RADIUS; ++n)
                 z = cpow(z, 2.0) + c;
             
+            /* Set iteration count in array */
             array[y][x] = n;
         }
+
+        /* Reset real value to start of row (left of plot) */
+        c -= (columns - 1) * pixelWidth;
+
+        /* Set imaginary value to that of the next row */
+        c -= y * pixelHeight * I;
     }
-    
-    /*
-    if (parameters->output == OUTPUT_TERMINAL)
-        return NULL;
-    */
     
     pthread_exit(0);
 }

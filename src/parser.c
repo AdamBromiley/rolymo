@@ -135,7 +135,8 @@ int stringToDouble(double *x, const char *nptr, double min, double max, char **e
 }
 
 
-/* Parse a string as an imaginary or real double
+/* 
+ * Parse a string as an imaginary or real double
  *
  * Where:
  *   - The format is that of a `double` type - meaning a decimal, additional 
