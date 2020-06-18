@@ -117,11 +117,11 @@ int closeLog(void)
 
 
 /* Convert verbosity enum to a string */
-void getVerbosityString(char *dest, enum Verbosity verbose, size_t n)
+void getVerbosityString(char *dest, enum Verbosity verbosity, size_t n)
 {
     const char *verbosityString;
 
-    switch (verbose)
+    switch (verbosity)
     {
         case QUIET:
             verbosityString = "QUIET";

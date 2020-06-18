@@ -34,7 +34,7 @@ void logMessage(enum LogSeverity messageLevel, const char *formatString, ...);
 int initialiseLog(enum Verbosity mode, enum LogSeverity level, const char *filePath);
 int closeLog(void);
 
-void getVerbosityString(char *dest, enum Verbosity verbose, size_t n);
+void getVerbosityString(char *dest, enum Verbosity verbosity, size_t n);
 void getSeverityString(char *dest, enum LogSeverity severity, size_t n);
 
 
