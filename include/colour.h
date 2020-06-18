@@ -2,6 +2,7 @@
 #define COLOUR_H
 
 
+#include <stddef.h>
 #include <stdint.h>
 
 
@@ -53,17 +54,20 @@ struct ColourScheme
 {
     enum ColourSchemeType colour;
     enum BitDepth depth;
-    int (*mapColour) (struct ColourRGB *rgb, double n, enum EscapeStatus status);
+    void (*mapColour) (struct ColourRGB *rgb, double n, enum EscapeStatus status);
 };
 
 
-extern const enum ColourSchemeType COLOUR_SCHEME_TYPE_MIN;
-extern const enum ColourSchemeType COLOUR_SCHEME_TYPE_MAX;
+extern const enum ColourSchemeType COLOUR_SCHEME_DEFAULT;
+extern const enum ColourSchemeType COLOUR_SCHEME_MIN;
+extern const enum ColourSchemeType COLOUR_SCHEME_MAX;
 
 
 void initialiseColourScheme(struct ColourScheme *scheme, enum ColourSchemeType colour);
+void colourToString(char *dest, enum ColourSchemeType colour, size_t n);
 void setSmoothFactor(double escapeRadius);
-int mapColour(struct ColourRGB *rgb, struct ColourScheme *scheme, unsigned int iterations, enum EscapeStatus status);
+void mapColour(struct ColourRGB *rgb, struct ColourScheme *scheme,
+                 unsigned long int iterations, enum EscapeStatus status);
 
 
 #endif
