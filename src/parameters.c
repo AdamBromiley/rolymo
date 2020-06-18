@@ -24,7 +24,7 @@ const size_t WIDTH_MAX = SIZE_MAX;
 const size_t HEIGHT_MIN = 0;
 const size_t HEIGHT_MAX = SIZE_MAX;
 
-
+/* Default parameters for Mandelbrot set plot */
 const struct PlotCTX MANDELBROT_PARAMETERS_DEFAULT =
 {
     .type = PLOT_MANDELBROT,
@@ -37,7 +37,7 @@ const struct PlotCTX MANDELBROT_PARAMETERS_DEFAULT =
     .height = 500
 };
 
-
+/* Default parameters for Julia set plot */
 const struct PlotCTX JULIA_PARAMETERS_DEFAULT =
 {
     .type = PLOT_JULIA,
