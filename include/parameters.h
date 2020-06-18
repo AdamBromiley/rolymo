@@ -10,6 +10,9 @@
 
 #define ITERATIONS_DEFAULT 100
 
+#define OUTPUT_STRING_LENGTH_MAX 64
+#define PLOT_STRING_LENGTH_MAX 32
+
 
 enum PlotType
 {
@@ -18,19 +21,16 @@ enum PlotType
     PLOT_JULIA
 };
 
-
 enum OutputType
 {
     OUTPUT_PPM,
     OUTPUT_TERMINAL
 };
 
-
 struct ComplexNumber
 {
     double re, im;
 };
-
 
 struct PlotCTX
 {
@@ -65,6 +65,9 @@ extern const struct PlotCTX JULIA_PARAMETERS_DEFAULT;
 
 int initialiseParameters(struct PlotCTX *parameters, enum PlotType type);
 void initialiseTerminalOutputParameters(struct PlotCTX *parameters);
+
+void getOutputString(char *dest, struct PlotCTX *parameters, size_t n);
+void getPlotString(char *dest, struct PlotCTX *parameters, size_t n);
 
 
 #endif

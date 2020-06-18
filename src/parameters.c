@@ -2,7 +2,11 @@
 
 #include <float.h>
 #include <limits.h>
+#include <stddef.h>
 #include <stdint.h>
+#include <string.h>
+
+#include "colour.h"
 
 
 /* Range of permissible complex numbers */
@@ -80,6 +84,71 @@ void initialiseTerminalOutputParameters(struct PlotCTX *parameters)
     parameters->file = stdout;
     parameters->width = TERMINAL_WIDTH;
     parameters->height = TERMINAL_HEIGHT;
+    
+    initialiseColourScheme(&(parameters->colour), COLOUR_SCHEME_TYPE_ASCII);
+
+    return;
+}
+
+
+void getOutputString(char *dest, struct PlotCTX *parameters, size_t n)
+{
+    const char *type;
+
+    switch (parameters->output)
+    {
+        case OUTPUT_PPM:
+            switch (parameters->colour.depth)
+            {
+                case BIT_DEPTH_1:
+                    type = "Portable Bit Map (.pbm)";
+                    break;
+                case BIT_DEPTH_8:
+                    type = "Portable Gray Map (.pgm)";
+                    break;
+                case BIT_DEPTH_24:
+                    type = "Portable Pixel Map (.ppm)";
+                    break;
+                default:
+                    type = "Unknown Portable Any Map (.pnm) format";
+                    break;
+            }
+
+            break;
+        case OUTPUT_TERMINAL:
+            type = "Terminal output";
+            break;
+        default:
+            type = "Unknown output type";
+            break;
+    }
+
+    strncpy(dest, type, n);
+    dest[n - 1] = '\0';
+
+    return;
+}
+
+
+void getPlotString(char *dest, struct PlotCTX *parameters, size_t n)
+{
+    const char *type;
+
+    switch (parameters->type)
+    {
+        case PLOT_MANDELBROT:
+            type = "Mandelbrot set";
+            break;
+        case PLOT_JULIA:
+            type = "Julia set";
+            break;
+        default:
+            type = "Unknown plot type";
+            break;
+    }
+
+    strncpy(dest, type, n);
+    dest[n - 1] = '\0';
 
     return;
 }

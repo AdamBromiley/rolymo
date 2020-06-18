@@ -6,28 +6,29 @@
 #include <stdint.h>
 
 
+#define COLOUR_STRING_LENGTH_MAX 32
+
+
 enum EscapeStatus
 {
     UNESCAPED,
     ESCAPED
 };
 
-
 enum ColourSchemeType
 {
     COLOUR_SCHEME_TYPE_DEFAULT,
     COLOUR_SCHEME_TYPE_ASCII,
-    COLOUR_SCHEME_TYPE_ALL,
     COLOUR_SCHEME_TYPE_BLACK_WHITE,
     COLOUR_SCHEME_TYPE_WHITE_BLACK,
     COLOUR_SCHEME_TYPE_GREYSCALE,
+    COLOUR_SCHEME_TYPE_RAINBOW,
+    COLOUR_SCHEME_TYPE_RAINBOW_VIBRANT,
     COLOUR_SCHEME_TYPE_RED_WHITE,
     COLOUR_SCHEME_TYPE_FIRE,
-    COLOUR_SCHEME_TYPE_ALL_VIBRANT,
     COLOUR_SCHEME_TYPE_RED_HOT,
     COLOUR_SCHEME_TYPE_MATRIX
 };
-
 
 enum BitDepth
 {
@@ -37,18 +38,15 @@ enum BitDepth
     BIT_DEPTH_24 = 24
 };
 
-
 struct ColourRGB
 {
     uint8_t r, g, b;
 };
 
-
 struct ColourHSV
 {
     double h, s, v;
 };
-
 
 struct ColourScheme
 {
@@ -64,10 +62,12 @@ extern const enum ColourSchemeType COLOUR_SCHEME_MAX;
 
 
 void initialiseColourScheme(struct ColourScheme *scheme, enum ColourSchemeType colour);
-void colourToString(char *dest, enum ColourSchemeType colour, size_t n);
 void setSmoothFactor(double escapeRadius);
 void mapColour(struct ColourRGB *rgb, struct ColourScheme *scheme,
                  unsigned long int iterations, enum EscapeStatus status);
+
+void getColourString(char *dest, enum ColourSchemeType colour, size_t n);
+unsigned int getBitDepth(enum BitDepth depth);
 
 
 #endif

@@ -1,30 +1,33 @@
 #include "log.h"
 
 #include <stdarg.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
 
 
 #define TIME_STRING_LENGTH_MAX 32
-#define SEVERITY_STRING_LENGTH_MAX 10
 #define LOG_MESSAGE_LENGTH_MAX 256
 #define LOG_ENTRY_LENGTH_MAX 512
 
 #define RFC3339_TIME_FORMAT_STRING "%Y-%m-%d %H:%M:%S"
 
 
+/* Log severity range for user parameter checking */
 const enum LogSeverity LOG_SEVERITY_MIN = LOG_NONE;
 const enum LogSeverity LOG_SEVERITY_MAX = DEBUG;
 
 
+/* Logging modes */
 static enum Verbosity verbose = QUIET;
 static enum LogSeverity loggingLevel = INFO;
+
+/* Log file */
 static FILE *logFile = NULL;
 
 
 static void getTime(char *dest, size_t n);
-static void getSeverityString(char *dest, enum LogSeverity severity, size_t n);
 
 
 /* Write to log */
@@ -59,6 +62,7 @@ void logMessage(enum LogSeverity messageLevel, const char *formatString, ...)
     /* Construct log message */
     snprintf(logEntry, sizeof(logEntry), "[%s] %-*s %s\n", timeString, SEVERITY_STRING_LENGTH_MAX, severityString, message);
 
+    /* Write to log */
     if (logFile)
         fprintf(logFile, "%s", logEntry);
 
@@ -112,14 +116,25 @@ int closeLog(void)
 }
 
 
-/* Get date and time in RFC 3339 format - YYYY-MM-DD hh:mm:ss */
-static void getTime(char *dest, size_t n)
+/* Convert verbosity enum to a string */
+void getVerbosityString(char *dest, enum Verbosity verbose, size_t n)
 {
-    const time_t CURRENT_TIME = time(NULL);
-    const struct tm *CURRENT_TIME_STRUCTURED = localtime(&CURRENT_TIME);
+    const char *verbosityString;
 
-    strftime(dest, n, RFC3339_TIME_FORMAT_STRING, CURRENT_TIME_STRUCTURED);
+    switch (verbose)
+    {
+        case QUIET:
+            verbosityString = "QUIET";
+            break;
+        case VERBOSE:
+            verbosityString = "VERBOSE";
+            break;
+        default:
+            verbosityString = "-";
+            break;
+    }
 
+    strncpy(dest, verbosityString, n);
     dest[n - 1] = '\0';
 
     return;
@@ -127,29 +142,46 @@ static void getTime(char *dest, size_t n)
 
 
 /* Convert severity level to a string */
-static void getSeverityString(char *dest, enum LogSeverity severity, size_t n)
+void getSeverityString(char *dest, enum LogSeverity severity, size_t n)
 {
+    const char *severityString;
+
     switch (severity)
     {
         case DEBUG:
-            strncpy(dest, "DEBUG", n);
+            severityString = "DEBUG";
             break;
         case INFO:
-            strncpy(dest, "INFO", n);
+            severityString = "INFO";
             break;
         case WARNING:
-            strncpy(dest, "WARNING", n);
+            severityString = "WARNING";
             break;
         case ERROR:
-            strncpy(dest, "ERROR", n);
+            severityString = "ERROR";
             break;
         case FATAL:
-            strncpy(dest, "FATAL", n);
+            severityString = "FATAL";
             break;
         default:
-            strncpy(dest, "NONE", n);
+            severityString = "NONE";
             break;
     }
+
+    strncpy(dest, severityString, n);
+    dest[n - 1] = '\0';
+
+    return;
+}
+
+
+/* Get date and time in RFC 3339 format - YYYY-MM-DD hh:mm:ss */
+static void getTime(char *dest, size_t n)
+{
+    time_t CURRENT_TIME = time(NULL);
+    struct tm *CURRENT_TIME_STRUCTURED = localtime(&CURRENT_TIME);
+
+    strftime(dest, n, RFC3339_TIME_FORMAT_STRING, CURRENT_TIME_STRUCTURED);
 
     dest[n - 1] = '\0';
 
