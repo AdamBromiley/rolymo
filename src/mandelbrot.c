@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "image.h"
 #include "log.h"
@@ -260,7 +261,7 @@ int usage(void)
     printf("  -o FILE                       Output file name\n");
     printf("                                [+] Default = \'%s\'\n", OUTPUT_FILE_PATH_DEFAULT);
     printf("  -r WIDTH,  --width=WIDTH      The width of the image file in pixels\n");
-    printf("                                [+] If using a 1-bit colour scheme, WIDTH must be a multiple of %zu to "
+    printf("                                [+] If using a 1-bit colour scheme, WIDTH must be a multiple of %u to "
               "allow for\n                                    bit-width pixels\n", CHAR_BIT);
     printf("  -s HEIGHT, --height=HEIGHT    The height of the image file in pixels\n");
     printf("  -t                            Output to stdout using ASCII characters as shading\n");
