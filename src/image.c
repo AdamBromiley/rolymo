@@ -28,13 +28,16 @@ int initialiseImage(struct PlotCTX *parameters, const char *filePath)
     {
         case BIT_DEPTH_1:
             /* PBM file */
-            fprintf(parameters->file, "P4 %d %d ", parameters->width, parameters->height);
+            fprintf(parameters->file, "P4 %zu %zu ", parameters->width, parameters->height);
+            break;
         case BIT_DEPTH_8:
             /* PGM file */
-            fprintf(parameters->file, "P5 %d %d 255 ", parameters->width, parameters->height);
+            fprintf(parameters->file, "P5 %zu %zu 255 ", parameters->width, parameters->height);
+            break;
         case BIT_DEPTH_24:
             /* PPM file */
-            fprintf(parameters->file, "P6 %d %d 255 ", parameters->width, parameters->height);
+            fprintf(parameters->file, "P6 %zu %zu 255 ", parameters->width, parameters->height);
+            break;
         default:
             return 1;
     }
@@ -44,7 +47,7 @@ int initialiseImage(struct PlotCTX *parameters, const char *filePath)
 
 
 /* Initialise plot array, run function, then write to file */
-int imageOutput(const struct PlotCTX *parameters)
+int imageOutput(struct PlotCTX *parameters)
 {
     unsigned int i;
 
@@ -169,7 +172,7 @@ static int blockToImage(const struct Block *block)
     size_t columns = block->ctx->array->parameters->width;
     size_t rows = block->rows;
 
-    unsigned long int **array = block->ctx->array->array;
+    unsigned long int *array = block->ctx->array->array;
 
     unsigned long int iterations;
     unsigned long int maxIterations = block->ctx->array->parameters->iterations;
@@ -185,7 +188,7 @@ static int blockToImage(const struct Block *block)
     {
         for (x = 0; x < columns; ++x)
         {
-            iterations = array[y][x];
+            iterations = *(array + y + x);
             status = (iterations < maxIterations) ? ESCAPED : UNESCAPED;
 
             /* Write colour value to the file */
@@ -200,12 +203,15 @@ static int blockToImage(const struct Block *block)
                         bitOffset = 0;
                     }
                     mapColour(&rgb, &colour, bitOffset, status);
+                    break;
                 case BIT_DEPTH_8:
                     mapColour(&rgb, &colour, iterations, status);
                     fwrite(&(rgb.r), sizeof(rgb.r), 1, image);
+                    break;
                 case BIT_DEPTH_24:
                     mapColour(&rgb, &colour, iterations, status);
                     fwrite(&rgb, sizeof(rgb), 1, image);
+                    break;
                 default:
                     return 1;
             }
