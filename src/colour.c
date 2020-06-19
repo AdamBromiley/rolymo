@@ -116,8 +116,8 @@ void setSmoothFactor(double escapeRadius)
 void mapColour(struct ColourRGB *rgb, struct ColourScheme *scheme,
                  unsigned long int iterations, enum EscapeStatus status)
 {
-    double n = (double) iterations;
-
+    double n;
+    
     if (scheme->depth == BIT_DEPTH_1)
         n = (double) iterations;
     else if (status == ESCAPED)
