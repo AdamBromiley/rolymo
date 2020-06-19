@@ -327,14 +327,13 @@ void programParameters(enum Verbosity verbose, enum LogSeverity logLevel, const 
     /* Convert log severity level to string */
     getSeverityString(level, logLevel, sizeof(level));
 
-    logMessage(DEBUG, "\
-  PROGRAM SETTINGS:\n\
+    logMessage(DEBUG, "Program settings:\n\
     Verbosity = %s\n\
     Log level = %s\n\
     Log file  = %s",
     verbosity,
     level,
-    log
+    (log == NULL) ? "-" : log
     );
 
     return;
@@ -372,6 +371,9 @@ void plotParameters(struct PlotCTX *parameters, const char *image)
         bitDepthString[sizeof(bitDepthString) - 1] = '\0';
     }
 
+    /* Get plot type string from PlotType enum */
+    getPlotString(plot, parameters->type, sizeof(plot));
+
     /* Only display constant value if a Julia set plot */
     if (parameters->type == PLOT_JULIA)
     {
@@ -384,13 +386,12 @@ void plotParameters(struct PlotCTX *parameters, const char *image)
         c[sizeof(c) - 1] = '\0';
     }
 
-    logMessage(INFO, "\
-  IMAGE SETTINGS:\n\
+    logMessage(INFO, "Image settings:\n\
     Output     = %s\n\
     Image file = %s\n\
     Dimensions = %zu px * %zu px\n\
     Colour     = {\n\
-                     Scheme    = %d,\n\
+                     Scheme    = %s,\n\
                      Bit depth = %s,\n\
                  }",
     output,
@@ -401,8 +402,7 @@ void plotParameters(struct PlotCTX *parameters, const char *image)
     bitDepthString
     );
 
-    logMessage(INFO, "\
-  PLOT PARAMETERS:\n\
+    logMessage(INFO, "Plot parameters:\n\
     Plot       = %s\n\
     Minimum    = %.*g + %.*gi\n\
     Maximum    = %.*g + %.*gi\n\
