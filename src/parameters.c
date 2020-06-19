@@ -130,11 +130,11 @@ void getOutputString(char *dest, struct PlotCTX *parameters, size_t n)
 }
 
 
-void getPlotString(char *dest, struct PlotCTX *parameters, size_t n)
+void getPlotString(char *dest, enum PlotType plot, size_t n)
 {
     const char *type;
 
-    switch (parameters->type)
+    switch (plot)
     {
         case PLOT_MANDELBROT:
             type = "Mandelbrot set";
