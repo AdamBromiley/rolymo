@@ -10,7 +10,7 @@
 
 struct ArrayCTX
 {
-    unsigned long int **array;
+    unsigned long int *array;
     unsigned int threadCount;
     struct PlotCTX *parameters;
 };
@@ -37,9 +37,9 @@ struct Thread
 };
 
 
-struct ArrayCTX * createArrayCTX(const struct PlotCTX *parameters);
+struct ArrayCTX * createArrayCTX(struct PlotCTX *parameters);
 struct Block * mallocArray(struct ArrayCTX *array);
-struct Thread * createThreads(const struct ArrayCTX *ctx, const struct Block *block);
+struct Thread * createThreads(const struct ArrayCTX *ctx, struct Block *block);
 
 void freeArrayCTX(struct ArrayCTX *ctx);
 void freeBlock(struct Block *block);
