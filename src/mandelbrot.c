@@ -34,7 +34,7 @@ enum GetoptError
 static const char *PROGRAM_NAME;
 
 /* Output files */
-static const char *OUTPUT_FILE_PATH_DEFAULT = "mandelbrot.pnm";
+static const char *OUTPUT_FILE_PATH_DEFAULT = "var/mandelbrot.pnm";
 
 static const enum LogSeverity LOG_SEVERITY_DEFAULT = INFO;
 static const enum Verbosity LOG_VERBOSITY_DEFAULT = VERBOSE;
