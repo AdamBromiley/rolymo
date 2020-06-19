@@ -10,17 +10,17 @@ BDIR = .
 BIN = $(BDIR)/$(_BIN)
 
 # Source code
-_SRC = colour.c log.c mandelbrot.c parameters.c parser.c
+_SRC = array.c colour.c function.c image.c log.c mandelbrot.c parameters.c parser.c
 SDIR = src
 SRC = $(patsubst %,$(SDIR)/%,$(_SRC))
 
 # Header files
-_DEPS = colour.h log.h parameters.h parser.h
+_DEPS = array.h colour.h function.h image.h log.h parameters.h parser.h
 HDIR = include
 DEPS = $(patsubst %,$(HDIR)/%,$(_DEPS))
 
 # Object files
-_OBJS = colour.o log.o mandelbrot.o parameters.o parser.o
+_OBJS = array.o colour.o function.o image.o log.o mandelbrot.o parameters.o parser.o
 ODIR = obj
 OBJS = $(patsubst %,$(ODIR)/%,$(_OBJS))
 
@@ -53,7 +53,7 @@ CFLAGS = $(IDIRS) -g -std=c99 -pedantic \
 LD = gcc
 
 # Linker options
-LDFLAGS = $(LDLIBS)
+LDFLAGS = $(LDLIBS) -pthread
 
 
 
