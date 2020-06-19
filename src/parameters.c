@@ -71,6 +71,7 @@ int initialiseParameters(struct PlotCTX *parameters, enum PlotType type)
     }
 
     initialiseColourScheme(&(parameters->colour), COLOUR_SCHEME_TYPE_DEFAULT);
+    setSmoothFactor(ESCAPE_RADIUS);
 
     return 0;
 }
