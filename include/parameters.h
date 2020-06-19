@@ -67,7 +67,7 @@ int initialiseParameters(struct PlotCTX *parameters, enum PlotType type);
 void initialiseTerminalOutputParameters(struct PlotCTX *parameters);
 
 void getOutputString(char *dest, struct PlotCTX *parameters, size_t n);
-void getPlotString(char *dest, struct PlotCTX *parameters, size_t n);
+void getPlotString(char *dest, enum PlotType plot, size_t n);
 
 
 #endif
