@@ -101,17 +101,21 @@ int initialiseLog(enum Verbosity mode, enum LogSeverity level, const char *fileP
 /* Close log file */
 int closeLog(void)
 {
-    logMessage(DEBUG, "Closing log file");
-
-    if (fclose(logFile))
+    if (logFile)
     {
-        logFile = NULL;
-        logMessage(ERROR, "Log file could not be closed");
-        return 1;
-    }
+        logMessage(DEBUG, "Closing log file");
 
-    logFile = NULL;
-    logMessage(DEBUG, "Log file closed");
+        if (fclose(logFile))
+        {
+            logFile = NULL;
+            logMessage(ERROR, "Log file could not be closed");
+            return 1;
+        }
+
+        logFile = NULL;
+        logMessage(DEBUG, "Log file closed");
+    }
+    
     return 0;
 }
 
