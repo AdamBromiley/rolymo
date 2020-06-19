@@ -4,11 +4,12 @@
 #include <stdlib.h>
 #include <sys/sysinfo.h>
 
+#include "log.h"
 #include "parameters.h"
 
 
 /* Create array metadata structure */
-struct ArrayCTX * createArrayCTX(const struct PlotCTX *parameters)
+struct ArrayCTX * createArrayCTX(struct PlotCTX *parameters)
 {
     struct ArrayCTX *ctx;
 
@@ -20,7 +21,7 @@ struct ArrayCTX * createArrayCTX(const struct PlotCTX *parameters)
     ctx->array = NULL;
     
     /* Most optimised solution is using one thread per processing core */
-    ctx->threadCount = get_nprocs();
+    ctx->threadCount = (unsigned int) get_nprocs();
     ctx->parameters = parameters;
 
     return ctx;
@@ -31,7 +32,7 @@ struct ArrayCTX * createArrayCTX(const struct PlotCTX *parameters)
 struct Block * mallocArray(struct ArrayCTX *array)
 {
     /* Number of malloc() attempts before failure */
-    const int MALLOC_ESCAPE_ITERATIONS = 16;
+    const unsigned int MALLOC_ESCAPE_ITERATIONS = 16;
 
     struct BlockCTX *ctx;
     struct Block *block;
@@ -47,7 +48,7 @@ struct Block * mallocArray(struct ArrayCTX *array)
 
     height = array->parameters->height;
     width = array->parameters->width;
-    rowSize = width * sizeof(**(array->array));
+    rowSize = width * sizeof(*(array->array));
 
     /* Try to malloc the array, with each iteration decreasing the array size */
     ctx->blockCount = 1;
@@ -65,6 +66,9 @@ struct Block * mallocArray(struct ArrayCTX *array)
 
         ctx->rows = height / ctx->blockCount;
         ctx->remainderRows = height % ctx->blockCount;
+
+        logMessage(DEBUG, "Image array split as %u blocks (block: %zu rows, remainder: %zu rows)\n",
+            ctx->blockCount, ctx->rows, ctx->remainderRows);
 
         array->array = malloc(ctx->rows * rowSize);
 
@@ -93,10 +97,11 @@ struct Block * mallocArray(struct ArrayCTX *array)
 
 
 /* Generate a list of threads */
-struct Thread * createThreads(const struct ArrayCTX *ctx, const struct Block *block)
+struct Thread * createThreads(const struct ArrayCTX *ctx, struct Block *block)
 {
-    struct Thread *threads;
     unsigned int i;
+
+    struct Thread *threads;
 
     if (!ctx)
         return NULL;
