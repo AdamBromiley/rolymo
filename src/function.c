@@ -14,7 +14,7 @@ void * mandelbrot(void *threadInfo)
 
     struct PlotCTX *parameters = thread->block->ctx->array->parameters;
 
-    unsigned long int **array = thread->block->ctx->array->array;
+    unsigned long int *array = thread->block->ctx->array->array;
     size_t x, y;
     size_t rows = thread->block->rows;
     size_t columns = parameters->width;
@@ -50,7 +50,7 @@ void * mandelbrot(void *threadInfo)
                 z = cpow(z, 2.0) + c;
             
             /* Set iteration count in array */
-            array[y][x] = n;
+            *(array + y + x) = n;
         }
 
         /* Reset real value to start of row (left of plot) */
