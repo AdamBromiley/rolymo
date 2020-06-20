@@ -3,7 +3,7 @@
 #include <limits.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include <sys/sysinfo.h>
+#include <unistd.h>
 
 #include "log.h"
 #include "parameters.h"
@@ -22,8 +22,11 @@ struct ArrayCTX * createArrayCTX(struct PlotCTX *parameters)
     ctx->array = NULL;
 
     /* Most optimised solution is using one thread per processing core */
-    /*ctx->threadCount = (unsigned int) get_nprocs();*/
-    ctx->threadCount = 1;
+    ctx->threadCount = (unsigned int) sysconf(_SC_NPROCESSORS_ONLN);
+
+    if (ctx->threadCount < 1)
+        return NULL;
+
     ctx->parameters = parameters;
 
     return ctx;
@@ -33,13 +36,18 @@ struct ArrayCTX * createArrayCTX(struct PlotCTX *parameters)
 /* To prevent memory overcommitment, the array must be divided into blocks */
 struct Block * mallocArray(struct ArrayCTX *array)
 {
+    /* Percentage of free physical memory that can be allocated by the program */
+    const unsigned int FREE_MEMORY_ALLOCATION = 80;
     /* Number of malloc() attempts before failure */
     const unsigned int MALLOC_ESCAPE_ITERATIONS = 16;
 
     struct BlockCTX *ctx;
     void **arrayPtr = &(array->array);
     struct Block *block;
-    size_t height, width, rowSize;
+    size_t height, width, rowSize, blockSize;
+
+    size_t freeMemory;
+    long availablePages, pageSize;
 
     logMessage(DEBUG, "Generating image array context");
 
@@ -58,12 +66,28 @@ struct Block * mallocArray(struct ArrayCTX *array)
     }
 
     logMessage(DEBUG, "Context generated");
+    logMessage(DEBUG, "Getting amount of free memory");
+
+    availablePages = sysconf(_SC_AVPHYS_PAGES);
+    pageSize = sysconf(_SC_PAGE_SIZE);
+
+    if (availablePages < 0 || pageSize < 0)
+    {
+        logMessage(ERROR, "Could not get amount of free memory");
+        return NULL;
+    }
+
+    freeMemory = (size_t) pageSize * (size_t) availablePages;
+
+    logMessage(DEBUG, "%zu bytes are free. Memory allocation will be limited to %zu bytes",
+        freeMemory, freeMemory * FREE_MEMORY_ALLOCATION / 100);
+    logMessage(DEBUG, "Creating image array");
 
     height = array->parameters->height;
     width = array->parameters->width;
     rowSize = width * array->parameters->colour.depth / 8;
 
-    logMessage(DEBUG, "Creating image array");
+    logMessage(DEBUG, "Image array is %zu bytes", height * rowSize);
 
     /* Try to malloc the array, with each iteration decreasing the array size */
     ctx->blockCount = 0;
@@ -71,15 +95,19 @@ struct Block * mallocArray(struct ArrayCTX *array)
     {
         if (ctx->blockCount != 0)
             logMessage(DEBUG, "Memory allocation attempt failed. Retrying...");
-        
+
         ++(ctx->blockCount);
+
         ctx->rows = height / ctx->blockCount;
         ctx->remainderRows = height % ctx->blockCount;
+        blockSize = ctx->rows * rowSize;
 
-        logMessage(DEBUG, "Image array split as %u blocks (block: %zu rows, remainder: %zu rows)",
-            ctx->blockCount, ctx->rows, ctx->remainderRows);
+        logMessage(DEBUG, "Splitting array into %u blocks (%zu bytes each)", ctx->blockCount, blockSize);
 
-        *arrayPtr = malloc(ctx->rows * rowSize);
+        if (blockSize > freeMemory * FREE_MEMORY_ALLOCATION / 100)
+            continue;
+
+        *arrayPtr = malloc(blockSize);
     }
     while (*arrayPtr == NULL && ctx->blockCount < MALLOC_ESCAPE_ITERATIONS);
 
@@ -92,6 +120,9 @@ struct Block * mallocArray(struct ArrayCTX *array)
     }
 
     ctx->array = array;
+
+    logMessage(DEBUG, "Image array split into %u blocks (%zu bytes - block: %zu rows, remainder block: %zu rows)",
+        blockSize, ctx->blockCount, ctx->rows, ctx->remainderRows);
 
     logMessage(DEBUG, "Creating image block structure");
 
