@@ -2,6 +2,7 @@
 #define COLOUR_H
 
 
+#include <complex.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -48,11 +49,19 @@ struct ColourHSV
     double h, s, v;
 };
 
+union ColourMapFunction
+{
+    char (*ascii) (double n, enum EscapeStatus status);
+    void (*monochrome) (uint8_t *byte, int offset, enum EscapeStatus status);
+    uint8_t (*greyscale) (double n, enum EscapeStatus status);
+    void (*trueColour) (struct ColourRGB *rgb, double n, enum EscapeStatus status);
+};
+
 struct ColourScheme
 {
     enum ColourSchemeType colour;
     enum BitDepth depth;
-    void (*mapColour) (struct ColourRGB *rgb, double n, enum EscapeStatus status);
+    union ColourMapFunction mapColour;
 };
 
 
@@ -62,12 +71,10 @@ extern const enum ColourSchemeType COLOUR_SCHEME_MAX;
 
 
 void initialiseColourScheme(struct ColourScheme *scheme, enum ColourSchemeType colour);
-void setSmoothFactor(double escapeRadius);
-void mapColour(struct ColourRGB *rgb, struct ColourScheme *scheme,
-                 unsigned long int iterations, enum EscapeStatus status);
+void mapColour(void *pixel, unsigned long int iterations, complex z, int offset, 
+                  unsigned long int iterationsMax, struct ColourScheme *scheme);
 
 void getColourString(char *dest, enum ColourSchemeType colour, size_t n);
-unsigned int getBitDepth(enum BitDepth depth);
 
 
 #endif
