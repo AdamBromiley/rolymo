@@ -1,5 +1,6 @@
 #include "array.h"
 
+#include <limits.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <sys/sysinfo.h>
@@ -19,9 +20,10 @@ struct ArrayCTX * createArrayCTX(struct PlotCTX *parameters)
         return NULL;
 
     ctx->array = NULL;
-    
+
     /* Most optimised solution is using one thread per processing core */
-    ctx->threadCount = (unsigned int) get_nprocs();
+    /*ctx->threadCount = (unsigned int) get_nprocs();*/
+    ctx->threadCount = 1;
     ctx->parameters = parameters;
 
     return ctx;
@@ -35,55 +37,71 @@ struct Block * mallocArray(struct ArrayCTX *array)
     const unsigned int MALLOC_ESCAPE_ITERATIONS = 16;
 
     struct BlockCTX *ctx;
+    void **arrayPtr = &(array->array);
     struct Block *block;
     size_t height, width, rowSize;
 
+    logMessage(DEBUG, "Generating image array context");
+
     if (!(array->parameters))
+    {
+        logMessage(ERROR, "Pointer to plotting parameters structure not found");
         return NULL;
+    }
 
     ctx = malloc(sizeof(*ctx));
 
     if (!ctx)
+    {
+        logMessage(DEBUG, "Memory allocation failed");
         return NULL;
+    }
+
+    logMessage(DEBUG, "Context generated");
 
     height = array->parameters->height;
     width = array->parameters->width;
-    rowSize = width * sizeof(*(array->array));
+    rowSize = width * array->parameters->colour.depth / 8;
+
+    logMessage(DEBUG, "Creating image array");
 
     /* Try to malloc the array, with each iteration decreasing the array size */
-    ctx->blockCount = 1;
+    ctx->blockCount = 0;
     do
     {
-        if (ctx->blockCount == MALLOC_ESCAPE_ITERATIONS)
-        {
-            /* If too many malloc() calls have failed */
-            if (array)
-                free(array);
-
-            free(ctx);
-            return NULL;
-        }
-
+        if (ctx->blockCount != 0)
+            logMessage(DEBUG, "Memory allocation attempt failed. Retrying...");
+        
+        ++(ctx->blockCount);
         ctx->rows = height / ctx->blockCount;
         ctx->remainderRows = height % ctx->blockCount;
 
-        logMessage(DEBUG, "Image array split as %u blocks (block: %zu rows, remainder: %zu rows)\n",
+        logMessage(DEBUG, "Image array split as %u blocks (block: %zu rows, remainder: %zu rows)",
             ctx->blockCount, ctx->rows, ctx->remainderRows);
 
-        array->array = malloc(ctx->rows * rowSize);
-
-        ++(ctx->blockCount);
+        *arrayPtr = malloc(ctx->rows * rowSize);
     }
-    while (array->array == NULL);
+    while (*arrayPtr == NULL && ctx->blockCount < MALLOC_ESCAPE_ITERATIONS);
+
+    if (!(*arrayPtr))
+    {
+        logMessage(ERROR, "Memory allocation failed");
+        /* If too many malloc() calls have failed */
+        free(ctx);
+        return NULL;
+    }
 
     ctx->array = array;
+
+    logMessage(DEBUG, "Creating image block structure");
 
     /* Create block structure */
     block = malloc(sizeof(*block));
 
     if (!block)
     {
-        free(array);
+        logMessage(ERROR, "Memory allocation failed");
+        free(*arrayPtr);
         free(ctx);
         return NULL;
     }
@@ -91,6 +109,8 @@ struct Block * mallocArray(struct ArrayCTX *array)
     block->blockID = 0;
     block->rows = ctx->rows;
     block->ctx = ctx;
+
+    logMessage(DEBUG, "Block structure created");
 
     return block;
 }
@@ -103,13 +123,21 @@ struct Thread * createThreads(const struct ArrayCTX *ctx, struct Block *block)
 
     struct Thread *threads;
 
+    logMessage(DEBUG, "Creating thread array");
+
     if (!ctx)
+    {
+        logMessage(DEBUG, "Array context structure not found");
         return NULL;
+    }
 
     threads = malloc(ctx->threadCount * sizeof(*threads));
     
     if (!threads)
+    {
+        logMessage(ERROR, "Memory allocation failed");
         return NULL;
+    }
     
     for (i = 0; i < ctx->threadCount; ++i)
     {
@@ -117,6 +145,8 @@ struct Thread * createThreads(const struct ArrayCTX *ctx, struct Block *block)
         threads[i].threadID = i;
         threads[i].block = block;
     }
+
+    logMessage(DEBUG, "Thread array generated");
 
     return threads;
 }
@@ -128,9 +158,13 @@ void freeArrayCTX(struct ArrayCTX *ctx)
     if (ctx)
     {
         if (ctx->array)
+        {
             free(ctx->array);
+            logMessage(DEBUG, "Image array freed");
+        }
         
         free(ctx);
+        logMessage(DEBUG, "Array context freed");
     }
 
     return;
@@ -143,9 +177,13 @@ void freeBlock(struct Block *block)
     if (block)
     {
         if (block->ctx)
+        {
             free(block->ctx);
+            logMessage(DEBUG, "Block context freed");
+        }
 
         free(block);
+        logMessage(DEBUG, "Block structure freed");
     }
 
     return;
@@ -156,7 +194,10 @@ void freeBlock(struct Block *block)
 void freeThreads(struct Thread *threads)
 {
     if (threads)
+    {
         free(threads);
+        logMessage(DEBUG, "Thread array freed");
+    }
 
     return;
 }

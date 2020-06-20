@@ -2,15 +2,17 @@
 #define ARRAY_H
 
 
-#include "parameters.h"
-
 #include <pthread.h>
 #include <stddef.h>
+#include <stdint.h>
+
+#include "colour.h"
+#include "parameters.h"
 
 
 struct ArrayCTX
 {
-    unsigned long int *array;
+    void *array;
     unsigned int threadCount;
     struct PlotCTX *parameters;
 };
