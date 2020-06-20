@@ -189,8 +189,7 @@ void getColourString(char *dest, enum ColourSchemeType colour, size_t n)
 /* Makes discrete iteration count a continuous value */
 static double smooth(unsigned long int iterations, complex z)
 {
-    double smoothFactor = log2(log2(cabs(z)));
-    return (iterations + 1.0 - smoothFactor);
+    return (iterations + 1.0 - log2(log2(cabs(z))));
 }
 
 
