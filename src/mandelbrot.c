@@ -9,6 +9,7 @@
 
 #include "image.h"
 #include "log.h"
+#include "mandelbrot_parameters.h"
 #include "parameters.h"
 #include "parser.h"
 
@@ -349,21 +350,16 @@ void plotParameters(struct PlotCTX *parameters, const char *image)
     char plot[PLOT_STRING_LENGTH_MAX];
     char c[COMPLEX_STRING_LENGTH_MAX];
 
-    unsigned int bitDepth;
-
     /* Get output type string from output type and bit depth enums */
     getOutputString(output, parameters, sizeof(output));
 
     /* Convert colour scheme enum to a string */
     getColourString(colour, parameters->colour.colour, sizeof(colour));
-    
-    /* Convert bit depth enum to integer */
-    bitDepth = getBitDepth(parameters->colour.depth);
 
     /* Convert bit depth integer to string */
-    if (bitDepth > 0)
+    if (parameters->colour.depth > 0)
     {
-        snprintf(bitDepthString, sizeof(bitDepthString), "%d-bit", bitDepth);
+        snprintf(bitDepthString, sizeof(bitDepthString), "%d-bit", parameters->colour.depth);
     }
     else
     {
@@ -545,7 +541,8 @@ int validateParameters(struct PlotCTX parameters)
      * Minimum addressable data size is CHAR_BIT, therefore the 1-bit image
      * pixels are calculated in groups of CHAR_BIT size
      */
-    if (parameters.colour.depth == BIT_DEPTH_1 && parameters.width % CHAR_BIT != 0)
+    /* TODO: Make applicable to all depths < CHAR_BIT */
+    if (parameters.colour.depth == 1 && parameters.width % CHAR_BIT != 0)
     {
         parameters.width = parameters.width + CHAR_BIT - (parameters.width % CHAR_BIT);
         logMessage(WARNING, "For 1-bit pixel colour schemes, the width must be a multiple of %zu. Width set to %zu",
