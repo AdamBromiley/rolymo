@@ -1,6 +1,6 @@
 # Mandelbrot Plotter
 
-The Mandelbrot set is the set of numbers $c\in\mathbb{C}$ for which the function $f_{c}\left(x\right)=z^{2}+c$ does not diverge when iterated from $z=0$.
+The Mandelbrot set is the set of complex numbers `c` for which the function `f(x)=z^2+c` does not diverge when iterated from `z=0`.
 
 ## Features
 - Complete control over the plot with command-line arguments
