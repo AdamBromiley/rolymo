@@ -26,7 +26,7 @@ void * mandelbrot(void *threadInfo)
 
     void *pixel = thread->block->ctx->array->array;
     size_t arrayMemberSize = (colour->depth != BIT_DEPTH_1) ? colour->depth / 8 : sizeof(char);
-    double pixelWidth = (parameters->maximum.re - parameters->minimum.re) / parameters->width;
+    double pixelWidth = (parameters->maximum.re - parameters->minimum.re) / (parameters->width - 1);
     double pixelHeight = (parameters->maximum.im - parameters->minimum.im) / parameters->height;
 
     int bitOffset = 1;
@@ -42,22 +42,21 @@ void * mandelbrot(void *threadInfo)
         (parameters->maximum.im - (thread->block->blockID * rows) * pixelHeight) * I;
 
     /* Offset by threadID to ensure each thread gets a unique row */
-    for (y = thread->threadID; y < rows; y += threadCount)
+    for (y = thread->threadID; y < rows; y += threadCount, c -= pixelHeight * threadCount * I)
     {
         /* Centers the plot vertically - noticeable with the terminal output */
         /*** NOT IMPLEMENTED YET ***
         if (parameters->output == OUTPUT_TERMINAL && y == 0)
             continue;
         *** NOT IMPLEMENTED YET ***/
-
+        //printf("c1 = %.3g + %.3gi\n", creal(c), cimag(c));
         /* Set imaginary value to that of the row */
-        c -= y * pixelHeight * I;
 
         /* Iterate over the row */
         for (x = 0; x < columns; ++x, c += pixelWidth)
         {
             z = 0.0 + 0.0 * I;
-
+    
             /* Perform mandelbrot function */
             for (n = 0; n < maxIterations && cabs(z) < ESCAPE_RADIUS; ++n)
                 z = cpow(z, 2.0) + c;
@@ -75,8 +74,10 @@ void * mandelbrot(void *threadInfo)
             }
         }
 
+        //printf("c2 = %.3g + %.3gi\n", creal(c), cimag(c));
+
         /* Reset real value to start of row (left of plot) */
-        c -= (columns - 1) * pixelWidth;
+        c -= columns * pixelWidth;
     }
 
     logMessage(INFO, "Thread %u: Plot generated, exiting...", thread->threadID);
