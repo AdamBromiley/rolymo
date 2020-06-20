@@ -1,6 +1,5 @@
 #include "image.h"
 
-#include <limits.h>
 #include <pthread.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -12,35 +11,53 @@
 #include "parameters.h"
 
 
-static int blockToImage(const struct Block *block);
+#define IMAGE_HEADER_LENGTH_MAX 128
+
+
+static void blockToImage(const struct Block *block);
 
 
 /* Create image file and write header */
 int initialiseImage(struct PlotCTX *parameters, const char *filePath)
 {
-    parameters->file = fopen(filePath, "w");
+    char header[IMAGE_HEADER_LENGTH_MAX];
+
+    logMessage(DEBUG, "Opening image file \'%s\'", filePath);
+
+    parameters->file = fopen(filePath, "wb");
 
     if (!parameters->file)
+    {
+        logMessage(ERROR, "File \'%s\' could not be opened", filePath);
         return 1;
+    }
+
+    logMessage(DEBUG, "Image file successfully opened");
+    logMessage(DEBUG, "Writing header to image");
 
     /* Write PNM file header */
     switch (parameters->colour.depth)
     {
         case BIT_DEPTH_1:
             /* PBM file */
-            fprintf(parameters->file, "P4 %zu %zu ", parameters->width, parameters->height);
+            snprintf(header, sizeof(header), "P4 %zu %zu ", parameters->width, parameters->height);
             break;
         case BIT_DEPTH_8:
             /* PGM file */
-            fprintf(parameters->file, "P5 %zu %zu 255 ", parameters->width, parameters->height);
+            snprintf(header, sizeof(header), "P5 %zu %zu 255 ", parameters->width, parameters->height);
             break;
         case BIT_DEPTH_24:
             /* PPM file */
-            fprintf(parameters->file, "P6 %zu %zu 255 ", parameters->width, parameters->height);
+            snprintf(header, sizeof(header), "P6 %zu %zu 255 ", parameters->width, parameters->height);
             break;
         default:
+            logMessage(ERROR, "Could not determine bit depth");
             return 1;
     }
+
+    fprintf(parameters->file, "%s", header);
+
+    logMessage(DEBUG, "Header \'%s\' successfully wrote to image", header);
 
     return 0;
 }
@@ -110,35 +127,41 @@ int imageOutput(struct PlotCTX *parameters)
             block->rows = block->ctx->rows;
         }
 
+        logMessage(INFO, "Working on block %u (%zu rows)", block->blockID, block->rows);
+
         /* Create threads to significantly decrease execution time */
         for (i = 0; i < array->threadCount; ++i)
         {
             thread = &(threads[i]);
+            logMessage(INFO, "Spawning thread %u", thread->threadID);
+    
             if (pthread_create(&(thread->pthreadID), NULL, mandelbrot, thread) != 0)
             {
+                logMessage(ERROR, "Thread could not be created");
                 freeArrayCTX(array);
                 freeBlock(block);
                 freeThreads(threads);
                 return 1;
             }
         }
+
+        logMessage(INFO, "All threads successfully created");
         
         /* Wait for threads to exit */
         for (i = 0; i < array->threadCount; ++i)
         {
             thread = &(threads[i]);
             pthread_join(thread->pthreadID, NULL);
+            logMessage(INFO, "Thread %u exited", thread->threadID);
         }
 
-        /* Convert iterations to colour values and write to image file */
-        if (blockToImage(block))
-        {
-            freeArrayCTX(array);
-            freeBlock(block);
-            freeThreads(threads);
-            return 1;
-        }
+        logMessage(INFO, "All threads successfully destroyed");
+
+        /* Write block to image file */
+        blockToImage(block);
     }
+
+    logMessage(DEBUG, "Freeing memory");
 
     freeArrayCTX(array);
     freeBlock(block);
@@ -151,72 +174,39 @@ int imageOutput(struct PlotCTX *parameters)
 /* Close image file */
 int closeImage(struct PlotCTX *parameters)
 {
+    logMessage(DEBUG, "Closing image file");
+
     if (fclose(parameters->file))
     {
+        logMessage(WARNING, "Image file could not be closed");
         parameters->file = NULL;
         return 1;
     }
+
+    logMessage(DEBUG, "Image file closed");
 
     parameters->file = NULL;
     return 0;
 }
 
 
-/* Convert iterations to colour values and write to image file */
-static int blockToImage(const struct Block *block)
+/* Write block to image file */
+static void blockToImage(const struct Block *block)
 {
-    size_t x, y;
+    void *array = block->ctx->array->array;
 
-    /* Caching the struct values optimises the array iteration */
-
-    size_t columns = block->ctx->array->parameters->width;
-    size_t rows = block->rows;
-
-    unsigned long int *array = block->ctx->array->array;
-
-    unsigned long int iterations;
-    unsigned long int maxIterations = block->ctx->array->parameters->iterations;
-    enum EscapeStatus status;
-
-    unsigned char bitOffset = 0;
-    struct ColourRGB rgb;
-    struct ColourScheme colour = block->ctx->array->parameters->colour;
+    size_t arrayLength = block->rows * block->ctx->array->parameters->width;
+    double pixelSize = block->ctx->array->parameters->colour.depth / 8.0;
+    size_t arraySize = arrayLength * pixelSize;
 
     FILE *image = block->ctx->array->parameters->file;
 
-    for (y = 0; y < rows; ++y)
-    {
-        for (x = 0; x < columns; ++x)
-        {
-            iterations = *(array + y + x);
-            status = (iterations < maxIterations) ? ESCAPED : UNESCAPED;
+    logMessage(INFO, "Writing %zu pixels (%zu bytes; pixel size = %d bits) to image file",
+        arrayLength, arraySize, block->ctx->array->parameters->colour.depth);
 
-            /* Write colour value to the file */
-            switch (colour.depth)
-            {
-                case BIT_DEPTH_1:
-                    /* Only write every byte */
-                    ++bitOffset;
-                    if (bitOffset == CHAR_BIT)
-                    {
-                        fwrite(&(rgb.r), sizeof(rgb.r), 1, image);
-                        bitOffset = 0;
-                    }
-                    mapColour(&rgb, &colour, bitOffset, status);
-                    break;
-                case BIT_DEPTH_8:
-                    mapColour(&rgb, &colour, iterations, status);
-                    fwrite(&(rgb.r), sizeof(rgb.r), 1, image);
-                    break;
-                case BIT_DEPTH_24:
-                    mapColour(&rgb, &colour, iterations, status);
-                    fwrite(&rgb, sizeof(rgb), 1, image);
-                    break;
-                default:
-                    return 1;
-            }
-        }
-    }
+    fwrite(array, sizeof(char), arraySize, image);
 
-    return 0;
+    logMessage(INFO, "Block successfully wrote to file");
+
+    return;
 }
