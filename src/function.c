@@ -44,14 +44,7 @@ void * mandelbrot(void *threadInfo)
     /* Offset by threadID to ensure each thread gets a unique row */
     for (y = thread->threadID; y < rows; y += threadCount, c -= pixelHeight * threadCount * I)
     {
-        /* Centers the plot vertically - noticeable with the terminal output */
-        /*** NOT IMPLEMENTED YET ***
-        if (parameters->output == OUTPUT_TERMINAL && y == 0)
-            continue;
-        *** NOT IMPLEMENTED YET ***/
-        //printf("c1 = %.3g + %.3gi\n", creal(c), cimag(c));
-        /* Set imaginary value to that of the row */
-
+        /* Repoint to first pixel of the row */
         pixel = (char *) thread->block->ctx->array->array + y * columns * arrayMemberSize;
 
         /* Iterate over the row */
@@ -76,13 +69,11 @@ void * mandelbrot(void *threadInfo)
             }
         }
 
-        //printf("c2 = %.3g + %.3gi\n", creal(c), cimag(c));
-
-        /* Reset real value to start of row (left of plot) */
+        /* Reset real value to start of row */
         c -= columns * pixelWidth;
     }
 
-    logMessage(INFO, "Thread %u: Plot generated, exiting...", thread->threadID);
+    logMessage(INFO, "Thread %u: Plot generated - exiting", thread->threadID);
     
     pthread_exit(0);
 }
