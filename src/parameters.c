@@ -15,9 +15,6 @@ const struct ComplexNumber COMPLEX_MAX = {DBL_MAX, DBL_MAX};
 const struct ComplexNumber C_MIN = {-2.0, -2.0};
 const struct ComplexNumber C_MAX = {2.0, 2.0};
 
-/* Escape radius of plot (mathematically defined as 2) */
-const double ESCAPE_RADIUS = 2.0;
-
 /* Range of permissible iteration counts */
 const unsigned long int ITERATIONS_MIN = 0;
 const unsigned long int ITERATIONS_MAX = ULONG_MAX;
@@ -71,7 +68,6 @@ int initialiseParameters(struct PlotCTX *parameters, enum PlotType type)
     }
 
     initialiseColourScheme(&(parameters->colour), COLOUR_SCHEME_TYPE_DEFAULT);
-    setSmoothFactor(ESCAPE_RADIUS);
 
     return 0;
 }

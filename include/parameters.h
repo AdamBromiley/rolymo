@@ -49,8 +49,6 @@ extern const struct ComplexNumber COMPLEX_MAX;
 extern const struct ComplexNumber C_MIN;
 extern const struct ComplexNumber C_MAX;
 
-extern const double ESCAPE_RADIUS;
-
 extern const unsigned long int ITERATIONS_MIN;
 extern const unsigned long int ITERATIONS_MAX;
 
