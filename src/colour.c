@@ -31,7 +31,6 @@ static const double CHAR_SCALE_MULTIPLIER = 0.3;
 
 
 static void hsvToRGB(struct ColourRGB *rgb, struct ColourHSV *hsv);
-static double smooth(unsigned long int iterations, complex z);
 
 static char mapColourSchemeASCII(double n, enum EscapeStatus status);
 
@@ -114,8 +113,9 @@ void mapColour(void *pixel, unsigned long int iterations, complex z, int offset,
     enum EscapeStatus status = (iterations < iterationsMax) ? ESCAPED : UNESCAPED;
     double n = 0;
 
+    /* Makes discrete iteration count a continuous value */
     if (scheme->depth != BIT_DEPTH_1 && status == ESCAPED)
-        n = smooth(iterations, z);
+        n = iterations + 1.0 - log2(log2(cabs(z)));
 
     switch (scheme->depth)
     {
@@ -183,13 +183,6 @@ void getColourString(char *dest, enum ColourSchemeType colour, size_t n)
     dest[n - 1] = '\0';
 
     return;
-}
-
-
-/* Makes discrete iteration count a continuous value */
-static double smooth(unsigned long int iterations, complex z)
-{
-    return (iterations + 1.0 - log2(log2(cabs(z))));
 }
 
 
