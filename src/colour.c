@@ -26,7 +26,7 @@ static const char *OUTPUT_TERMINAL_CHARSET = OUTPUT_TERMINAL_CHARSET_;
 static const size_t OUTPUT_TERMINAL_CHARSET_LENGTH = (sizeof(OUTPUT_TERMINAL_CHARSET_) - 1) / sizeof(char);
 
 /* Multiplier values to normalise the smoothed iteration values */
-static const double COLOUR_SCALE_MULTIPLIER = 20.0;
+static const double COLOUR_SCALE_MULTIPLIER = 30.0;
 static const double CHAR_SCALE_MULTIPLIER = 0.3;
 
 
@@ -112,7 +112,7 @@ void mapColour(void *pixel, unsigned long int iterations, complex z, int offset,
                   unsigned long int iterationsMax, struct ColourScheme *scheme)
 {
     enum EscapeStatus status = (iterations < iterationsMax) ? ESCAPED : UNESCAPED;
-    double n;
+    double n = 0;
 
     if (scheme->depth != BIT_DEPTH_1 && status == ESCAPED)
         n = smooth(iterations, z);
@@ -189,7 +189,7 @@ void getColourString(char *dest, enum ColourSchemeType colour, size_t n)
 /* Makes discrete iteration count a continuous value */
 static double smooth(unsigned long int iterations, complex z)
 {
-    double smoothFactor = log(log(cabs(z))) / log(ESCAPE_RADIUS);
+    double smoothFactor = log2(log2(cabs(z)));
     return (iterations + 1.0 - smoothFactor);
 }
 
@@ -220,6 +220,7 @@ static void hsvToRGB(struct ColourRGB *rgb, struct ColourHSV *hsv)
     i = (unsigned char) floor(hsv->h / 60.0);
     
     x = (hsv->h / 60.0) - i;
+
     p = hsv->v * (1.0 - hsv->s) * 255.0;
     q = hsv->v * (1.0 - hsv->s * x) * 255.0;
     r = hsv->v * (1.0 - hsv->s * (1.0 - x)) * 255.0;
@@ -227,37 +228,37 @@ static void hsvToRGB(struct ColourRGB *rgb, struct ColourHSV *hsv)
     switch (i)
     {
         case 0:
-            rgb->r = (uint8_t) hsv->v;
+            rgb->r = (uint8_t) (hsv->v * 255.0);
             rgb->g = (uint8_t) r;
             rgb->b = (uint8_t) p;
             break;
         case 1:
             rgb->r = (uint8_t) q;
-            rgb->g = (uint8_t) hsv->v;
+            rgb->g = (uint8_t) (hsv->v * 255.0);
             rgb->b = (uint8_t) p;
             break;
         case 2:
             rgb->r = (uint8_t) p;
-            rgb->g = (uint8_t) hsv->v;
+            rgb->g = (uint8_t) (hsv->v * 255.0);
             rgb->b = (uint8_t) r;
             break;
         case 3:
             rgb->r = (uint8_t) p;
             rgb->g = (uint8_t) q;
-            rgb->b = (uint8_t) hsv->v;
+            rgb->b = (uint8_t) (hsv->v * 255.0);
             break;
         case 4:
             rgb->r = (uint8_t) r;
             rgb->g = (uint8_t) p;
-            rgb->b = (uint8_t) hsv->v;
+            rgb->b = (uint8_t) (hsv->v * 255.0);
             break;
         case 5:
-            rgb->r = (uint8_t) hsv->v;
+            rgb->r = (uint8_t) (hsv->v * 255.0);
             rgb->g = (uint8_t) p;
             rgb->b = (uint8_t) q;
             break;
         default:
-            rgb->r = (uint8_t) hsv->v;
+            rgb->r = (uint8_t) (hsv->v * 255.0);
             rgb->g = (uint8_t) r;
             rgb->b = (uint8_t) p;
             break;
