@@ -42,7 +42,7 @@ LDLIBS = $(patsubst %,-l%,$(_LDLIBS))
 CC = gcc
 
 # Compiler options
-CFLAGS = $(IDIRS) -g -std=c99 -pedantic \
+CFLAGS = $(IDIRS) -O3 -g -std=c99 -pedantic \
 	-Wall -Wextra -Wcast-align -Wcast-qual -Wdisabled-optimization -Wformat=2 \
 	-Winit-self -Wlogical-op -Wmissing-declarations -Wmissing-include-dirs \
 	-Wredundant-decls -Wshadow -Wsign-conversion -Wstrict-overflow=5 \
