@@ -310,7 +310,7 @@ int usage(void)
     printf("  mandelbrot\n");
     printf("  mandelbrot -j \"0.1 - 0.2e-2i\" -o \"juliaset.pnm\"\n");
     printf("  mandelbrot -t\n");
-    printf("  mandelbrot -i 200 --width=5500 --height=5000 --colour=9\n");
+    printf("  mandelbrot -i 200 --width=5500 --height=5000 --colour=9\n\n");
 
     return EXIT_SUCCESS;
 }
