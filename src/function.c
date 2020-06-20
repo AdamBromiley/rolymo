@@ -24,8 +24,8 @@ void * mandelbrot(void *threadInfo)
     size_t rows = thread->block->rows;
     size_t columns = parameters->width;
 
-    void *pixel = thread->block->ctx->array->array;
     size_t arrayMemberSize = (colour->depth != BIT_DEPTH_1) ? colour->depth / 8 : sizeof(char);
+    void *pixel = thread->block->ctx->array->array;
     double pixelWidth = (parameters->maximum.re - parameters->minimum.re) / (parameters->width - 1);
     double pixelHeight = (parameters->maximum.im - parameters->minimum.im) / parameters->height;
 
@@ -39,7 +39,7 @@ void * mandelbrot(void *threadInfo)
 
     /* Set to top left of plot block (minimum real, maximum block imaginary) */
     c = parameters->minimum.re +
-        (parameters->maximum.im - (thread->block->blockID * rows) * pixelHeight) * I;
+        (parameters->maximum.im - (thread->block->blockID * rows + thread->threadID) * pixelHeight) * I;
 
     /* Offset by threadID to ensure each thread gets a unique row */
     for (y = thread->threadID; y < rows; y += threadCount, c -= pixelHeight * threadCount * I)
@@ -51,6 +51,8 @@ void * mandelbrot(void *threadInfo)
         *** NOT IMPLEMENTED YET ***/
         //printf("c1 = %.3g + %.3gi\n", creal(c), cimag(c));
         /* Set imaginary value to that of the row */
+
+        pixel = (char *) thread->block->ctx->array->array + y * columns * arrayMemberSize;
 
         /* Iterate over the row */
         for (x = 0; x < columns; ++x, c += pixelWidth)
