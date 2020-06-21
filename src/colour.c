@@ -114,7 +114,7 @@ void mapColour(void *pixel, unsigned long int iterations, complex z, int offset,
     double n = 0;
 
     /* Makes discrete iteration count a continuous value */
-    if (scheme->depth != BIT_DEPTH_1 && status == ESCAPED)
+    if (status == ESCAPED && scheme->depth != BIT_DEPTH_1)
         n = iterations + 1.0 - log2(log2(cabs(z)));
 
     switch (scheme->depth)
