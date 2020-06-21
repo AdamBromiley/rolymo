@@ -90,3 +90,20 @@ Examples:
   mandelbrot -i 200 --width=5500 --height=5000 --colour=9
 
 ```
+
+## Optimisation
+Given that a single run of the program may compute billions of complex operations, optimisation is an important part of the project. The code has been refactored to improve speed, however readability, maintainability, and modularity must still be prioritised.
+
+GCC flags (in [Makefile](Makefile) located in the `$COPT` and `$LDOPT` variables) are used to heavily optimise the output code with (mainly) the sacrifice of some floating point rounding precision. The following flags are set by default:
+
+### Compiler Flags
+`-flto -Ofast -march=native`
+
+### Linker Flags
+`-flto -Ofast`
+
+| Flag            | Description                                                                               |
+| :-------------- | :---------------------------------------------------------------------------------------- |
+| `-flto`         | Preform link-time optimisation                                                            |
+| `-Ofast`        | Enable all `-O3` optimisations along with, most impactful for this program, `-ffast-math` |
+| `-march=native` | Optimise for the user's machine                                                           |
