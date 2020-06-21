@@ -12,7 +12,11 @@
 #include "parameters.h"
 
 
-void * mandelbrot(void *threadInfo)
+static double dotProduct(complex z);
+static complex mandelbrot(unsigned long int *n, complex c, unsigned long int maxIterations);
+
+
+void * generateFractal(void *threadInfo)
 {
     struct Thread *thread = threadInfo;
     unsigned int threadCount = thread->block->ctx->array->threadCount;
@@ -53,11 +57,8 @@ void * mandelbrot(void *threadInfo)
         /* Iterate over the row */
         for (x = 0; x < columns; ++x, c += cReStep)
         {
-            z = 0.0 + 0.0 * I;
-    
-            /* Perform mandelbrot function */
-            for (n = 0; cabs(z) < ESCAPE_RADIUS && n < maxIterations; ++n)
-                z = z * z + c;
+            
+            z = mandelbrot(&n, c, maxIterations);
 
             mapColour(pixel, n, z, bitOffset, maxIterations, colour);
 
@@ -79,4 +80,35 @@ void * mandelbrot(void *threadInfo)
     logMessage(INFO, "Thread %u: Plot generated - exiting", thread->threadID);
     
     pthread_exit(0);
+}
+
+
+static double dotProduct(complex z)
+{
+    return creal(z) * creal(z) + cimag(z) * cimag(z);
+}
+
+
+static complex mandelbrot(unsigned long int *n, complex c, unsigned long int maxIterations)
+{
+    complex z;
+    double cdot;
+
+    z = 0.0 + 0.0 * I;
+
+    cdot = dotProduct(c);
+
+    if (256.0 * cdot * cdot - 96.0 * cdot + 32.0 * creal(c) - 3.0 >= 0.0
+        && 16.0 * (cdot + 2.0 * creal(c) + 1.0) - 1.0 >= 0.0)
+    {
+        /* Perform mandelbrot function */
+        for (*n = 0; cabs(z) < ESCAPE_RADIUS && *n < maxIterations; ++(*n))
+            z = z * z + c;
+    }
+    else
+    {
+        *n = maxIterations;
+    }
+
+    return z;
 }

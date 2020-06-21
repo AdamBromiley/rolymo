@@ -2,7 +2,7 @@
 #define FUNCTION_H
 
 
-void * mandelbrot(void *thread);
+void * generateFractal(void *thread);
 
 
 #endif

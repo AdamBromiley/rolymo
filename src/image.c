@@ -135,7 +135,7 @@ int imageOutput(struct PlotCTX *parameters)
             thread = &(threads[i]);
             logMessage(INFO, "Spawning thread %u", thread->threadID);
     
-            if (pthread_create(&(thread->pthreadID), NULL, mandelbrot, thread) != 0)
+            if (pthread_create(&(thread->pthreadID), NULL, generateFractal, thread) != 0)
             {
                 logMessage(ERROR, "Thread could not be created");
                 freeArrayCTX(array);
