@@ -24,14 +24,17 @@ void * mandelbrot(void *threadInfo)
     size_t rows = thread->block->rows;
     size_t columns = parameters->width;
 
+    char *array = (char *) thread->block->ctx->array->array;
+    char *pixel;
     size_t arrayMemberSize = (colour->depth != BIT_DEPTH_1) ? colour->depth / 8 : sizeof(char);
-    void *pixel = thread->block->ctx->array->array;
+    
     double pixelWidth = (parameters->maximum.re - parameters->minimum.re) / (parameters->width - 1);
     double pixelHeight = (parameters->maximum.im - parameters->minimum.im) / parameters->height;
 
     int bitOffset = 1;
 
     complex z, c;
+    complex cReStep = pixelWidth, cImStep = pixelHeight * threadCount * I;
     unsigned long int n;
     unsigned long int maxIterations = parameters->iterations;
 
@@ -42,29 +45,29 @@ void * mandelbrot(void *threadInfo)
         (parameters->maximum.im - (thread->block->blockID * rows + thread->threadID) * pixelHeight) * I;
 
     /* Offset by threadID to ensure each thread gets a unique row */
-    for (y = thread->threadID; y < rows; y += threadCount, c -= pixelHeight * threadCount * I)
+    for (y = thread->threadID; y < rows; y += threadCount, c -= cImStep)
     {
         /* Repoint to first pixel of the row */
-        pixel = (char *) thread->block->ctx->array->array + y * columns * arrayMemberSize;
+        pixel = array + y * columns * arrayMemberSize;
 
         /* Iterate over the row */
-        for (x = 0; x < columns; ++x, c += pixelWidth)
+        for (x = 0; x < columns; ++x, c += cReStep)
         {
             z = 0.0 + 0.0 * I;
     
             /* Perform mandelbrot function */
-            for (n = 0; n < maxIterations && cabs(z) < ESCAPE_RADIUS; ++n)
-                z = cpow(z, 2.0) + c;
+            for (n = 0; cabs(z) < ESCAPE_RADIUS && n < maxIterations; ++n)
+                z = z * z + c;
 
             mapColour(pixel, n, z, bitOffset, maxIterations, colour);
 
             if (colour->depth != BIT_DEPTH_1)
             {
-                pixel = (char *) pixel + arrayMemberSize;
+                pixel += arrayMemberSize;
             }
             else if (++bitOffset == CHAR_BIT)
             {
-                pixel = (char *) pixel + arrayMemberSize;
+                pixel += arrayMemberSize;
                 bitOffset = 0;
             }
         }
