@@ -17,7 +17,13 @@
 # Program files
 **/var
 *.log
+*.pnm
+*.pbm
+*.pgm
 *.ppm
 
 # Visual Studio Code configuration
 .vscode/
+
+# Test scripts
+**/test
