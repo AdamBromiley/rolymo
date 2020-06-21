@@ -41,8 +41,11 @@ LDLIBS = $(patsubst %,-l%,$(_LDLIBS))
 # Compiler name
 CC = gcc
 
+# Compiler optimisation options
+COPT = -flto -Ofast -march=native
+
 # Compiler options
-CFLAGS = $(IDIRS) -O3 -g -std=c99 -pedantic \
+CFLAGS = $(IDIRS) $(COPT) -g -std=c99 -pedantic \
 	-Wall -Wextra -Wcast-align -Wcast-qual -Wdisabled-optimization -Wformat=2 \
 	-Winit-self -Wlogical-op -Wmissing-declarations -Wmissing-include-dirs \
 	-Wredundant-decls -Wshadow -Wsign-conversion -Wstrict-overflow=5 \
@@ -53,7 +56,7 @@ CFLAGS = $(IDIRS) -O3 -g -std=c99 -pedantic \
 LD = gcc
 
 # Linker options
-LDFLAGS = $(LDLIBS) -pthread
+LDFLAGS = $(LDLIBS) -flto -pthread
 
 
 
