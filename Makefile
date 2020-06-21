@@ -55,8 +55,11 @@ CFLAGS = $(IDIRS) $(COPT) -g -std=c99 -pedantic \
 # Linker name
 LD = gcc
 
+# Linker optimisation options
+LDOPT = -flto -Ofast
+
 # Linker options
-LDFLAGS = $(LDLIBS) -flto -pthread
+LDFLAGS = $(LDLIBS) $(LDOPT) -pthread
 
 
 
