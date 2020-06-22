@@ -133,11 +133,11 @@ void getPlotString(char *dest, enum PlotType plot, size_t n)
 
     switch (plot)
     {
-        case PLOT_MANDELBROT:
-            type = "Mandelbrot set";
-            break;
         case PLOT_JULIA:
             type = "Julia set";
+            break;
+        case PLOT_MANDELBROT:
+            type = "Mandelbrot set";
             break;
         default:
             type = "Unknown plot type";
