@@ -14,6 +14,7 @@
 
 static double dotProduct(complex z);
 static complex mandelbrot(unsigned long int *n, complex c, unsigned long int maxIterations);
+static complex julia(unsigned long int *n, complex z, complex c, unsigned long int maxIterations);
 
 
 void * generateFractal(void *threadInfo)
@@ -22,6 +23,7 @@ void * generateFractal(void *threadInfo)
     unsigned int threadCount = thread->block->ctx->array->threadCount;
 
     struct PlotCTX *parameters = thread->block->ctx->array->parameters;
+    enum PlotType plot = parameters->type;
     struct ColourScheme *colour = &(parameters->colour);
 
     size_t x, y;
@@ -38,6 +40,7 @@ void * generateFractal(void *threadInfo)
     int bitOffset = 1;
 
     complex z, c;
+    complex constant = parameters->c.re + parameters->c.im * I;
     complex cReStep = pixelWidth, cImStep = pixelHeight * threadCount * I;
     unsigned long int n;
     unsigned long int maxIterations = parameters->iterations;
@@ -57,8 +60,17 @@ void * generateFractal(void *threadInfo)
         /* Iterate over the row */
         for (x = 0; x < columns; ++x, c += cReStep)
         {
-            
-            z = mandelbrot(&n, c, maxIterations);
+            switch (plot)
+            {
+                case PLOT_JULIA:
+                    z = julia(&n, c, constant, maxIterations);
+                    break;
+                case PLOT_MANDELBROT:
+                    z = mandelbrot(&n, c, maxIterations);
+                    break;
+                default:
+                    pthread_exit(0);
+            }
 
             mapColour(pixel, n, z, bitOffset, maxIterations, colour);
 
@@ -101,7 +113,7 @@ static complex mandelbrot(unsigned long int *n, complex c, unsigned long int max
     if (256.0 * cdot * cdot - 96.0 * cdot + 32.0 * creal(c) - 3.0 >= 0.0
         && 16.0 * (cdot + 2.0 * creal(c) + 1.0) - 1.0 >= 0.0)
     {
-        /* Perform mandelbrot function */
+        /* Perform Mandelbrot set function */
         for (*n = 0; cabs(z) < ESCAPE_RADIUS && *n < maxIterations; ++(*n))
             z = z * z + c;
     }
@@ -109,6 +121,16 @@ static complex mandelbrot(unsigned long int *n, complex c, unsigned long int max
     {
         *n = maxIterations;
     }
+
+    return z;
+}
+
+
+static complex julia(unsigned long int *n, complex z, complex c, unsigned long int maxIterations)
+{
+    /* Perform Julia set function */
+    for (*n = 0; cabs(z) < ESCAPE_RADIUS && *n < maxIterations; ++(*n))
+        z = z * z + c;
 
     return z;
 }
