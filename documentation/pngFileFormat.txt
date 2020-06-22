@@ -1,0 +1,71 @@
+Signature:
+89 50 4E 47 0D 0A 1A 0A
+
+IHDR:
+    Length:                 4 bytes     13
+    Chunk type:             4 bytes     IHDR
+
+    Chunk data:
+        Width:              4 bytes     1 to 2^31
+        Height:             4 bytes     1 to 2^31
+        Bit depth:          1 byte      1, 2, 4, 8, 16
+        Color type:         1 byte      0 (grayscale), 2 (rgb), 3 (palette index), [4, 6 alpha]
+        Compression method: 1 byte      0
+        Filter method:      1 byte      0
+        Interlace method:   1 byte      0 (none), 1 (Adam7)
+
+    CRC:                    4 bytes     CRC-32 checksum
+
+
+    Example: Width = 5500, Height = 5000, 8-bit, RGB
+
+        00 00 00 0D
+        49 48 44 52
+        00 00 15 7C
+        00 00 13 88
+        08
+        02
+        00
+        00
+        00
+        00 00 00 00
+
+
+IDAT:
+    Length:                 4 bytes     Width * Height * Bit depth
+    Chunk type:             4 bytes     IDAT
+
+    Chunk data:
+        Image:              Length bytes
+
+    CRC:                    4 bytes     CRC-32 checksum
+
+
+    Example:
+
+        00 00 00 00
+        49 44 41 54
+        .
+        .
+        .
+        00 00 00 00
+
+IEND:
+    Length:                 4 bytes     0
+    Chunk type:             4 bytes     IEND
+    CRC:                    4 bytes     CRC-32 checksum
+
+
+    Example:
+
+        00 00 00 00
+        49 45 4E 44
+        00 00 00 00
+
+
+
+DEFLATE:
+    Header:
+        Bit 1               1 bit       0 (more blocks), 1 (final block)
+        Bits 2 & 3          2 bits      00 (raw, incompressible), 01 (static Huffman), 10 (compressed with Huffman table)
+    
