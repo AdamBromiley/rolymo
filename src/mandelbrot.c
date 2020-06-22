@@ -68,6 +68,8 @@ int main(int argc, char **argv)
 {
     const char *GETOPT_STRING = ":c:i:j:l:m:M:o:r:s:tv";
 
+    /* Temporary variable for memory safety with uLongArgument() */
+    unsigned long int tempUL;
     int optionID, argError;
     const struct option longOptions[] =
     {
@@ -87,15 +89,20 @@ int main(int argc, char **argv)
         {0, 0, 0, 0}
     };
 
+    /* Plotting parameters */
     struct PlotCTX parameters;
+
+    /* Image file path */
     const char *outputFilePath = OUTPUT_FILE_PATH_DEFAULT;
+
+    /* Log parameters */
     const char *logFilePath = NULL;
     enum LogSeverity loggingLevel = LOG_SEVERITY_DEFAULT;
     enum Verbosity verbose = LOG_VERBOSITY_DEFAULT;
     _Bool vFlag = 0;
 
     PROGRAM_NAME = argv[0];
-
+    
     /* Do one getopt pass to get the plot type */
     parameters.type = getPlotType(argc, argv, longOptions, GETOPT_STRING);
 
@@ -105,7 +112,7 @@ int main(int argc, char **argv)
     /* Fill parameters struct with default values for the plot type */
     if (initialiseParameters(&parameters, parameters.type))
         return getoptErrorMessage(OPT_ERROR, 0, NULL);
-    
+
     /* Parse options */
     opterr = 0;
     while ((optionID = getopt_long(argc, argv, GETOPT_STRING, longOptions, NULL)) != -1)
@@ -115,9 +122,8 @@ int main(int argc, char **argv)
         switch (optionID)
         {
             case 'c':
-                /* Cast is safe assuming COLOUR_SCHEME_TYPE_MAX <= INT_MAX */
-                argError = uLongArgument((unsigned long int *) &(parameters.colour.colour), optarg, COLOUR_SCHEME_MIN,
-                             COLOUR_SCHEME_MAX, optionID);
+                argError = uLongArgument(&tempUL, optarg, COLOUR_SCHEME_MIN, COLOUR_SCHEME_MAX, optionID);
+                parameters.colour.colour = tempUL;
                 initialiseColourScheme(&(parameters.colour), parameters.colour.colour);
                 break;
             case 'i':
@@ -136,8 +142,8 @@ int main(int argc, char **argv)
                     logFilePath = LOG_FILE_PATH_DEFAULT;                
                 break;
             case 'l':
-                /* Cast is safe assuming LOG_SEVERITY_MAX <= INT_MAX */
-                argError = uLongArgument((unsigned long int *) &loggingLevel, optarg, LOG_SEVERITY_MIN, LOG_SEVERITY_MAX, optionID);
+                argError = uLongArgument(&tempUL, optarg, LOG_SEVERITY_MIN, LOG_SEVERITY_MAX, optionID);
+                loggingLevel = tempUL;
                 break;
             case 'm':
                 argError = complexArgument(&(parameters.minimum), optarg, COMPLEX_MIN, COMPLEX_MAX, optionID);
