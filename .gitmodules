@@ -1,0 +1,9 @@
+[submodule "lib/groot"]
+	path = lib/groot
+	url = https://github.com/AdamBromiley/groot
+[submodule "lib/sooty"]
+	path = lib/sooty
+	url = https://github.com/AdamBromiley/sooty
+[submodule "lib/percy"]
+	path = lib/percy
+	url = https://github.com/AdamBromiley/percy
