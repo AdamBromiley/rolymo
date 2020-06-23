@@ -32,14 +32,14 @@ enum GetoptError
 
 
 /* Program name - argv[0] */
-static const char *PROGRAM_NAME;
+static char *programName;
 
 /* Output files */
-static const char *OUTPUT_FILE_PATH_DEFAULT = "var/mandelbrot.pnm";
+static char *OUTPUT_FILE_PATH_DEFAULT = "var/mandelbrot.pnm";
 
 static const enum LogSeverity LOG_SEVERITY_DEFAULT = INFO;
 static const enum Verbosity LOG_VERBOSITY_DEFAULT = VERBOSE;
-static const char *LOG_FILE_PATH_DEFAULT = "var/mandelbrot.log";
+static char *LOG_FILE_PATH_DEFAULT = "var/mandelbrot.log";
 
 /* Precision of floating points in output */
 static const int DBL_PRINTF_PRECISION = 3;
@@ -51,8 +51,7 @@ int usage(void);
 void plotParameters(struct PlotCTX *parameters, const char *image);
 void programParameters(enum Verbosity verbose, enum LogSeverity logLevel, const char *log);
 
-int uLongArgument(unsigned long int *x, const char *argument, unsigned long int min, unsigned long int max,
-                     char optionID);
+int uLongArgument(unsigned long *x, const char *argument, unsigned long min, unsigned long max, char optionID);
 int uIntMaxArgument(uintmax_t *x, const char *argument, uintmax_t min, uintmax_t max, char optionID);
 int doubleArgument(double *x, const char *argument, double min, double max, char optionID);
 int complexArgument(struct ComplexNumber *z, char *argument, struct ComplexNumber min, struct ComplexNumber max,
@@ -69,9 +68,9 @@ int main(int argc, char **argv)
     const char *GETOPT_STRING = ":c:i:j:l:m:M:o:r:s:tv";
 
     /* Temporary variable for memory safety with uLongArgument() */
-    unsigned long int tempUL;
-    int optionID, argError;
-    const struct option longOptions[] =
+    unsigned long tempUL;
+    int optionID;
+    const struct option LONG_OPTIONS[] =
     {
         {"colour", required_argument, NULL, 'c'},     /* Colour scheme of PPM image */
         {"iterations", required_argument, NULL, 'i'}, /* Maximum iteration count of function */
@@ -93,18 +92,18 @@ int main(int argc, char **argv)
     struct PlotCTX parameters;
 
     /* Image file path */
-    const char *outputFilePath = OUTPUT_FILE_PATH_DEFAULT;
+    char *outputFilePath = OUTPUT_FILE_PATH_DEFAULT;
 
     /* Log parameters */
-    const char *logFilePath = NULL;
+    char *logFilePath = NULL;
     enum LogSeverity loggingLevel = LOG_SEVERITY_DEFAULT;
     enum Verbosity verbose = LOG_VERBOSITY_DEFAULT;
     _Bool vFlag = 0;
 
-    PROGRAM_NAME = argv[0];
+    programName = argv[0];
     
     /* Do one getopt pass to get the plot type */
-    parameters.type = getPlotType(argc, argv, longOptions, GETOPT_STRING);
+    parameters.type = getPlotType(argc, argv, LONG_OPTIONS, GETOPT_STRING);
 
     if (parameters.type == PLOT_NONE)
         return getoptErrorMessage(OPT_NONE, 0, NULL);
@@ -115,9 +114,9 @@ int main(int argc, char **argv)
 
     /* Parse options */
     opterr = 0;
-    while ((optionID = getopt_long(argc, argv, GETOPT_STRING, longOptions, NULL)) != -1)
+    while ((optionID = getopt_long(argc, argv, GETOPT_STRING, LONG_OPTIONS, NULL)) != -1)
     {
-        argError = PARSER_NONE;
+        enum ParseError argError = PARSER_NONE;
 
         switch (optionID)
         {
@@ -245,8 +244,8 @@ enum PlotType getPlotType(int argc, char **argv, const struct option longOptions
 /* `--help` output */
 int usage(void)
 {
-    printf("Usage: %s [LOG PARAMETERS...] [OUTPUT PARAMETERS...] [-j CONSTANT] [PLOT PARAMETERS...]\n", PROGRAM_NAME);
-    printf("       %s --help\n\n", PROGRAM_NAME);
+    printf("Usage: %s [LOG PARAMETERS...] [OUTPUT PARAMETERS...] [-j CONSTANT] [PLOT PARAMETERS...]\n", programName);
+    printf("       %s --help\n\n", programName);
     printf("A Mandelbrot and Julia set plotter.\n\n");
     printf("Mandatory arguments to long options are mandatory for short options too.\n");
     printf("Output parameters:\n");
@@ -422,8 +421,7 @@ void plotParameters(struct PlotCTX *parameters, const char *image)
 
 
 /* Wrapper for stringToULong() */
-int uLongArgument(unsigned long int *x, const char *argument, unsigned long int min, unsigned long int max,
-                     char optionID)
+int uLongArgument(unsigned long *x, const char *argument, unsigned long min, unsigned long max, char optionID)
 {
     char *endptr;
     const int BASE = 10;
@@ -434,7 +432,7 @@ int uLongArgument(unsigned long int *x, const char *argument, unsigned long int 
     if (argError == PARSER_ERANGE || argError == PARSER_EMIN || argError == PARSER_EMAX)
     {
         fprintf(stderr, "%s: -%c: Argument out of range, it must be between %lu and %lu\n", 
-            PROGRAM_NAME, optionID, min, max);
+            programName, optionID, min, max);
         return PARSER_ERANGE;
     }
     else if (argError != PARSER_NONE)
@@ -458,7 +456,7 @@ int uIntMaxArgument(uintmax_t *x, const char *argument, uintmax_t min, uintmax_t
     if (argError == PARSER_ERANGE || argError == PARSER_EMIN || argError == PARSER_EMAX)
     {
         fprintf(stderr, "%s: -%c: Argument out of range, it must be between %" PRIuMAX " and %" PRIuMAX "\n", 
-            PROGRAM_NAME, optionID, min, max);
+            programName, optionID, min, max);
         return PARSER_ERANGE;
     }
     else if (argError != PARSER_NONE)
@@ -481,7 +479,7 @@ int doubleArgument(double *x, const char *argument, double min, double max, char
     if (argError == PARSER_ERANGE || argError == PARSER_EMIN || argError == PARSER_EMAX)
     {
         fprintf(stderr, "%s: -%c: Argument out of range, it must be between %.*g and %.*g\n", 
-            PROGRAM_NAME, optionID, DBL_PRINTF_PRECISION, min, DBL_PRINTF_PRECISION, max);
+            programName, optionID, DBL_PRINTF_PRECISION, min, DBL_PRINTF_PRECISION, max);
         return PARSER_ERANGE;
     }
     else if (argError != PARSER_NONE)
@@ -505,7 +503,7 @@ int complexArgument(struct ComplexNumber *z, char *argument, struct ComplexNumbe
     if (argError == PARSER_ERANGE)
     {
         fprintf(stderr, "%s: -%c: Argument out of range, it must be between %.*g + %.*gi and %.*g + %.*gi\n", 
-            PROGRAM_NAME, optionID, DBL_PRINTF_PRECISION, min.re, DBL_PRINTF_PRECISION, min.im,
+            programName, optionID, DBL_PRINTF_PRECISION, min.re, DBL_PRINTF_PRECISION, min.im,
             DBL_PRINTF_PRECISION, max.re, DBL_PRINTF_PRECISION, max.im);
         return PARSER_ERANGE;
     }
@@ -527,19 +525,19 @@ int validateParameters(struct PlotCTX parameters)
     /* Check colour scheme */
     if (parameters.output != OUTPUT_TERMINAL && parameters.colour.depth == BIT_DEPTH_ASCII)
     {
-        fprintf(stderr, "%s: Invalid colour scheme for output type\n", PROGRAM_NAME);
+        fprintf(stderr, "%s: Invalid colour scheme for output type\n", programName);
         return 1;
     }
     
     /* Check real and imaginary range */
     if (parameters.maximum.re <= parameters.minimum.re)
     {
-        fprintf(stderr, "%s: Invalid range - maximum real value is smaller than the minimum\n", PROGRAM_NAME);
+        fprintf(stderr, "%s: Invalid range - maximum real value is smaller than the minimum\n", programName);
         return 1;
     }
     else if (parameters.maximum.im <= parameters.minimum.im)
     {
-        fprintf(stderr, "%s: Invalid range - maximum imaginary value is smaller than the minimum\n", PROGRAM_NAME);
+        fprintf(stderr, "%s: Invalid range - maximum imaginary value is smaller than the minimum\n", programName);
         return 1;
     }
 
@@ -590,33 +588,33 @@ int getoptErrorMessage(enum GetoptError optionError, char shortOption, const cha
         case OPT_NONE:
             break;
         case OPT_ERROR:
-            fprintf(stderr, "%s: Unknown error when reading command-line options\n", PROGRAM_NAME);
+            fprintf(stderr, "%s: Unknown error when reading command-line options\n", programName);
             break;
         case OPT_EOPT:
             if (shortOption == '\0')
-                fprintf(stderr, "%s: Invalid option: \'%s\'\n", PROGRAM_NAME, longOption);
+                fprintf(stderr, "%s: Invalid option: \'%s\'\n", programName, longOption);
             else
-                fprintf(stderr, "%s: Invalid option: \'-%c\'\n", PROGRAM_NAME, shortOption);
+                fprintf(stderr, "%s: Invalid option: \'-%c\'\n", programName, shortOption);
             break;
         case OPT_ENOARG:
-            fprintf(stderr, "%s: -%c: Option argument required\n", PROGRAM_NAME, shortOption);
+            fprintf(stderr, "%s: -%c: Option argument required\n", programName, shortOption);
             break;
         case OPT_EARG:
-            fprintf(stderr, "%s: -%c: Failed to parse argument\n", PROGRAM_NAME, shortOption);
+            fprintf(stderr, "%s: -%c: Failed to parse argument\n", programName, shortOption);
             break;
         case OPT_EMANY:
-            fprintf(stderr, "%s: -%c: Option can only appear once\n", PROGRAM_NAME, shortOption);
+            fprintf(stderr, "%s: -%c: Option can only appear once\n", programName, shortOption);
             break;
         case OPT_EARGC_LOW:
-            fprintf(stderr, "%s: Too few arguments supplied\n", PROGRAM_NAME);
+            fprintf(stderr, "%s: Too few arguments supplied\n", programName);
             break;
         case OPT_EARGC_HIGH:
-            fprintf(stderr, "%s: Too many arguments supplied\n", PROGRAM_NAME);
+            fprintf(stderr, "%s: Too many arguments supplied\n", programName);
             break;
         default:
             break;
     }
 
-    fprintf(stderr, "Try \'%s --help\' for more information\n", PROGRAM_NAME);
+    fprintf(stderr, "Try \'%s --help\' for more information\n", programName);
     return EXIT_FAILURE;
 }
