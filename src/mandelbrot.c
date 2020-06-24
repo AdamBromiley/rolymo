@@ -1,21 +1,25 @@
 #include <getopt.h>
 #include <inttypes.h>
 #include <limits.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "groot/include/log.h"
+#include "percy/include/parser.h"
+
 #include "image.h"
-#include "log.h"
 #include "mandelbrot_parameters.h"
 #include "parameters.h"
-#include "parser.h"
 
 
-#define BIT_DEPTH_STRING_LENGTH_MAX 16
-#define COMPLEX_STRING_LENGTH_MAX 32
+#define SEVERITY_STR_LEN_MAX 16
+
+#define BIT_DEPTH_STR_LEN_MAX 16
+#define COMPLEX_STR_LEN_MAX 32
 
 
 enum GetoptError
@@ -35,11 +39,9 @@ enum GetoptError
 static char *programName;
 
 /* Output files */
-static char *OUTPUT_FILE_PATH_DEFAULT = "var/mandelbrot.pnm";
+static char *OUTPUT_FILEPATH_DEFAULT = "var/mandelbrot.pnm";
 
-static const enum LogSeverity LOG_SEVERITY_DEFAULT = INFO;
-static const enum Verbosity LOG_VERBOSITY_DEFAULT = VERBOSE;
-static char *LOG_FILE_PATH_DEFAULT = "var/mandelbrot.log";
+static char *LOG_FILEPATH_DEFAULT = "var/mandelbrot.log";
 
 /* Precision of floating points in output */
 static const int DBL_PRINTF_PRECISION = 3;
@@ -49,13 +51,12 @@ enum PlotType getPlotType(int argc, char **argv, const struct option longOptions
 
 int usage(void);
 void plotParameters(struct PlotCTX *parameters, const char *image);
-void programParameters(enum Verbosity verbose, enum LogSeverity logLevel, const char *log);
+void programParameters(const char *log);
 
 int uLongArgument(unsigned long *x, const char *argument, unsigned long min, unsigned long max, char optionID);
 int uIntMaxArgument(uintmax_t *x, const char *argument, uintmax_t min, uintmax_t max, char optionID);
 int doubleArgument(double *x, const char *argument, double min, double max, char optionID);
-int complexArgument(struct ComplexNumber *z, char *argument, struct ComplexNumber min, struct ComplexNumber max,
-                       char optionID);
+int complexArgument(complex *z, char *argument, complex min, complex max, char optionID);
 
 int validateParameters(struct PlotCTX parameters);
 
@@ -92,13 +93,11 @@ int main(int argc, char **argv)
     struct PlotCTX parameters;
 
     /* Image file path */
-    char *outputFilePath = OUTPUT_FILE_PATH_DEFAULT;
+    char *outputFilepath = OUTPUT_FILEPATH_DEFAULT;
 
     /* Log parameters */
-    char *logFilePath = NULL;
-    enum LogSeverity loggingLevel = LOG_SEVERITY_DEFAULT;
-    enum Verbosity verbose = LOG_VERBOSITY_DEFAULT;
-    _Bool vFlag = 0;
+    char *logFilepath = NULL;
+    bool vFlag = false;
 
     programName = argv[0];
     
@@ -116,7 +115,7 @@ int main(int argc, char **argv)
     opterr = 0;
     while ((optionID = getopt_long(argc, argv, GETOPT_STRING, LONG_OPTIONS, NULL)) != -1)
     {
-        enum ParseError argError = PARSER_NONE;
+        enum ParserErrorCode argError = PARSER_NONE;
 
         switch (optionID)
         {
@@ -132,17 +131,17 @@ int main(int argc, char **argv)
                 argError = complexArgument(&(parameters.c), optarg, C_MIN, C_MAX, optionID);
                 break;
             case 'k':
-                if (vFlag != 1)
-                    verbose = QUIET;
+                if (!vFlag)
+                    setLogVerbosity(false);
 
                 if (optarg)
-                    logFilePath = optarg;
+                    logFilepath = optarg;
                 else
-                    logFilePath = LOG_FILE_PATH_DEFAULT;                
+                    logFilepath = LOG_FILEPATH_DEFAULT;                
                 break;
             case 'l':
                 argError = uLongArgument(&tempUL, optarg, LOG_SEVERITY_MIN, LOG_SEVERITY_MAX, optionID);
-                loggingLevel = tempUL;
+                setLogLevel(tempUL);
                 break;
             case 'm':
                 argError = complexArgument(&(parameters.minimum), optarg, COMPLEX_MIN, COMPLEX_MAX, optionID);
@@ -151,7 +150,7 @@ int main(int argc, char **argv)
                 argError = complexArgument(&(parameters.maximum), optarg, COMPLEX_MIN, COMPLEX_MAX, optionID);
                 break;
             case 'o':
-                outputFilePath = optarg;
+                outputFilepath = optarg;
                 break;
             case 'r':
                 argError = uIntMaxArgument(&(parameters.width), optarg, WIDTH_MIN, WIDTH_MAX, optionID);
@@ -163,8 +162,8 @@ int main(int argc, char **argv)
                 parameters.output = OUTPUT_TERMINAL;
                 break;
             case 'v':
-                vFlag = 1;
-                verbose = VERBOSE;
+                vFlag = true;
+                setLogVerbosity(true);
                 break;
             case 'h':
                 return usage();
@@ -183,8 +182,11 @@ int main(int argc, char **argv)
     }
 
     /* Open log file */
-    if (initialiseLog(verbose, loggingLevel, logFilePath))
-        return EXIT_FAILURE;
+    if (logFilepath)
+    {
+        if (openLog(logFilepath))
+            return getoptErrorMessage(OPT_NONE, 0, NULL);
+    }
 
     /* If stdout output, change dimensions */
     if (parameters.output == OUTPUT_TERMINAL)
@@ -195,11 +197,11 @@ int main(int argc, char **argv)
         return getoptErrorMessage(OPT_NONE, 0, NULL);
 
     /* Output settings */
-    programParameters(verbose, loggingLevel, logFilePath);
-    plotParameters(&parameters, outputFilePath);
+    programParameters(logFilepath);
+    plotParameters(&parameters, outputFilepath);
 
     /* Open image file and write header */
-    if (initialiseImage(&parameters, outputFilePath))
+    if (initialiseImage(&parameters, outputFilepath))
         return EXIT_FAILURE;
     
     /* Produce plot */
@@ -265,7 +267,7 @@ int usage(void)
     printf("                                [+] Greyscale schemes are 8-bit\n");
     printf("                                [+] Coloured schemes are full 24-bit\n\n");
     printf("  -o FILE                       Output file name\n");
-    printf("                                [+] Default = \'%s\'\n", OUTPUT_FILE_PATH_DEFAULT);
+    printf("                                [+] Default = \'%s\'\n", OUTPUT_FILEPATH_DEFAULT);
     printf("  -r WIDTH,  --width=WIDTH      The width of the image file in pixels\n");
     printf("                                [+] If using a 1-bit colour scheme, WIDTH must be a multiple of %u to "
               "allow for\n                                    bit-width pixels\n", CHAR_BIT);
@@ -283,25 +285,25 @@ int usage(void)
               "time\n\n");
     printf("  Default parameters:\n");
     printf("    Julia Set:\n");
-    printf("      MIN    = %.*g + %.*gi\n", DBL_PRINTF_PRECISION, JULIA_PARAMETERS_DEFAULT.minimum.re,
-        DBL_PRINTF_PRECISION, JULIA_PARAMETERS_DEFAULT.minimum.im);
-    printf("      MAX    = %.*g + %.*gi\n", DBL_PRINTF_PRECISION, JULIA_PARAMETERS_DEFAULT.maximum.re,
-        DBL_PRINTF_PRECISION, JULIA_PARAMETERS_DEFAULT.maximum.im);
+    printf("      MIN    = %.*g + %.*gi\n", DBL_PRINTF_PRECISION, creal(JULIA_PARAMETERS_DEFAULT.minimum),
+        DBL_PRINTF_PRECISION, cimag(JULIA_PARAMETERS_DEFAULT.minimum));
+    printf("      MAX    = %.*g + %.*gi\n", DBL_PRINTF_PRECISION, creal(JULIA_PARAMETERS_DEFAULT.maximum),
+        DBL_PRINTF_PRECISION, cimag(JULIA_PARAMETERS_DEFAULT.maximum));
     printf("      WIDTH  = %zu\n", JULIA_PARAMETERS_DEFAULT.width);
     printf("      HEIGHT = %zu\n\n", JULIA_PARAMETERS_DEFAULT.height);
     printf("    Mandelbrot set:\n");
-    printf("      MIN    = %.*g + %.*gi\n", DBL_PRINTF_PRECISION, MANDELBROT_PARAMETERS_DEFAULT.minimum.re,
-        DBL_PRINTF_PRECISION, MANDELBROT_PARAMETERS_DEFAULT.minimum.im);
-    printf("      MAX    = %.*g + %.*gi\n", DBL_PRINTF_PRECISION, MANDELBROT_PARAMETERS_DEFAULT.maximum.re,
-        DBL_PRINTF_PRECISION, MANDELBROT_PARAMETERS_DEFAULT.maximum.im);
+    printf("      MIN    = %.*g + %.*gi\n", DBL_PRINTF_PRECISION, creal(MANDELBROT_PARAMETERS_DEFAULT.minimum),
+        DBL_PRINTF_PRECISION, cimag(MANDELBROT_PARAMETERS_DEFAULT.minimum));
+    printf("      MAX    = %.*g + %.*gi\n", DBL_PRINTF_PRECISION, creal(MANDELBROT_PARAMETERS_DEFAULT.maximum),
+        DBL_PRINTF_PRECISION, cimag(MANDELBROT_PARAMETERS_DEFAULT.maximum));
     printf("      WIDTH  = %zu\n", MANDELBROT_PARAMETERS_DEFAULT.width);
     printf("      HEIGHT = %zu\n\n", MANDELBROT_PARAMETERS_DEFAULT.height);
     printf("Miscellaneous:\n");
     printf("  --log[=FILE]                  Output log to file, with optional file path argument\n");
-    printf("                                [+] Default = \'%s\'\n", LOG_FILE_PATH_DEFAULT);
+    printf("                                [+] Default = \'%s\'\n", LOG_FILEPATH_DEFAULT);
     printf("                                [+] Option may be used with \'-v\'\n");
     printf("  -l LEVEL,  --log-level=LEVEL  Only log messages more severe than LEVEL\n");
-    printf("                                [+] Default = %d\n", LOG_SEVERITY_DEFAULT);
+    printf("                                [+] Default = INFO\n");
     printf("                                [+] LEVEL may be:\n");
     printf("                                    0  = NONE (log nothing)\n");
     printf("                                    1  = FATAL\n");
@@ -322,24 +324,20 @@ int usage(void)
 
 
 /* Print program parameters to log */
-void programParameters(enum Verbosity verbose, enum LogSeverity logLevel, const char *log)
+void programParameters(const char *log)
 {
-    char verbosity[VERBOSITY_STRING_LENGTH_MAX];
-    char level[SEVERITY_STRING_LENGTH_MAX];
-
-    /* Convert verbosity enum to a string */
-    getVerbosityString(verbosity, verbose, sizeof(verbosity));
+    char level[SEVERITY_STR_LEN_MAX];
 
     /* Convert log severity level to string */
-    getSeverityString(level, logLevel, sizeof(level));
+    getSeverityString(level, getLogLevel(), sizeof(level));
 
     logMessage(DEBUG, "Program settings:\n\
     Verbosity = %s\n\
     Log level = %s\n\
     Log file  = %s",
-    verbosity,
+    (getLogVerbosity()) ? "VERBOSE" : "QUIET",
     level,
-    (log == NULL) ? "-" : log
+    (log) ? log : "-"
     );
 
     return;
@@ -351,9 +349,9 @@ void plotParameters(struct PlotCTX *parameters, const char *image)
 {
     char output[OUTPUT_STRING_LENGTH_MAX];
     char colour[COLOUR_STRING_LENGTH_MAX];
-    char bitDepthString[BIT_DEPTH_STRING_LENGTH_MAX];
+    char bitDepthString[BIT_DEPTH_STR_LEN_MAX];
     char plot[PLOT_STRING_LENGTH_MAX];
-    char c[COMPLEX_STRING_LENGTH_MAX];
+    char c[COMPLEX_STR_LEN_MAX];
 
     /* Get output type string from output type and bit depth enums */
     getOutputString(output, parameters, sizeof(output));
@@ -379,7 +377,7 @@ void plotParameters(struct PlotCTX *parameters, const char *image)
     if (parameters->type == PLOT_JULIA)
     {
         snprintf(c, sizeof(c), "%.*g + %.*gi",
-            DBL_PRINTF_PRECISION, parameters->c.re, DBL_PRINTF_PRECISION, parameters->c.im);
+            DBL_PRINTF_PRECISION, creal(parameters->c), DBL_PRINTF_PRECISION, cimag(parameters->c));
     }
     else
     {
@@ -410,8 +408,8 @@ void plotParameters(struct PlotCTX *parameters, const char *image)
     Constant   = %s\n\
     Iterations = %lu\n",
     plot,
-    DBL_PRINTF_PRECISION, parameters->minimum.re, DBL_PRINTF_PRECISION, parameters->minimum.im,
-    DBL_PRINTF_PRECISION, parameters->maximum.re, DBL_PRINTF_PRECISION, parameters->maximum.im,
+    DBL_PRINTF_PRECISION, creal(parameters->minimum), DBL_PRINTF_PRECISION, cimag(parameters->minimum),
+    DBL_PRINTF_PRECISION, creal(parameters->maximum), DBL_PRINTF_PRECISION, cimag(parameters->maximum),
     c,
     parameters->iterations
     );
@@ -492,8 +490,7 @@ int doubleArgument(double *x, const char *argument, double min, double max, char
 
 
 /* Wrapper for stringToComplex() */
-int complexArgument(struct ComplexNumber *z, char *argument, struct ComplexNumber min, struct ComplexNumber max,
-                       char optionID)
+int complexArgument(complex *z, char *argument, complex min, complex max, char optionID)
 {
     char *endptr;
     int argError;
@@ -503,8 +500,8 @@ int complexArgument(struct ComplexNumber *z, char *argument, struct ComplexNumbe
     if (argError == PARSER_ERANGE)
     {
         fprintf(stderr, "%s: -%c: Argument out of range, it must be between %.*g + %.*gi and %.*g + %.*gi\n", 
-            programName, optionID, DBL_PRINTF_PRECISION, min.re, DBL_PRINTF_PRECISION, min.im,
-            DBL_PRINTF_PRECISION, max.re, DBL_PRINTF_PRECISION, max.im);
+            programName, optionID, DBL_PRINTF_PRECISION, creal(min), DBL_PRINTF_PRECISION, cimag(min),
+            DBL_PRINTF_PRECISION, creal(max), DBL_PRINTF_PRECISION, cimag(max));
         return PARSER_ERANGE;
     }
     else if (argError != PARSER_NONE)
@@ -530,12 +527,12 @@ int validateParameters(struct PlotCTX parameters)
     }
     
     /* Check real and imaginary range */
-    if (parameters.maximum.re <= parameters.minimum.re)
+    if (creal(parameters.maximum) <= creal(parameters.minimum))
     {
         fprintf(stderr, "%s: Invalid range - maximum real value is smaller than the minimum\n", programName);
         return 1;
     }
-    else if (parameters.maximum.im <= parameters.minimum.im)
+    else if (cimag(parameters.maximum) <= cimag(parameters.minimum))
     {
         fprintf(stderr, "%s: Invalid range - maximum imaginary value is smaller than the minimum\n", programName);
         return 1;
@@ -567,8 +564,8 @@ int validateParameters(struct PlotCTX parameters)
     }
 
     /* Recommend a suitable plot range */
-    if (parameters.minimum.re < -(ESCAPE_RADIUS) || parameters.minimum.im < -(ESCAPE_RADIUS)
-           || parameters.maximum.re > ESCAPE_RADIUS || parameters.maximum.im > ESCAPE_RADIUS)
+    if (creal(parameters.minimum) < -(ESCAPE_RADIUS) || cimag(parameters.minimum) < -(ESCAPE_RADIUS)
+           || creal(parameters.maximum) > ESCAPE_RADIUS || cimag(parameters.maximum) > ESCAPE_RADIUS)
     {
         logMessage(WARNING, "The sample set of complex numbers extends outside (%.*g, %.*g) to (%.*g, %.*g) "
             "- the set in which the Mandelbrot/Julia sets are guaranteed to be contained within",
