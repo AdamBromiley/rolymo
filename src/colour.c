@@ -107,15 +107,14 @@ void initialiseColourScheme(struct ColourScheme *scheme, enum ColourSchemeType c
 
 
 /* Smooth the iteration count then map it to an RGB value */
-void mapColour(void *pixel, unsigned long int iterations, complex z, int offset, 
-                  unsigned long int iterationsMax, struct ColourScheme *scheme)
+void mapColour(void *pixel, unsigned long n, complex z, int offset, unsigned long max, struct ColourScheme *scheme)
 {
-    enum EscapeStatus status = (iterations < iterationsMax) ? ESCAPED : UNESCAPED;
-    double n = 0;
+    enum EscapeStatus status = (n < max) ? ESCAPED : UNESCAPED;
+    double nSmooth = 0;
 
     /* Makes discrete iteration count a continuous value */
     if (status == ESCAPED && scheme->depth != BIT_DEPTH_1)
-        n = iterations + 1.0 - log2(log2(cabs(z)));
+        nSmooth = n + 1.0 - log2(log2(cabs(z)));
 
     switch (scheme->depth)
     {
@@ -124,10 +123,10 @@ void mapColour(void *pixel, unsigned long int iterations, complex z, int offset,
             scheme->mapColour.monochrome(pixel, offset, status);
             break;
         case BIT_DEPTH_8:
-            *((uint8_t *) pixel) = scheme->mapColour.greyscale(n, status);
+            *((uint8_t *) pixel) = scheme->mapColour.greyscale(nSmooth, status);
             break;
         case BIT_DEPTH_24:
-            scheme->mapColour.trueColour(pixel, n, status);
+            scheme->mapColour.trueColour(pixel, nSmooth, status);
             break;
         default:
             return;
