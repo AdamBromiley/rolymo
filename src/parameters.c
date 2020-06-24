@@ -1,5 +1,6 @@
 #include "parameters.h"
 
+#include <complex.h>
 #include <float.h>
 #include <limits.h>
 #include <stddef.h>
@@ -10,10 +11,10 @@
 
 
 /* Range of permissible complex numbers */
-const struct ComplexNumber COMPLEX_MIN = {-(DBL_MAX), -(DBL_MAX)};
-const struct ComplexNumber COMPLEX_MAX = {DBL_MAX, DBL_MAX};
-const struct ComplexNumber C_MIN = {-2.0, -2.0};
-const struct ComplexNumber C_MAX = {2.0, 2.0};
+const complex COMPLEX_MIN = -(DBL_MAX) - DBL_MAX * I;
+const complex COMPLEX_MAX = DBL_MAX + DBL_MAX * I;
+const complex C_MIN = -2.0 - 2.0 * I;
+const complex C_MAX = 2.0 + 2.0 * I;
 
 /* Range of permissible iteration counts */
 const unsigned long int ITERATIONS_MIN = 0;
@@ -29,8 +30,8 @@ const size_t HEIGHT_MAX = SIZE_MAX;
 const struct PlotCTX MANDELBROT_PARAMETERS_DEFAULT =
 {
     .type = PLOT_MANDELBROT,
-    .minimum = {-2.0, -1.25},
-    .maximum = {0.75, 1.25},
+    .minimum = -2.0 - 1.25 * I,
+    .maximum = 0.75 + 1.25 * I,
     .iterations = ITERATIONS_DEFAULT,
     .output = OUTPUT_PPM,
     .file = NULL,
@@ -42,8 +43,8 @@ const struct PlotCTX MANDELBROT_PARAMETERS_DEFAULT =
 const struct PlotCTX JULIA_PARAMETERS_DEFAULT =
 {
     .type = PLOT_JULIA,
-    .minimum = {-2.0, -2.0},
-    .maximum = {2.0, 2.0},
+    .minimum = -2.0 - 2.0 * I,
+    .maximum = 2.0 + 2.0 * I,
     .iterations = ITERATIONS_DEFAULT,
     .output = OUTPUT_PPM,
     .file = NULL,

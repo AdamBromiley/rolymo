@@ -27,15 +27,10 @@ enum OutputType
     OUTPUT_TERMINAL
 };
 
-struct ComplexNumber
-{
-    double re, im;
-};
-
 struct PlotCTX
 {
     enum PlotType type;
-    struct ComplexNumber minimum, maximum, c;
+    complex minimum, maximum, c;
     unsigned long int iterations;
     enum OutputType output;
     FILE *file;
@@ -44,10 +39,10 @@ struct PlotCTX
 };
 
 
-extern const struct ComplexNumber COMPLEX_MIN;
-extern const struct ComplexNumber COMPLEX_MAX;
-extern const struct ComplexNumber C_MIN;
-extern const struct ComplexNumber C_MAX;
+extern const complex COMPLEX_MIN;
+extern const complex COMPLEX_MAX;
+extern const complex C_MIN;
+extern const complex C_MAX;
 
 extern const unsigned long int ITERATIONS_MIN;
 extern const unsigned long int ITERATIONS_MAX;
