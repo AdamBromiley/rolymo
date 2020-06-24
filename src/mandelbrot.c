@@ -98,6 +98,7 @@ int main(int argc, char **argv)
     /* Log parameters */
     char *logFilepath = NULL;
     bool vFlag = false;
+    setLogVerbosity(true);
 
     programName = argv[0];
     
