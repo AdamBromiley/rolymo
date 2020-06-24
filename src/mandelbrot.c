@@ -58,7 +58,7 @@ int uIntMaxArgument(uintmax_t *x, const char *argument, uintmax_t min, uintmax_t
 int doubleArgument(double *x, const char *argument, double min, double max, char optionID);
 int complexArgument(complex *z, char *argument, complex min, complex max, char optionID);
 
-int validateParameters(struct PlotCTX parameters);
+int validateParameters(struct PlotCTX *parameters);
 
 int getoptErrorMessage(enum GetoptError optionError, char shortOption, const char *longOption);
 
@@ -194,7 +194,7 @@ int main(int argc, char **argv)
         initialiseTerminalOutputParameters(&parameters);
 
     /* Check and warn against some parameters */
-    if (validateParameters(parameters))
+    if (validateParameters(&parameters))
         return getoptErrorMessage(OPT_NONE, 0, NULL);
 
     /* Output settings */
@@ -390,10 +390,7 @@ void plotParameters(struct PlotCTX *parameters, const char *image)
     Output     = %s\n\
     Image file = %s\n\
     Dimensions = %zu px * %zu px\n\
-    Colour     = {\n\
-                     Scheme    = %s,\n\
-                     Bit depth = %s,\n\
-                 }",
+    Colour     = %s (%s)",
     output,
     (image == NULL) ? "-" : image,
     parameters->width,
@@ -407,7 +404,7 @@ void plotParameters(struct PlotCTX *parameters, const char *image)
     Minimum    = %.*g + %.*gi\n\
     Maximum    = %.*g + %.*gi\n\
     Constant   = %s\n\
-    Iterations = %lu\n",
+    Iterations = %lu",
     plot,
     DBL_PRINTF_PRECISION, creal(parameters->minimum), DBL_PRINTF_PRECISION, cimag(parameters->minimum),
     DBL_PRINTF_PRECISION, creal(parameters->maximum), DBL_PRINTF_PRECISION, cimag(parameters->maximum),
@@ -515,25 +512,25 @@ int complexArgument(complex *z, char *argument, complex min, complex max, char o
 
 
 /* Check user-supplied parameters */
-int validateParameters(struct PlotCTX parameters)
+int validateParameters(struct PlotCTX *parameters)
 {
     const unsigned int ITERATIONS_RECOMMENDED_MIN = 50;
     const unsigned int ITERATIONS_RECOMMENDED_MAX = 200;
 
     /* Check colour scheme */
-    if (parameters.output != OUTPUT_TERMINAL && parameters.colour.depth == BIT_DEPTH_ASCII)
+    if (parameters->output != OUTPUT_TERMINAL && parameters->colour.depth == BIT_DEPTH_ASCII)
     {
         fprintf(stderr, "%s: Invalid colour scheme for output type\n", programName);
         return 1;
     }
     
     /* Check real and imaginary range */
-    if (creal(parameters.maximum) <= creal(parameters.minimum))
+    if (creal(parameters->maximum) <= creal(parameters->minimum))
     {
         fprintf(stderr, "%s: Invalid range - maximum real value is smaller than the minimum\n", programName);
         return 1;
     }
-    else if (cimag(parameters.maximum) <= cimag(parameters.minimum))
+    else if (cimag(parameters->maximum) <= cimag(parameters->minimum))
     {
         fprintf(stderr, "%s: Invalid range - maximum imaginary value is smaller than the minimum\n", programName);
         return 1;
@@ -544,20 +541,20 @@ int validateParameters(struct PlotCTX parameters)
      * pixels are calculated in groups of CHAR_BIT size
      */
     /* TODO: Make applicable to all depths < CHAR_BIT */
-    if (parameters.colour.depth == 1 && parameters.width % CHAR_BIT != 0)
+    if (parameters->colour.depth == 1 && parameters->width % CHAR_BIT != 0)
     {
-        parameters.width = parameters.width + CHAR_BIT - (parameters.width % CHAR_BIT);
+        parameters->width = parameters->width + CHAR_BIT - (parameters->width % CHAR_BIT);
         logMessage(WARNING, "For 1-bit pixel colour schemes, the width must be a multiple of %zu. Width set to %zu",
-            CHAR_BIT, parameters.width);
+            CHAR_BIT, parameters->width);
     }
 
     /* Recommend the iteration count */
-    if (parameters.iterations < ITERATIONS_RECOMMENDED_MIN)
+    if (parameters->iterations < ITERATIONS_RECOMMENDED_MIN)
     {
         logMessage(WARNING, "Maximum iteration count is low and may result in an imprecise plot, "
             "recommended range is %u to %u", ITERATIONS_RECOMMENDED_MIN, ITERATIONS_RECOMMENDED_MAX);
     }
-    else if (parameters.iterations > ITERATIONS_RECOMMENDED_MAX)
+    else if (parameters->iterations > ITERATIONS_RECOMMENDED_MAX)
     {
         logMessage(WARNING, "Maximum iteration count is high and may needlessly use resources without a "
             "noticeable precision increase, recommended range is %u to %u",
@@ -565,8 +562,8 @@ int validateParameters(struct PlotCTX parameters)
     }
 
     /* Recommend a suitable plot range */
-    if (creal(parameters.minimum) < -(ESCAPE_RADIUS) || cimag(parameters.minimum) < -(ESCAPE_RADIUS)
-           || creal(parameters.maximum) > ESCAPE_RADIUS || cimag(parameters.maximum) > ESCAPE_RADIUS)
+    if (creal(parameters->minimum) < -(ESCAPE_RADIUS) || cimag(parameters->minimum) < -(ESCAPE_RADIUS)
+           || creal(parameters->maximum) > ESCAPE_RADIUS || cimag(parameters->maximum) > ESCAPE_RADIUS)
     {
         logMessage(WARNING, "The sample set of complex numbers extends outside (%.*g, %.*g) to (%.*g, %.*g) "
             "- the set in which the Mandelbrot/Julia sets are guaranteed to be contained within",
