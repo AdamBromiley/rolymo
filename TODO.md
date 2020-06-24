@@ -13,8 +13,5 @@
 - ASCII art output support
 - More colour schemes and fractals
 
-## Known Bugs
-- 1-bit image option produces a segmentation fault
-
 ## Miscellaneous
 - Change project licensing
