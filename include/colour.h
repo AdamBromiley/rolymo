@@ -71,8 +71,7 @@ extern const enum ColourSchemeType COLOUR_SCHEME_MAX;
 
 
 void initialiseColourScheme(struct ColourScheme *scheme, enum ColourSchemeType colour);
-void mapColour(void *pixel, unsigned long int iterations, complex z, int offset, 
-                  unsigned long int iterationsMax, struct ColourScheme *scheme);
+void mapColour(void *pixel, unsigned long n, complex z, int offset, unsigned long max, struct ColourScheme *scheme);
 
 void getColourString(char *dest, enum ColourSchemeType colour, size_t n);
 
