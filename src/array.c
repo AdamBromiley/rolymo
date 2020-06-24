@@ -152,7 +152,7 @@ struct Thread * createThreads(unsigned int n, struct Block *block)
 
     logMessage(DEBUG, "Creating thread array");
 
-    if (!n)
+    if (n < 1)
     {
         logMessage(DEBUG, "Must be a positive thread count value");
         return NULL;
@@ -182,6 +182,7 @@ struct Thread * createThreads(unsigned int n, struct Block *block)
         /* Consecutive IDs allow threads to work on different array rows */
         threads[i].tid = i;
         threads[i].block = block;
+        threads[i].ctx = ctx;
     }
 
     logMessage(DEBUG, "Thread array generated");
