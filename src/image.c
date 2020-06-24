@@ -3,11 +3,13 @@
 #include <pthread.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <unistd.h>
+
+#include "groot/include/log.h"
 
 #include "array.h"
 #include "colour.h"
 #include "function.h"
-#include "log.h"
 #include "parameters.h"
 
 
@@ -18,17 +20,17 @@ static void blockToImage(const struct Block *block);
 
 
 /* Create image file and write header */
-int initialiseImage(struct PlotCTX *parameters, const char *filePath)
+int initialiseImage(struct PlotCTX *parameters, const char *filepath)
 {
     char header[IMAGE_HEADER_LENGTH_MAX];
 
-    logMessage(DEBUG, "Opening image file \'%s\'", filePath);
+    logMessage(DEBUG, "Opening image file \'%s\'", filepath);
 
-    parameters->file = fopen(filePath, "wb");
+    parameters->file = fopen(filepath, "wb");
 
     if (!parameters->file)
     {
-        logMessage(ERROR, "File \'%s\' could not be opened", filePath);
+        logMessage(ERROR, "File \'%s\' could not be opened", filepath);
         return 1;
     }
 
@@ -91,8 +93,11 @@ int imageOutput(struct PlotCTX *parameters)
         return 1;
     }
 
-    /* Create list of processing threads */
-    threads = createThreads(array, block);
+    /* 
+     * Create a list of processing threads.
+     * The most optimised solution is one thread per processing core.
+     */
+    threads = createThreads((unsigned int) sysconf(_SC_NPROCESSORS_ONLN), block);
 
     if (!threads)
     {
@@ -111,31 +116,31 @@ int imageOutput(struct PlotCTX *parameters)
      * the reminader rows are calculated prior and stored in the block context
      * structure
      */
-    for (block->blockID = 0; block->blockID <= block->ctx->blockCount; ++(block->blockID))
+    for (block->id = 0; block->id <= block->ctx->count; ++(block->id))
     {
-        if (block->blockID == block->ctx->blockCount)
+        if (block->id == block->ctx->count)
         {
             /* If there are no remainder rows */
-            if (!(block->ctx->remainderRows))
+            if (!(block->ctx->remainder))
                 break;
 
             /* If there's remaining rows */
-            block->rows = block->ctx->remainderRows;
+            block->rows = block->ctx->remainder;
         }
         else
         {
             block->rows = block->ctx->rows;
         }
 
-        logMessage(INFO, "Working on block %u (%zu rows)", block->blockID, block->rows);
+        logMessage(INFO, "Working on block %u (%zu rows)", block->id, block->rows);
 
         /* Create threads to significantly decrease execution time */
-        for (i = 0; i < array->threadCount; ++i)
+        for (i = 0; i < threads->ctx->count; ++i)
         {
             thread = &(threads[i]);
-            logMessage(INFO, "Spawning thread %u", thread->threadID);
+            logMessage(INFO, "Spawning thread %u", thread->tid);
     
-            if (pthread_create(&(thread->pthreadID), NULL, generateFractal, thread) != 0)
+            if (pthread_create(&(thread->pid), NULL, generateFractal, thread) != 0)
             {
                 logMessage(ERROR, "Thread could not be created");
                 freeArrayCTX(array);
@@ -148,11 +153,11 @@ int imageOutput(struct PlotCTX *parameters)
         logMessage(INFO, "All threads successfully created");
         
         /* Wait for threads to exit */
-        for (i = 0; i < array->threadCount; ++i)
+        for (i = 0; i < threads->ctx->count; ++i)
         {
             thread = &(threads[i]);
-            pthread_join(thread->pthreadID, NULL);
-            logMessage(INFO, "Thread %u exited", thread->threadID);
+            pthread_join(thread->pid, NULL);
+            logMessage(INFO, "Thread %u exited", thread->tid);
         }
 
         logMessage(INFO, "All threads successfully destroyed");
