@@ -34,8 +34,8 @@ static void hsvToRGB(struct ColourRGB *rgb, struct ColourHSV *hsv);
 
 static char mapColourSchemeASCII(double n, enum EscapeStatus status);
 
-static void mapColourSchemeBlackWhite(uint8_t *byte, int offset, enum EscapeStatus status);
-static void mapColourSchemeWhiteBlack(uint8_t *byte, int offset, enum EscapeStatus status);
+static void mapColourSchemeBlackWhite(char *byte, int offset, enum EscapeStatus status);
+static void mapColourSchemeWhiteBlack(char *byte, int offset, enum EscapeStatus status);
 
 static uint8_t mapColourSchemeGreyscale(double n, enum EscapeStatus status);
 
@@ -272,7 +272,7 @@ static char mapColourSchemeASCII(double n, enum EscapeStatus status)
 
 
 /* Black and white bit map */
-static void mapColourSchemeBlackWhite(uint8_t *byte, int offset, enum EscapeStatus status)
+static void mapColourSchemeBlackWhite(char *byte, int offset, enum EscapeStatus status)
 {
     /* Set/unset n'th bit of the byte */
     if (status == UNESCAPED)
@@ -285,7 +285,7 @@ static void mapColourSchemeBlackWhite(uint8_t *byte, int offset, enum EscapeStat
 
 
 /* White and black bit map */
-static void mapColourSchemeWhiteBlack(uint8_t *byte, int offset, enum EscapeStatus status)
+static void mapColourSchemeWhiteBlack(char *byte, int offset, enum EscapeStatus status)
 {
     /* Unset/set n'th bit of the byte */
     if (status == UNESCAPED)
