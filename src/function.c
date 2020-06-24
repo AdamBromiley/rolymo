@@ -38,7 +38,7 @@ void * generateFractal(void *threadInfo)
     double pixelWidth = (creal(parameters->maximum) - creal(parameters->minimum)) / (parameters->width - 1);
     double pixelHeight = (cimag(parameters->maximum) - cimag(parameters->minimum)) / parameters->height;
 
-    int bitOffset = 1;
+    int bitOffset = 0;
 
     complex z, c;
     complex constant = parameters->c;
@@ -56,7 +56,10 @@ void * generateFractal(void *threadInfo)
     for (y = thread->tid; y < rows; y += threadCount, c -= cImStep)
     {
         /* Repoint to first pixel of the row */
-        pixel = array + y * columns * arrayMemberSize;
+        if (colour->depth != BIT_DEPTH_1)
+            pixel = array + y * columns * arrayMemberSize;
+        else
+            pixel = array + y * (columns / 8) * arrayMemberSize;
 
         /* Iterate over the row */
         for (x = 0; x < columns; ++x, c += cReStep)
