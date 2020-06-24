@@ -5,7 +5,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "log.h"
+#include "groot/include/log.h"
+
 #include "parameters.h"
 
 
@@ -20,12 +21,6 @@ struct ArrayCTX * createArrayCTX(struct PlotCTX *parameters)
         return NULL;
 
     ctx->array = NULL;
-
-    /* Most optimised solution is using one thread per processing core */
-    ctx->threadCount = (unsigned int) sysconf(_SC_NPROCESSORS_ONLN);
-
-    if (ctx->threadCount < 1)
-        return NULL;
 
     ctx->parameters = parameters;
 
@@ -90,26 +85,26 @@ struct Block * mallocArray(struct ArrayCTX *array)
     logMessage(DEBUG, "Image array is %zu bytes", height * rowSize);
 
     /* Try to malloc the array, with each iteration decreasing the array size */
-    ctx->blockCount = 0;
+    ctx->count = 0;
     do
     {
-        if (ctx->blockCount != 0)
+        if (ctx->count != 0)
             logMessage(DEBUG, "Memory allocation attempt failed. Retrying...");
 
-        ++(ctx->blockCount);
+        ++(ctx->count);
 
-        ctx->rows = height / ctx->blockCount;
-        ctx->remainderRows = height % ctx->blockCount;
+        ctx->rows = height / ctx->count;
+        ctx->remainder = height % ctx->count;
         blockSize = ctx->rows * rowSize;
 
-        logMessage(DEBUG, "Splitting array into %u blocks (%zu bytes each)", ctx->blockCount, blockSize);
+        logMessage(DEBUG, "Splitting array into %u blocks (%zu bytes each)", ctx->count, blockSize);
 
         if (blockSize > freeMemory * FREE_MEMORY_ALLOCATION / 100)
             continue;
 
         *arrayPtr = malloc(blockSize);
     }
-    while (*arrayPtr == NULL && ctx->blockCount < MALLOC_ESCAPE_ITERATIONS);
+    while (*arrayPtr == NULL && ctx->count < MALLOC_ESCAPE_ITERATIONS);
 
     if (!(*arrayPtr))
     {
@@ -122,7 +117,7 @@ struct Block * mallocArray(struct ArrayCTX *array)
     ctx->array = array;
 
     logMessage(DEBUG, "Image array split into %u blocks (%zu bytes - block: %zu rows, remainder block: %zu rows)",
-        blockSize, ctx->blockCount, ctx->rows, ctx->remainderRows);
+        blockSize, ctx->count, ctx->rows, ctx->remainder);
 
     logMessage(DEBUG, "Creating image block structure");
 
@@ -137,7 +132,7 @@ struct Block * mallocArray(struct ArrayCTX *array)
         return NULL;
     }
 
-    block->blockID = 0;
+    block->id = 0;
     block->rows = ctx->rows;
     block->ctx = ctx;
 
@@ -148,21 +143,33 @@ struct Block * mallocArray(struct ArrayCTX *array)
 
 
 /* Generate a list of threads */
-struct Thread * createThreads(const struct ArrayCTX *ctx, struct Block *block)
+struct Thread * createThreads(unsigned int n, struct Block *block)
 {
     unsigned int i;
 
+    struct ThreadCTX *ctx;
     struct Thread *threads;
 
     logMessage(DEBUG, "Creating thread array");
 
-    if (!ctx)
+    if (!n)
     {
-        logMessage(DEBUG, "Array context structure not found");
+        logMessage(DEBUG, "Must be a positive thread count value");
         return NULL;
     }
 
-    threads = malloc(ctx->threadCount * sizeof(*threads));
+    ctx = malloc(sizeof(*ctx));
+
+    if (!ctx)
+    {
+        logMessage(ERROR, "Memory allocation failed");
+        return NULL;
+    }
+
+    /* Set thread count */
+    ctx->count = n;
+
+    threads = malloc(n * sizeof(*threads));
     
     if (!threads)
     {
@@ -170,10 +177,10 @@ struct Thread * createThreads(const struct ArrayCTX *ctx, struct Block *block)
         return NULL;
     }
     
-    for (i = 0; i < ctx->threadCount; ++i)
+    for (i = 0; i < n; ++i)
     {
-        /* Consecutive IDs allow for threads to work on different array rows */
-        threads[i].threadID = i;
+        /* Consecutive IDs allow threads to work on different array rows */
+        threads[i].tid = i;
         threads[i].block = block;
     }
 
@@ -221,11 +228,17 @@ void freeBlock(struct Block *block)
 }
 
 
-/* Free thread list */
+/* Free thread list and nested ThreadCTX struct */
 void freeThreads(struct Thread *threads)
 {
     if (threads)
     {
+        if (threads->ctx)
+        {
+            free(threads->ctx);
+            logMessage(DEBUG, "Thread context freed");
+        }
+
         free(threads);
         logMessage(DEBUG, "Thread array freed");
     }
