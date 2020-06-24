@@ -13,35 +13,40 @@
 struct ArrayCTX
 {
     void *array;
-    unsigned int threadCount;
     struct PlotCTX *parameters;
 };
 
 struct BlockCTX
 {
-    unsigned int blockCount;
-    size_t rows, remainderRows;
+    unsigned int count;
+    size_t rows, remainder;
     struct ArrayCTX *array;
 };
 
 struct Block
 {
-    unsigned int blockID;
+    unsigned int id;
     size_t rows;
     struct BlockCTX *ctx;
 };
 
+struct ThreadCTX
+{
+    unsigned int count;
+};
+
 struct Thread
 {
-    pthread_t pthreadID;
-    unsigned int threadID;
+    pthread_t pid;
+    unsigned int tid;
     struct Block *block;
+    struct ThreadCTX *ctx;
 };
 
 
 struct ArrayCTX * createArrayCTX(struct PlotCTX *parameters);
 struct Block * mallocArray(struct ArrayCTX *array);
-struct Thread * createThreads(const struct ArrayCTX *ctx, struct Block *block);
+struct Thread * createThreads(unsigned int n, struct Block *block);
 
 void freeArrayCTX(struct ArrayCTX *ctx);
 void freeBlock(struct Block *block);
