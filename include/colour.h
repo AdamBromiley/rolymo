@@ -52,7 +52,7 @@ struct ColourHSV
 union ColourMapFunction
 {
     char (*ascii) (double n, enum EscapeStatus status);
-    void (*monochrome) (uint8_t *byte, int offset, enum EscapeStatus status);
+    void (*monochrome) (char *byte, int offset, enum EscapeStatus status);
     uint8_t (*greyscale) (double n, enum EscapeStatus status);
     void (*trueColour) (struct ColourRGB *rgb, double n, enum EscapeStatus status);
 };
