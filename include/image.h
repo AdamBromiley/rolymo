@@ -5,7 +5,7 @@
 #include "parameters.h"
 
 
-int initialiseImage(struct PlotCTX *parameters, const char *filePath);
+int initialiseImage(struct PlotCTX *parameters, const char *filepath);
 int imageOutput(struct PlotCTX *parameters);
 int closeImage(struct PlotCTX *parameters);
 
