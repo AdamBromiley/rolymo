@@ -12,6 +12,3 @@
 - Aspect ratio specification
 - ASCII art output support
 - More colour schemes and fractals
-
-## Miscellaneous
-- Change project licensing
