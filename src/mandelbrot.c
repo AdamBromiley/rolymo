@@ -8,16 +8,17 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "groot/include/log.h"
+#include "libgroot/include/log.h"
 #include "percy/include/parser.h"
 
+#include "array.h"
 #include "image.h"
 #include "mandelbrot_parameters.h"
 #include "parameters.h"
 
 
-#define SEVERITY_STR_LEN_MAX 16
-
+#define LOG_LEVEL_STR_LEN_MAX 32
+#define LOG_TIME_FORMAT_STR_LEN_MAX 16
 #define BIT_DEPTH_STR_LEN_MAX 16
 #define COMPLEX_STR_LEN_MAX 32
 
@@ -66,7 +67,7 @@ int getoptErrorMessage(enum GetoptError optionError, char shortOption, const cha
 /* Process command-line options */
 int main(int argc, char **argv)
 {
-    const char *GETOPT_STRING = ":c:i:j:l:m:M:o:r:s:tv";
+    const char *GETOPT_STRING = ":c:i:j:l:m:M:o:r:s:tT:v";
 
     /* Temporary variable for memory safety with uLongArgument() */
     unsigned long tempUL;
@@ -84,6 +85,7 @@ int main(int argc, char **argv)
         {"width", required_argument, NULL, 'r'},      /* X and Y dimensions of plot */
         {"height", required_argument, NULL, 's'},
         {"t", no_argument, NULL, 't'},                /* Output plot to stdout */
+        {"threads", required_argument, NULL, 'T'},    /* Specify thread count */
         {"verbose", no_argument, NULL, 'v'},          /* Output log to stderr */
         {"help", no_argument, NULL, 'h'},
         {0, 0, 0, 0}
@@ -91,6 +93,7 @@ int main(int argc, char **argv)
 
     /* Plotting parameters */
     struct PlotCTX parameters;
+    unsigned int threadCount = 0;
 
     /* Image file path */
     char *outputFilepath = OUTPUT_FILEPATH_DEFAULT;
@@ -98,7 +101,10 @@ int main(int argc, char **argv)
     /* Log parameters */
     char *logFilepath = NULL;
     bool vFlag = false;
+
     setLogVerbosity(true);
+    setLogTimeFormat(LOG_TIME_RELATIVE);
+    setLogReferenceTime();
 
     programName = argv[0];
     
@@ -142,7 +148,7 @@ int main(int argc, char **argv)
                 break;
             case 'l':
                 argError = uLongArgument(&tempUL, optarg, LOG_SEVERITY_MIN, LOG_SEVERITY_MAX, optionID);
-                setLogLevel(tempUL);
+                setLogLevel((enum LogLevel) tempUL);
                 break;
             case 'm':
                 argError = complexArgument(&(parameters.minimum), optarg, COMPLEX_MIN, COMPLEX_MAX, optionID);
@@ -161,6 +167,10 @@ int main(int argc, char **argv)
                 break;
             case 't':
                 parameters.output = OUTPUT_TERMINAL;
+                break;
+            case 'T':
+                argError = uLongArgument(&tempUL, optarg, THREAD_COUNT_MIN, THREAD_COUNT_MAX, optionID);
+                threadCount = (unsigned int) tempUL;
                 break;
             case 'v':
                 vFlag = true;
@@ -206,7 +216,7 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     
     /* Produce plot */
-    if (imageOutput(&parameters))
+    if (imageOutput(&parameters, threadCount))
         return EXIT_FAILURE;
 
     /* Close file */
@@ -247,6 +257,10 @@ enum PlotType getPlotType(int argc, char **argv, const struct option longOptions
 /* `--help` output */
 int usage(void)
 {
+    char logLevel[LOG_LEVEL_STR_LEN_MAX];
+
+    getLogLevelString(logLevel, getLogLevel(), sizeof(logLevel));
+
     printf("Usage: %s [LOG PARAMETERS...] [OUTPUT PARAMETERS...] [-j CONSTANT] [PLOT PARAMETERS...]\n", programName);
     printf("       %s --help\n\n", programName);
     printf("A Mandelbrot and Julia set plotter.\n\n");
@@ -299,12 +313,15 @@ int usage(void)
         DBL_PRINTF_PRECISION, cimag(MANDELBROT_PARAMETERS_DEFAULT.maximum));
     printf("      WIDTH  = %zu\n", MANDELBROT_PARAMETERS_DEFAULT.width);
     printf("      HEIGHT = %zu\n\n", MANDELBROT_PARAMETERS_DEFAULT.height);
+    printf("Optimisation:\n");
+    printf("  -T COUNT,  --threads=COUNT    Use COUNT number of processing threads\n");
+    printf("                                [+] Default = Online processor count\n");
     printf("Miscellaneous:\n");
     printf("  --log[=FILE]                  Output log to file, with optional file path argument\n");
     printf("                                [+] Default = \'%s\'\n", LOG_FILEPATH_DEFAULT);
     printf("                                [+] Option may be used with \'-v\'\n");
     printf("  -l LEVEL,  --log-level=LEVEL  Only log messages more severe than LEVEL\n");
-    printf("                                [+] Default = INFO\n");
+    printf("                                [+] Default = %s\n", logLevel);
     printf("                                [+] LEVEL may be:\n");
     printf("                                    0  = NONE (log nothing)\n");
     printf("                                    1  = FATAL\n");
@@ -327,18 +344,22 @@ int usage(void)
 /* Print program parameters to log */
 void programParameters(const char *log)
 {
-    char level[SEVERITY_STR_LEN_MAX];
+    char level[LOG_LEVEL_STR_LEN_MAX];
+    char timeFormat[LOG_TIME_FORMAT_STR_LEN_MAX];
 
-    /* Convert log severity level to string */
-    getSeverityString(level, getLogLevel(), sizeof(level));
+    /* Get log parameter strings */
+    getLogLevelString(level, getLogLevel(), sizeof(level));
+    getLogTimeFormatString(timeFormat, getLogTimeFormat(), sizeof(timeFormat));
 
     logMessage(DEBUG, "Program settings:\n\
-    Verbosity = %s\n\
-    Log level = %s\n\
-    Log file  = %s",
+    Verbosity   = %s\n\
+    Log level   = %s\n\
+    Log file    = %s\n\
+    Time format = %s",
     (getLogVerbosity()) ? "VERBOSE" : "QUIET",
     level,
-    (log) ? log : "-"
+    (log) ? log : "-",
+    timeFormat
     );
 
     return;

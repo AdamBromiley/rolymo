@@ -5,9 +5,13 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "groot/include/log.h"
+#include "libgroot/include/log.h"
 
 #include "parameters.h"
+
+
+unsigned int THREAD_COUNT_MIN = 1;
+unsigned int THREAD_COUNT_MAX = 128;
 
 
 /* Create array metadata structure */
@@ -152,9 +156,10 @@ struct Thread * createThreads(unsigned int n, struct Block *block)
 
     logMessage(DEBUG, "Creating thread array");
 
-    if (n < 1)
+    if (n < THREAD_COUNT_MIN || n > THREAD_COUNT_MAX)
     {
-        logMessage(DEBUG, "Must be a positive thread count value");
+        logMessage(DEBUG, "Thread count out of range - it must be between %u and %u",
+            THREAD_COUNT_MIN, THREAD_COUNT_MAX);
         return NULL;
     }
 
