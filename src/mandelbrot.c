@@ -36,6 +36,9 @@ enum GetoptError
 };
 
 
+typedef enum GetoptError OptErr;
+
+
 /* Program name - argv[0] */
 static char *programName;
 
@@ -61,7 +64,7 @@ int complexArgument(complex *z, char *argument, complex min, complex max, char o
 
 int validateParameters(struct PlotCTX *parameters);
 
-int getoptErrorMessage(enum GetoptError optionError, char shortOption, const char *longOption);
+int getoptErrorMessage(OptErr optionError, char shortOption, const char *longOption);
 
 
 /* Process command-line options */
@@ -122,7 +125,7 @@ int main(int argc, char **argv)
     opterr = 0;
     while ((optionID = getopt_long(argc, argv, GETOPT_STRING, LONG_OPTIONS, NULL)) != -1)
     {
-        enum ParserErrorCode argError = PARSER_NONE;
+        ParseErr argError = PARSE_SUCCESS;
 
         switch (optionID)
         {
@@ -186,9 +189,9 @@ int main(int argc, char **argv)
                 return getoptErrorMessage(OPT_ERROR, 0, NULL);
         }
 
-        if (argError == PARSER_ERANGE)
+        if (argError == PARSE_ERANGE)
             return getoptErrorMessage(OPT_NONE, 0, NULL);
-        else if (argError != PARSER_NONE)
+        else if (argError != PARSE_SUCCESS)
             return getoptErrorMessage(OPT_EARG, optionID, NULL);
     }
 
@@ -446,18 +449,18 @@ int uLongArgument(unsigned long *x, const char *argument, unsigned long min, uns
 
     argError = stringToULong(x, argument, min, max, &endptr, BASE);
 
-    if (argError == PARSER_ERANGE || argError == PARSER_EMIN || argError == PARSER_EMAX)
+    if (argError == PARSE_ERANGE || argError == PARSE_EMIN || argError == PARSE_EMAX)
     {
         fprintf(stderr, "%s: -%c: Argument out of range, it must be between %lu and %lu\n", 
             programName, optionID, min, max);
-        return PARSER_ERANGE;
+        return PARSE_ERANGE;
     }
-    else if (argError != PARSER_NONE)
+    else if (argError != PARSE_SUCCESS)
     {
-        return PARSER_ERROR;
+        return PARSE_EERR;
     }
 
-    return PARSER_NONE;
+    return PARSE_SUCCESS;
 }
 
 
@@ -470,18 +473,18 @@ int uIntMaxArgument(uintmax_t *x, const char *argument, uintmax_t min, uintmax_t
 
     argError = stringToUIntMax(x, argument, min, max, &endptr, BASE);
 
-    if (argError == PARSER_ERANGE || argError == PARSER_EMIN || argError == PARSER_EMAX)
+    if (argError == PARSE_ERANGE || argError == PARSE_EMIN || argError == PARSE_EMAX)
     {
         fprintf(stderr, "%s: -%c: Argument out of range, it must be between %" PRIuMAX " and %" PRIuMAX "\n", 
             programName, optionID, min, max);
-        return PARSER_ERANGE;
+        return PARSE_ERANGE;
     }
-    else if (argError != PARSER_NONE)
+    else if (argError != PARSE_SUCCESS)
     {
-        return PARSER_ERROR;
+        return PARSE_EERR;
     }
 
-    return PARSER_NONE;
+    return PARSE_SUCCESS;
 }
 
 
@@ -493,18 +496,18 @@ int doubleArgument(double *x, const char *argument, double min, double max, char
 
     argError = stringToDouble(x, argument, min, max, &endptr);
 
-    if (argError == PARSER_ERANGE || argError == PARSER_EMIN || argError == PARSER_EMAX)
+    if (argError == PARSE_ERANGE || argError == PARSE_EMIN || argError == PARSE_EMAX)
     {
         fprintf(stderr, "%s: -%c: Argument out of range, it must be between %.*g and %.*g\n", 
             programName, optionID, DBL_PRINTF_PRECISION, min, DBL_PRINTF_PRECISION, max);
-        return PARSER_ERANGE;
+        return PARSE_ERANGE;
     }
-    else if (argError != PARSER_NONE)
+    else if (argError != PARSE_SUCCESS)
     {
-        return PARSER_ERROR;
+        return PARSE_EERR;
     }
 
-    return PARSER_NONE;
+    return PARSE_SUCCESS;
 }
 
 
@@ -516,19 +519,19 @@ int complexArgument(complex *z, char *argument, complex min, complex max, char o
 
     argError = stringToComplex(z, argument, min, max, &endptr);
 
-    if (argError == PARSER_ERANGE)
+    if (argError == PARSE_ERANGE)
     {
         fprintf(stderr, "%s: -%c: Argument out of range, it must be between %.*g + %.*gi and %.*g + %.*gi\n", 
             programName, optionID, DBL_PRINTF_PRECISION, creal(min), DBL_PRINTF_PRECISION, cimag(min),
             DBL_PRINTF_PRECISION, creal(max), DBL_PRINTF_PRECISION, cimag(max));
-        return PARSER_ERANGE;
+        return PARSE_ERANGE;
     }
-    else if (argError != PARSER_NONE)
+    else if (argError != PARSE_SUCCESS)
     {
-        return PARSER_ERROR;
+        return PARSE_EERR;
     }
 
-    return PARSER_NONE;
+    return PARSE_SUCCESS;
 }
 
 
@@ -597,7 +600,7 @@ int validateParameters(struct PlotCTX *parameters)
 
 
 /* Convert custom getopt error code to message */
-int getoptErrorMessage(enum GetoptError optionError, char shortOption, const char *longOption)
+int getoptErrorMessage(OptErr optionError, char shortOption, const char *longOption)
 {
     switch (optionError)
     {
