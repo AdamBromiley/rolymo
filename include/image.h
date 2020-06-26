@@ -6,7 +6,7 @@
 
 
 int initialiseImage(struct PlotCTX *parameters, const char *filepath);
-int imageOutput(struct PlotCTX *parameters);
+int imageOutput(struct PlotCTX *parameters, unsigned int threadCount);
 int closeImage(struct PlotCTX *parameters);
 
 

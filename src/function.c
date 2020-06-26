@@ -5,7 +5,7 @@
 #include <pthread.h>
 #include <stddef.h>
 
-#include "groot/include/log.h"
+#include "libgroot/include/log.h"
 
 #include "array.h"
 #include "colour.h"

@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include "groot/include/log.h"
+#include "libgroot/include/log.h"
 
 #include "array.h"
 #include "colour.h"
@@ -66,7 +66,7 @@ int initialiseImage(struct PlotCTX *parameters, const char *filepath)
 
 
 /* Initialise plot array, run function, then write to file */
-int imageOutput(struct PlotCTX *parameters)
+int imageOutput(struct PlotCTX *parameters, unsigned int threadCount)
 {
     unsigned int i;
 
@@ -97,7 +97,10 @@ int imageOutput(struct PlotCTX *parameters)
      * Create a list of processing threads.
      * The most optimised solution is one thread per processing core.
      */
-    threads = createThreads((unsigned int) sysconf(_SC_NPROCESSORS_ONLN), block);
+    if (!threadCount)
+        threadCount = (unsigned int) sysconf(_SC_NPROCESSORS_ONLN);
+
+    threads = createThreads(threadCount, block);
 
     if (!threads)
     {

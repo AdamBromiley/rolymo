@@ -37,7 +37,7 @@ _IDIRS = include lib
 IDIRS = $(patsubst %,-I%,$(_IDIRS))
 
 # Directories with dynamic libraries in
-_LDIRS = groot percy
+_LDIRS = libgroot percy
 LDIR = lib
 LDIRS = $(patsubst %,$(LDIR)/%,$(_LDIRS))
 
@@ -54,7 +54,7 @@ LDLIBS = $(patsubst %,-l%,$(_LDLIBS))
 
 
 # Directories that need Make calls
-SUBMAKE = $(LDIR)/groot $(LDIR)/percy
+SUBMAKE = $(LDIR)/libgroot $(LDIR)/percy
 
 
 
