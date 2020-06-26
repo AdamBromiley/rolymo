@@ -1,6 +1,6 @@
-[submodule "lib/groot"]
-	path = lib/groot
-	url = https://github.com/AdamBromiley/groot
+[submodule "lib/libgroot"]
+	path = lib/libgroot
+	url = https://github.com/AdamBromiley/libgroot
 [submodule "lib/sooty"]
 	path = lib/sooty
 	url = https://github.com/AdamBromiley/sooty
