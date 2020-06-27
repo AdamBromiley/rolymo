@@ -76,6 +76,7 @@ int initialiseParameters(struct PlotCTX *parameters, enum PlotType type)
 
 void initialiseTerminalOutputParameters(struct PlotCTX *parameters)
 {
+    /* Sensible terminal output dimension values */
     const size_t TERMINAL_WIDTH = 80;
     const size_t TERMINAL_HEIGHT = 46;
 
