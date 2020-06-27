@@ -16,6 +16,15 @@
 #define IMAGE_HEADER_LENGTH_MAX 128
 
 
+/* Minimum/maximum memory limit values */
+const size_t MEMORY_MIN = 1000;
+const size_t MEMORY_MAX = SIZE_MAX;
+
+/* Minimum/maximum allowable thread count */
+const unsigned int THREAD_COUNT_MIN = 1;
+const unsigned int THREAD_COUNT_MAX = 512;
+
+
 static void blockToImage(const struct Block *block);
 
 
@@ -66,10 +75,8 @@ int initialiseImage(struct PlotCTX *parameters, const char *filepath)
 
 
 /* Initialise plot array, run function, then write to file */
-int imageOutput(struct PlotCTX *parameters, unsigned int threadCount)
+int imageOutput(struct PlotCTX *parameters, size_t memory, unsigned int threadCount)
 {
-    unsigned int i;
-
     /* Array blocks */
     struct ArrayCTX *array;
     struct Block *block;
@@ -85,7 +92,7 @@ int imageOutput(struct PlotCTX *parameters, unsigned int threadCount)
         return 1;
 
     /* Allocate memory to the array in manageable blocks */
-    block = mallocArray(array);
+    block = mallocArray(array, memory);
 
     if (!block)
     {
@@ -97,10 +104,7 @@ int imageOutput(struct PlotCTX *parameters, unsigned int threadCount)
      * Create a list of processing threads.
      * The most optimised solution is one thread per processing core.
      */
-    if (!threadCount)
-        threadCount = (unsigned int) sysconf(_SC_NPROCESSORS_ONLN);
-
-    threads = createThreads(threadCount, block);
+    threads = createThreads(block, threadCount);
 
     if (!threads)
     {
@@ -138,7 +142,7 @@ int imageOutput(struct PlotCTX *parameters, unsigned int threadCount)
         logMessage(INFO, "Working on block %u (%zu rows)", block->id, block->rows);
 
         /* Create threads to significantly decrease execution time */
-        for (i = 0; i < threads->ctx->count; ++i)
+        for (unsigned int i = 0; i < threads->ctx->count; ++i)
         {
             thread = &(threads[i]);
             logMessage(INFO, "Spawning thread %u", thread->tid);
@@ -156,7 +160,7 @@ int imageOutput(struct PlotCTX *parameters, unsigned int threadCount)
         logMessage(INFO, "All threads successfully created");
         
         /* Wait for threads to exit */
-        for (i = 0; i < threads->ctx->count; ++i)
+        for (unsigned int i = 0; i < threads->ctx->count; ++i)
         {
             thread = &(threads[i]);
             pthread_join(thread->pid, NULL);
@@ -194,6 +198,7 @@ int closeImage(struct PlotCTX *parameters)
     logMessage(DEBUG, "Image file closed");
 
     parameters->file = NULL;
+
     return 0;
 }
 

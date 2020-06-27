@@ -10,10 +10,6 @@
 #include "parameters.h"
 
 
-unsigned int THREAD_COUNT_MIN = 1;
-unsigned int THREAD_COUNT_MAX = 128;
-
-
 /* Create array metadata structure */
 struct ArrayCTX * createArrayCTX(struct PlotCTX *parameters)
 {
@@ -25,7 +21,6 @@ struct ArrayCTX * createArrayCTX(struct PlotCTX *parameters)
         return NULL;
 
     ctx->array = NULL;
-
     ctx->parameters = parameters;
 
     return ctx;
@@ -33,16 +28,17 @@ struct ArrayCTX * createArrayCTX(struct PlotCTX *parameters)
 
 
 /* To prevent memory overcommitment, the array must be divided into blocks */
-struct Block * mallocArray(struct ArrayCTX *array)
+struct Block * mallocArray(struct ArrayCTX *array, size_t bytes)
 {
     /* Percentage of free physical memory that can be allocated by the program */
     const unsigned int FREE_MEMORY_ALLOCATION = 80;
     /* Number of malloc() attempts before failure */
     const unsigned int MALLOC_ESCAPE_ITERATIONS = 16;
 
-    struct BlockCTX *ctx;
-    void **arrayPtr = &(array->array);
     struct Block *block;
+    struct BlockCTX *ctx;
+
+    void **arrayPtr = &(array->array);
     size_t height, width, rowSize, blockSize;
 
     size_t freeMemory;
@@ -70,7 +66,7 @@ struct Block * mallocArray(struct ArrayCTX *array)
     availablePages = sysconf(_SC_AVPHYS_PAGES);
     pageSize = sysconf(_SC_PAGE_SIZE);
 
-    if (availablePages < 0 || pageSize < 0)
+    if (availablePages < 1 || pageSize < 1)
     {
         logMessage(ERROR, "Could not get amount of free memory");
         return NULL;
@@ -78,8 +74,27 @@ struct Block * mallocArray(struct ArrayCTX *array)
 
     freeMemory = (size_t) pageSize * (size_t) availablePages;
 
-    logMessage(DEBUG, "%zu bytes are free. Memory allocation will be limited to %zu bytes",
-        freeMemory, freeMemory * FREE_MEMORY_ALLOCATION / 100);
+    logMessage(DEBUG, "%zu bytes of physical memory are free", freeMemory);
+
+    /* If caller has specified max memory usage */
+    if (bytes > 0)
+    {
+        if (bytes < freeMemory)
+        {
+            logMessage(WARNING, "Memory maximum of %zu bytes is greater than the amount of free physical memory"
+                " (%zu bytes). It is recommended to only allow allocation of physical memory for efficiency",
+                bytes, freeMemory);
+        }
+
+        freeMemory = bytes;
+        logMessage(DEBUG, "Memory allocation will be limited to %zu bytes", freeMemory);
+    }
+    else
+    {
+        logMessage(DEBUG, "Memory allocation will be limited to %u%% (%zu bytes)",
+            FREE_MEMORY_ALLOCATION, freeMemory * FREE_MEMORY_ALLOCATION / 100);
+    }
+
     logMessage(DEBUG, "Creating image array");
 
     height = array->parameters->height;
@@ -90,6 +105,7 @@ struct Block * mallocArray(struct ArrayCTX *array)
 
     /* Try to malloc the array, with each iteration decreasing the array size */
     ctx->count = 0;
+
     do
     {
         if (ctx->count != 0)
@@ -112,8 +128,8 @@ struct Block * mallocArray(struct ArrayCTX *array)
 
     if (!(*arrayPtr))
     {
-        logMessage(ERROR, "Memory allocation failed");
         /* If too many malloc() calls have failed */
+        logMessage(ERROR, "Memory allocation failed");
         free(ctx);
         return NULL;
     }
@@ -122,7 +138,6 @@ struct Block * mallocArray(struct ArrayCTX *array)
 
     logMessage(DEBUG, "Image array split into %u blocks (%zu bytes - block: %zu rows, remainder block: %zu rows)",
         blockSize, ctx->count, ctx->rows, ctx->remainder);
-
     logMessage(DEBUG, "Creating image block structure");
 
     /* Create block structure */
@@ -147,21 +162,12 @@ struct Block * mallocArray(struct ArrayCTX *array)
 
 
 /* Generate a list of threads */
-struct Thread * createThreads(unsigned int n, struct Block *block)
+struct Thread * createThreads(struct Block *block, unsigned int n)
 {
-    unsigned int i;
-
-    struct ThreadCTX *ctx;
     struct Thread *threads;
+    struct ThreadCTX *ctx;
 
     logMessage(DEBUG, "Creating thread array");
-
-    if (n < THREAD_COUNT_MIN || n > THREAD_COUNT_MAX)
-    {
-        logMessage(DEBUG, "Thread count out of range - it must be between %u and %u",
-            THREAD_COUNT_MIN, THREAD_COUNT_MAX);
-        return NULL;
-    }
 
     ctx = malloc(sizeof(*ctx));
 
@@ -171,6 +177,24 @@ struct Thread * createThreads(unsigned int n, struct Block *block)
         return NULL;
     }
 
+    if (n < 1)
+    {
+        long result = sysconf(_SC_NPROCESSORS_ONLN);
+
+        if (result < 1)
+        {
+            result = 1;
+            logMessage(WARNING, "Could not get number of online processors - limiting to %ld thread(s)",
+                result);
+        }
+        else if (result > UINT_MAX)
+        {
+            result = UINT_MAX;
+        }
+
+        n = (unsigned int) result;
+    }
+    
     /* Set thread count */
     ctx->count = n;
 
@@ -182,7 +206,7 @@ struct Thread * createThreads(unsigned int n, struct Block *block)
         return NULL;
     }
     
-    for (i = 0; i < n; ++i)
+    for (unsigned int i = 0; i < n; ++i)
     {
         /* Consecutive IDs allow threads to work on different array rows */
         threads[i].tid = i;

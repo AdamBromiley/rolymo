@@ -1,5 +1,10 @@
 # Changelog
 
+## 2020-06-25
+### Added
+- Memory limit command-line option
+- Thread count command-line option
+
 ## 2020-06-24
 ### Changed
 - Removed bug with 1-bit image mode - it works now!

@@ -70,11 +70,12 @@ int getoptErrorMessage(OptErr optionError, char shortOption, const char *longOpt
 /* Process command-line options */
 int main(int argc, char **argv)
 {
-    const char *GETOPT_STRING = ":c:i:j:l:m:M:o:r:s:tT:v";
-
     /* Temporary variable for memory safety with uLongArgument() */
     unsigned long tempUL;
+    char *endptr;
+
     int optionID;
+    const char *GETOPT_STRING = ":c:i:j:l:m:M:o:r:s:tT:vz:";
     const struct option LONG_OPTIONS[] =
     {
         {"colour", required_argument, NULL, 'c'},     /* Colour scheme of PPM image */
@@ -90,13 +91,13 @@ int main(int argc, char **argv)
         {"t", no_argument, NULL, 't'},                /* Output plot to stdout */
         {"threads", required_argument, NULL, 'T'},    /* Specify thread count */
         {"verbose", no_argument, NULL, 'v'},          /* Output log to stderr */
+        {"memory", required_argument, NULL, 'z'},     /* Maximum memory usage in MB */
         {"help", no_argument, NULL, 'h'},
         {0, 0, 0, 0}
     };
 
     /* Plotting parameters */
     struct PlotCTX parameters;
-    unsigned int threadCount = 0;
 
     /* Image file path */
     char *outputFilepath = OUTPUT_FILEPATH_DEFAULT;
@@ -105,11 +106,15 @@ int main(int argc, char **argv)
     char *logFilepath = NULL;
     bool vFlag = false;
 
+    size_t memory = 0;
+    unsigned int threadCount = 0;
+
+    programName = argv[0];
+
+    /* Initialise log */
     setLogVerbosity(true);
     setLogTimeFormat(LOG_TIME_RELATIVE);
     setLogReferenceTime();
-
-    programName = argv[0];
     
     /* Do one getopt pass to get the plot type */
     parameters.type = getPlotType(argc, argv, LONG_OPTIONS, GETOPT_STRING);
@@ -179,6 +184,21 @@ int main(int argc, char **argv)
                 vFlag = true;
                 setLogVerbosity(true);
                 break;
+            case 'z':
+                argError = stringToMemory(&memory, optarg, MEMORY_MIN, MEMORY_MAX, &endptr, MEM_MB);
+
+                if (argError == PARSE_ERANGE || argError == PARSE_EMIN || argError == PARSE_EMAX)
+                {
+                    fprintf(stderr, "%s: -%c: Argument out of range, it must be between %zu B and %zu B\n", 
+                        programName, optionID, MEMORY_MIN, MEMORY_MAX);
+                    argError = PARSE_ERANGE;
+                }
+                else if (argError != PARSE_SUCCESS)
+                {
+                    argError = PARSE_EERR;
+                }
+
+                break;
             case 'h':
                 return usage();
             case '?':
@@ -219,7 +239,7 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     
     /* Produce plot */
-    if (imageOutput(&parameters, threadCount))
+    if (imageOutput(&parameters, memory, threadCount))
         return EXIT_FAILURE;
 
     /* Close file */
@@ -238,9 +258,9 @@ int main(int argc, char **argv)
 enum PlotType getPlotType(int argc, char **argv, const struct option longOptions[], const char *getoptString)
 {
     const enum PlotType PLOT_TYPE_DEFAULT = PLOT_MANDELBROT;
-    enum PlotType type = PLOT_NONE;
-
+    
     int optionID;
+    enum PlotType type = PLOT_NONE;
 
     while ((optionID = getopt_long(argc, argv, getoptString, longOptions, NULL)) != -1)
     {
@@ -251,6 +271,7 @@ enum PlotType getPlotType(int argc, char **argv, const struct option longOptions
         }
     }
 
+    /* Reset the global optind variable */
     optind = 1;
 
     return (type == PLOT_NONE) ? PLOT_TYPE_DEFAULT : type;
@@ -319,7 +340,9 @@ int usage(void)
     printf("Optimisation:\n");
     printf("  -T COUNT,  --threads=COUNT    Use COUNT number of processing threads\n");
     printf("                                [+] Default = Online processor count\n");
-    printf("Miscellaneous:\n");
+    printf("  -z MEM,    --memory=MEM       Limit memory usage to MEM megabytes\n");
+    printf("                                [+] Default = 80%% of free physical memory\n");
+    printf("Log settings:\n");
     printf("  --log[=FILE]                  Output log to file, with optional file path argument\n");
     printf("                                [+] Default = \'%s\'\n", LOG_FILEPATH_DEFAULT);
     printf("                                [+] Option may be used with \'-v\'\n");
@@ -359,11 +382,10 @@ void programParameters(const char *log)
     Log level   = %s\n\
     Log file    = %s\n\
     Time format = %s",
-    (getLogVerbosity()) ? "VERBOSE" : "QUIET",
-    level,
-    (log) ? log : "-",
-    timeFormat
-    );
+        (getLogVerbosity()) ? "VERBOSE" : "QUIET",
+        level,
+        (log) ? log : "-",
+        timeFormat);
 
     return;
 }
@@ -415,13 +437,12 @@ void plotParameters(struct PlotCTX *parameters, const char *image)
     Image file = %s\n\
     Dimensions = %zu px * %zu px\n\
     Colour     = %s (%s)",
-    output,
-    (image == NULL) ? "-" : image,
-    parameters->width,
-    parameters->height,
-    colour,
-    bitDepthString
-    );
+        output,
+        (image == NULL) ? "-" : image,
+        parameters->width,
+        parameters->height,
+        colour,
+        bitDepthString);
 
     logMessage(INFO, "Plot parameters:\n\
     Plot       = %s\n\
@@ -429,12 +450,11 @@ void plotParameters(struct PlotCTX *parameters, const char *image)
     Maximum    = %.*g + %.*gi\n\
     Constant   = %s\n\
     Iterations = %lu",
-    plot,
-    DBL_PRINTF_PRECISION, creal(parameters->minimum), DBL_PRINTF_PRECISION, cimag(parameters->minimum),
-    DBL_PRINTF_PRECISION, creal(parameters->maximum), DBL_PRINTF_PRECISION, cimag(parameters->maximum),
-    c,
-    parameters->iterations
-    );
+        plot,
+        DBL_PRINTF_PRECISION, creal(parameters->minimum), DBL_PRINTF_PRECISION, cimag(parameters->minimum),
+        DBL_PRINTF_PRECISION, creal(parameters->maximum), DBL_PRINTF_PRECISION, cimag(parameters->maximum),
+        c,
+        parameters->iterations);
 
     return;
 }
@@ -443,8 +463,9 @@ void plotParameters(struct PlotCTX *parameters, const char *image)
 /* Wrapper for stringToULong() */
 int uLongArgument(unsigned long *x, const char *argument, unsigned long min, unsigned long max, char optionID)
 {
-    char *endptr;
     const int BASE = 10;
+
+    char *endptr;
     int argError;
 
     argError = stringToULong(x, argument, min, max, &endptr, BASE);
@@ -467,8 +488,9 @@ int uLongArgument(unsigned long *x, const char *argument, unsigned long min, uns
 /* Wrapper for stringToUIntMax() */
 int uIntMaxArgument(uintmax_t *x, const char *argument, uintmax_t min, uintmax_t max, char optionID)
 {
-    char *endptr;
     const int BASE = 10;
+
+    char *endptr;
     int argError;
 
     argError = stringToUIntMax(x, argument, min, max, &endptr, BASE);
@@ -635,5 +657,6 @@ int getoptErrorMessage(OptErr optionError, char shortOption, const char *longOpt
     }
 
     fprintf(stderr, "Try \'%s --help\' for more information\n", programName);
+    
     return EXIT_FAILURE;
 }

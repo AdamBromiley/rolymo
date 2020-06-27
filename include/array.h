@@ -44,13 +44,9 @@ struct Thread
 };
 
 
-extern unsigned int THREAD_COUNT_MIN;
-extern unsigned int THREAD_COUNT_MAX;
-
-
 struct ArrayCTX * createArrayCTX(struct PlotCTX *parameters);
-struct Block * mallocArray(struct ArrayCTX *array);
-struct Thread * createThreads(unsigned int n, struct Block *block);
+struct Block * mallocArray(struct ArrayCTX *array, size_t bytes);
+struct Thread * createThreads(struct Block *block, unsigned int n);
 
 void freeArrayCTX(struct ArrayCTX *ctx);
 void freeBlock(struct Block *block);
