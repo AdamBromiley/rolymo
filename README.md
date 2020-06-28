@@ -104,6 +104,6 @@ GCC flags (in [Makefile](Makefile) located in the `$COPT` and `$LDOPT` variables
 
 | Flag            | Description                                                                               |
 | :-------------- | :---------------------------------------------------------------------------------------- |
-| `-flto`         | Preform link-time optimisation                                                            |
+| `-flto`         | Perform link-time optimisation                                                            |
 | `-Ofast`        | Enable all `-O3` optimisations along with, most impactful for this program, `-ffast-math` |
 | `-march=native` | Optimise for the user's machine                                                           |
