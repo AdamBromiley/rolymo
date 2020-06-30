@@ -661,8 +661,8 @@ ParseErr magnificationArgument(struct PlotCTX *parameters, char *argument, compl
             return PARSE_EERR;
     }
 
-    parameters->minimum = imageCentre - 0.5L * rangeDefault * powl(0.9L, magnification - 1.0L);
-    parameters->maximum = imageCentre + 0.5L * rangeDefault * powl(0.9L, magnification - 1.0L);
+    parameters->minimum = imageCentre - 0.5 * rangeDefault * pow(0.5, magnification - 1.0);
+    parameters->maximum = imageCentre + 0.5 * rangeDefault * pow(0.5, magnification - 1.0);
 
     return PARSE_SUCCESS;
 }
