@@ -16,9 +16,13 @@ const complex COMPLEX_MAX = DBL_MAX + DBL_MAX * I;
 const complex C_MIN = -2.0 - 2.0 * I;
 const complex C_MAX = 2.0 + 2.0 * I;
 
+/* Range of permissible magnification values */
+const double MAGNIFICATION_MIN = -(DBL_MAX);
+const double MAGNIFICATION_MAX = DBL_MAX;
+
 /* Range of permissible iteration counts */
-const unsigned long int ITERATIONS_MIN = 0;
-const unsigned long int ITERATIONS_MAX = ULONG_MAX;
+const unsigned long ITERATIONS_MIN = 0;
+const unsigned long ITERATIONS_MAX = ULONG_MAX;
 
 /* Range of permissible dimensions */
 const size_t WIDTH_MIN = 0;

@@ -21,6 +21,7 @@
 *.pbm
 *.pgm
 *.ppm
+*.mp4
 
 # Visual Studio Code configuration
 .vscode/

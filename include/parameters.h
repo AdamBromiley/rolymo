@@ -31,7 +31,7 @@ struct PlotCTX
 {
     enum PlotType type;
     complex minimum, maximum, c;
-    unsigned long int iterations;
+    unsigned long iterations;
     enum OutputType output;
     FILE *file;
     size_t width, height;
@@ -44,8 +44,11 @@ extern const complex COMPLEX_MAX;
 extern const complex C_MIN;
 extern const complex C_MAX;
 
-extern const unsigned long int ITERATIONS_MIN;
-extern const unsigned long int ITERATIONS_MAX;
+extern const double MAGNIFICATION_MIN;
+extern const double MAGNIFICATION_MAX;
+
+extern const unsigned long ITERATIONS_MIN;
+extern const unsigned long ITERATIONS_MAX;
 
 extern const size_t WIDTH_MIN;
 extern const size_t WIDTH_MAX;

@@ -2,6 +2,10 @@
 
 ## 2020-06-25
 ### Added
+- Centre point & magnification can be specified rather than ranges
+
+## 2020-06-25
+### Added
 - Memory limit command-line option
 - Thread count command-line option
 
