@@ -2,6 +2,7 @@
 #define PARAMETERS_H
 
 
+#include <complex.h>
 #include <stddef.h>
 #include <stdio.h>
 
@@ -30,7 +31,7 @@ enum OutputType
 struct PlotCTX
 {
     enum PlotType type;
-    complex minimum, maximum, c;
+    long double complex minimum, maximum, c;
     unsigned long iterations;
     enum OutputType output;
     FILE *file;
@@ -44,8 +45,13 @@ extern const complex COMPLEX_MAX;
 extern const complex C_MIN;
 extern const complex C_MAX;
 
-extern const double MAGNIFICATION_MIN;
-extern const double MAGNIFICATION_MAX;
+extern const long double complex LCOMPLEX_MIN;
+extern const long double complex LCOMPLEX_MAX;
+extern const long double complex LC_MIN;
+extern const long double complex LC_MAX;
+
+extern const long double MAGNIFICATION_MIN;
+extern const long double MAGNIFICATION_MAX;
 
 extern const unsigned long ITERATIONS_MIN;
 extern const unsigned long ITERATIONS_MAX;

@@ -7,4 +7,4 @@
  * The number is mathematically defined as 2, however a larger number allows for
  * smoother colour mapping.
  */
-const double ESCAPE_RADIUS = 256.0;
+const long double ESCAPE_RADIUS = 256.0L;

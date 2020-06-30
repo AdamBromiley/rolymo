@@ -13,9 +13,9 @@
 #include "parameters.h"
 
 
-static double dotProduct(complex z);
-static complex mandelbrot(unsigned long *n, complex c, unsigned long max);
-static complex julia(unsigned long *n, complex z, complex c, unsigned long max);
+static long double dotProduct(long double complex z);
+static long double complex mandelbrot(unsigned long *n, long double complex c, unsigned long max);
+static long double complex julia(unsigned long *n, long double complex z, long double complex c, unsigned long max);
 
 
 void * generateFractal(void *threadInfo)
@@ -34,17 +34,17 @@ void * generateFractal(void *threadInfo)
     char *pixel;
     size_t arrayMemberSize = (colour->depth != BIT_DEPTH_1) ? colour->depth / 8 : sizeof(char);
     
-    double pixelWidth = (creal(parameters->maximum) - creal(parameters->minimum)) / (parameters->width - 1);
-    double pixelHeight = (cimag(parameters->maximum) - cimag(parameters->minimum)) / parameters->height;
+    long double pixelWidth = (creall(parameters->maximum) - creall(parameters->minimum)) / (parameters->width - 1);
+    long double pixelHeight = (cimagl(parameters->maximum) - cimagl(parameters->minimum)) / parameters->height;
 
-    complex constant = parameters->c;
-    complex cReStep = pixelWidth;
-    complex cImStep = pixelHeight * threadCount * I;
+    long double complex constant = parameters->c;
+    long double complex cReStep = pixelWidth;
+    long double complex cImStep = pixelHeight * threadCount * I;
     unsigned long max = parameters->iterations;
 
     /* Set to top left of plot block (minimum real, maximum block imaginary) */
-    complex c = creal(parameters->minimum)
-                    + (cimag(parameters->maximum) - (thread->block->id * rows + thread->tid) * pixelHeight) * I;
+    long double complex c = creall(parameters->minimum)
+                    + (cimagl(parameters->maximum) - (thread->block->id * rows + thread->tid) * pixelHeight) * I;
 
     logMessage(INFO, "Thread %u: Generating plot", thread->tid);
 
@@ -62,7 +62,7 @@ void * generateFractal(void *threadInfo)
         /* Iterate over the row */
         for (size_t x = 0; x < columns; ++x, c += cReStep)
         {
-            complex z;
+            long double complex z;
             unsigned long n;
 
             switch (plot)
@@ -100,22 +100,22 @@ void * generateFractal(void *threadInfo)
 }
 
 
-static double dotProduct(complex z)
+static long double dotProduct(long double complex z)
 {
-    return creal(z) * creal(z) + cimag(z) * cimag(z);
+    return creall(z) * creall(z) + cimagl(z) * cimagl(z);
 }
 
 
 /* Perform Mandelbrot set function */
-static complex mandelbrot(unsigned long *n, complex c, unsigned long max)
+static long double complex mandelbrot(unsigned long *n, long double complex c, unsigned long max)
 {
-    complex z = 0.0 + 0.0 * I;
-    double cdot = dotProduct(c);
+    long double complex z = 0.0L + 0.0L * I;
+    long double cdot = dotProduct(c);
 
-    if (256.0 * cdot * cdot - 96.0 * cdot + 32.0 * creal(c) - 3.0 >= 0.0
-        && 16.0 * (cdot + 2.0 * creal(c) + 1.0) - 1.0 >= 0.0)
+    if (256.0L * cdot * cdot - 96.0L * cdot + 32.0L * creall(c) - 3.0L >= 0.0L
+        && 16.0L * (cdot + 2.0L * creall(c) + 1.0L) - 1.0L >= 0.0L)
     {
-        for (*n = 0; cabs(z) < ESCAPE_RADIUS && *n < max; ++(*n))
+        for (*n = 0; cabsl(z) < ESCAPE_RADIUS && *n < max; ++(*n))
             z = z * z + c;
     }
     else
@@ -129,9 +129,9 @@ static complex mandelbrot(unsigned long *n, complex c, unsigned long max)
 
 
 /* Perform Julia set function */
-static complex julia(unsigned long *n, complex z, complex c, unsigned long max)
+static long double complex julia(unsigned long *n, long double complex z, long double complex c, unsigned long max)
 {
-    for (*n = 0; cabs(z) < ESCAPE_RADIUS && *n < max; ++(*n))
+    for (*n = 0; cabsl(z) < ESCAPE_RADIUS && *n < max; ++(*n))
         z = z * z + c;
 
     return z;

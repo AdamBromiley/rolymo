@@ -46,15 +46,15 @@ struct ColourRGB
 
 struct ColourHSV
 {
-    double h, s, v;
+    long double h, s, v;
 };
 
 union ColourMapFunction
 {
-    char (*ascii) (double n, enum EscapeStatus status);
+    char (*ascii) (long double n, enum EscapeStatus status);
     void (*monochrome) (char *byte, int offset, enum EscapeStatus status);
-    uint8_t (*greyscale) (double n, enum EscapeStatus status);
-    void (*trueColour) (struct ColourRGB *rgb, double n, enum EscapeStatus status);
+    uint8_t (*greyscale) (long double n, enum EscapeStatus status);
+    void (*trueColour) (struct ColourRGB *rgb, long double n, enum EscapeStatus status);
 };
 
 struct ColourScheme
@@ -71,7 +71,7 @@ extern const enum ColourSchemeType COLOUR_SCHEME_MAX;
 
 
 void initialiseColourScheme(struct ColourScheme *scheme, enum ColourSchemeType colour);
-void mapColour(void *pixel, unsigned long n, complex z, int offset, unsigned long max, struct ColourScheme *scheme);
+void mapColour(void *pixel, unsigned long n, long double complex z, int offset, unsigned long max, struct ColourScheme *scheme);
 
 void getColourString(char *dest, enum ColourSchemeType colour, size_t n);
 

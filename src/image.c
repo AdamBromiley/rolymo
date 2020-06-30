@@ -209,7 +209,7 @@ static void blockToImage(const struct Block *block)
     void *array = block->ctx->array->array;
 
     size_t arrayLength = block->rows * block->ctx->array->parameters->width;
-    double pixelSize = block->ctx->array->parameters->colour.depth / 8.0;
+    long double pixelSize = block->ctx->array->parameters->colour.depth / 8.0L;
     size_t arraySize = arrayLength * pixelSize;
 
     FILE *image = block->ctx->array->parameters->file;
