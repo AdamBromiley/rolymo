@@ -310,7 +310,7 @@ ParseErr getMagnification(struct PlotCTX *parameters, int argc, char **argv,
     {
         if (optionID == 'x')
         {
-            ParseErr argError = magnificationArgument(parameters, optarg, COMPLEX_MIN, COMPLEX_MAX,
+            ParseErr argError = longMagnificationArgument(parameters, optarg, COMPLEX_MIN, COMPLEX_MAX,
                                     MAGNIFICATION_MIN, MAGNIFICATION_MAX, optionID);
             
             if (argError != PARSE_SUCCESS)
@@ -785,8 +785,8 @@ ParseErr longMagnificationArgument(struct PlotCTX *parameters, char *argument, l
             return PARSE_EERR;
     }
 
-    parameters->minimum = imageCentre - 0.5L * rangeDefault * powl(0.5L, magnification - 1.0L);
-    parameters->maximum = imageCentre + 0.5L * rangeDefault * powl(0.5L, magnification - 1.0L);
+    parameters->minimum = imageCentre - 0.5L * rangeDefault * powl(0.9L, magnification - 1.0L);
+    parameters->maximum = imageCentre + 0.5L * rangeDefault * powl(0.9L, magnification - 1.0L);
 
     return PARSE_SUCCESS;
 }
