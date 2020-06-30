@@ -661,8 +661,8 @@ ParseErr magnificationArgument(struct PlotCTX *parameters, char *argument, compl
             return PARSE_EERR;
     }
 
-    parameters->minimum = imageCentre - 0.5 * rangeDefault * pow(0.5, magnification - 1);
-    parameters->maximum = imageCentre + 0.5 * rangeDefault * pow(0.5, magnification - 1);
+    parameters->minimum = imageCentre - 0.5L * rangeDefault * powl(0.9L, magnification - 1.0L);
+    parameters->maximum = imageCentre + 0.5L * rangeDefault * powl(0.9L, magnification - 1.0L);
 
     return PARSE_SUCCESS;
 }
@@ -682,12 +682,12 @@ int validateParameters(struct PlotCTX *parameters)
     }
     
     /* Check real and imaginary range */
-    if (creal(parameters->maximum) <= creal(parameters->minimum))
+    if (creal(parameters->maximum) < creal(parameters->minimum))
     {
         fprintf(stderr, "%s: Invalid range - maximum real value is smaller than the minimum\n", programName);
         return 1;
     }
-    else if (cimag(parameters->maximum) <= cimag(parameters->minimum))
+    else if (cimag(parameters->maximum) < cimag(parameters->minimum))
     {
         fprintf(stderr, "%s: Invalid range - maximum imaginary value is smaller than the minimum\n", programName);
         return 1;
