@@ -39,19 +39,19 @@ void * generateFractal(void *threadInfo)
 
     complex constant = parameters->c;
     complex cReStep = pixelWidth;
-    complex cImStep = pixelHeight * threadCount * I;
     unsigned long max = parameters->iterations;
 
     /* Set to top left of plot block (minimum real, maximum block imaginary) */
-    complex c = creal(parameters->minimum)
-                    + (cimag(parameters->maximum) - (thread->block->id * rows + thread->tid) * pixelHeight) * I;
 
     logMessage(INFO, "Thread %u: Generating plot", thread->tid);
 
     /* Offset by thread ID to ensure each thread gets a unique row */
-    for (size_t y = thread->tid; y < rows; y += threadCount, c -= cImStep)
+    for (size_t y = thread->tid; y < rows; y += threadCount)
     {
         int bitOffset = 0;
+
+        complex c = creal(parameters->minimum)
+                + (cimag(parameters->maximum) - (thread->block->id * rows + y) * pixelHeight) * I;
 
         /* Repoint to first pixel of the row */
         if (colour->depth != BIT_DEPTH_1)
@@ -89,9 +89,6 @@ void * generateFractal(void *threadInfo)
                 bitOffset = 0;
             }
         }
-
-        /* Reset real value to start of row */
-        c -= columns * pixelWidth;
     }
 
     logMessage(INFO, "Thread %u: Plot generated - exiting", thread->tid);
