@@ -3,6 +3,7 @@
 #include <getopt.h>
 #include <inttypes.h>
 #include <limits.h>
+#include <math.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -660,8 +661,8 @@ ParseErr magnificationArgument(struct PlotCTX *parameters, char *argument, compl
             return PARSE_EERR;
     }
 
-    parameters->minimum = imageCentre - 0.5 * rangeDefault / magnification;
-    parameters->maximum = imageCentre + 0.5 * rangeDefault / magnification;
+    parameters->minimum = imageCentre - 0.5 * rangeDefault * pow(0.5, magnification - 1);
+    parameters->maximum = imageCentre + 0.5 * rangeDefault * pow(0.5, magnification - 1);
 
     return PARSE_SUCCESS;
 }
