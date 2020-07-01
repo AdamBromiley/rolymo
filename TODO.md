@@ -1,6 +1,8 @@
 # Todo List
 
 ## New Features
+- Arbitrary precision numbers
+- GPU calculation
 - Bespoke compression library
 - PNG support (with compression library)
 - Collaboration support - work on the same image across a LAN
