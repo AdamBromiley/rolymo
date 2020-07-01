@@ -107,10 +107,11 @@ void initialiseColourScheme(struct ColourScheme *scheme, enum ColourSchemeType c
 
 
 /* Smooth the iteration count then map it to an RGB value */
-void mapColour(void *pixel, unsigned long n, long double complex z, int offset, unsigned long max, struct ColourScheme *scheme)
+void mapColour(void *pixel, unsigned long n, long double complex z, int offset, unsigned long max,
+                  struct ColourScheme *scheme)
 {
     enum EscapeStatus status = (n < max) ? ESCAPED : UNESCAPED;
-    long double nSmooth = 0;
+    long double nSmooth = 0.0L;
 
     /* Makes discrete iteration count a continuous value */
     if (status == ESCAPED && scheme->depth != BIT_DEPTH_1)
