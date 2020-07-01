@@ -26,6 +26,7 @@ void * generateFractal(void *threadInfo)
     struct PlotCTX *parameters = thread->block->ctx->array->parameters;
     enum PlotType plot = parameters->type;
     struct ColourScheme *colour = &(parameters->colour);
+    enum BitDepth colourDepth = colour->depth;
 
     size_t rows = thread->block->rows;
     size_t columns = parameters->width;
@@ -34,12 +35,14 @@ void * generateFractal(void *threadInfo)
     char *pixel;
     size_t arrayMemberSize = (colour->depth != BIT_DEPTH_1) ? colour->depth / 8 : sizeof(char);
 
-    size_t rowOffset = thread->block->id * rows;
     long double complex xMin = creall(parameters->minimum);
     long double complex yMax = cimagl(parameters->maximum);
     
     long double pixelWidth = (creall(parameters->maximum) - creall(parameters->minimum)) / (parameters->width - 1);
     long double pixelHeight = (cimagl(parameters->maximum) - cimagl(parameters->minimum)) / parameters->height;
+
+    size_t blockOffset = thread->block->id * rows;
+    long double rowOffset = yMax - blockOffset * pixelHeight;
 
     long double complex constant = parameters->c;
 
@@ -53,10 +56,10 @@ void * generateFractal(void *threadInfo)
         int bitOffset;
 
         /* Reset to start of row */
-        long double complex c = xMin + (yMax - (rowOffset + y) * pixelHeight) * I;
+        long double complex c = xMin + (rowOffset - y * pixelHeight) * I;
 
         /* Repoint to first pixel of the row */
-        if (colour->depth != BIT_DEPTH_1)
+        if (colourDepth != BIT_DEPTH_1)
         {
             pixel = array + y * columns * arrayMemberSize;
         }
@@ -86,7 +89,7 @@ void * generateFractal(void *threadInfo)
 
             mapColour(pixel, n, z, bitOffset, max, colour);
 
-            if (colour->depth != BIT_DEPTH_1)
+            if (colourDepth != BIT_DEPTH_1)
             {
                 pixel += arrayMemberSize;
             }
