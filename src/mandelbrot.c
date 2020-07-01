@@ -307,7 +307,7 @@ ParseErr getMagnification(struct PlotCTX *parameters, int argc, char **argv,
     {
         if (optionID == 'x')
         {
-            argError = longMagnificationArgument(parameters, optarg, COMPLEX_MIN, COMPLEX_MAX,
+            argError = longMagnificationArgument(parameters, optarg, LCOMPLEX_MIN, LCOMPLEX_MAX,
                            MAGNIFICATION_MIN, MAGNIFICATION_MAX, optionID);
 
             break;

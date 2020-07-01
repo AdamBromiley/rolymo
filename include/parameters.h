@@ -40,11 +40,6 @@ struct PlotCTX
 };
 
 
-extern const complex COMPLEX_MIN;
-extern const complex COMPLEX_MAX;
-extern const complex C_MIN;
-extern const complex C_MAX;
-
 extern const long double complex LCOMPLEX_MIN;
 extern const long double complex LCOMPLEX_MAX;
 extern const long double complex LC_MIN;
