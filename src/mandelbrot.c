@@ -65,11 +65,6 @@ void programParameters(const char *log);
 
 ParseErr uLongArgument(unsigned long *x, char *argument, unsigned long min, unsigned long max, char optionID);
 ParseErr uIntMaxArgument(uintmax_t *x, char *argument, uintmax_t min, uintmax_t max, char optionID);
-ParseErr doubleArgument(double *x, char *argument, double min, double max, char optionID);
-ParseErr complexArgument(complex *z, char *argument, complex min, complex max, char optionID);
-ParseErr magnificationArgument(struct PlotCTX *parameters, char *argument, complex cMin, complex cMax,
-                                  double mMin, double mMax, char optionID);
-
 ParseErr longDoubleArgument(long double *x, char *argument, long double min, long double max, char optionID);
 ParseErr longDoubleComplexArgument(long double complex *z, char *argument,
                                       long double complex min, long double complex max, char optionID);
@@ -145,10 +140,11 @@ int main(int argc, char **argv)
     if (argError == PARSE_ERANGE)
         return getoptErrorMessage(OPT_NONE, 0, NULL);
     else if (argError != PARSE_SUCCESS)
-        return getoptErrorMessage(OPT_EARG, optionID, NULL);
+        return getoptErrorMessage(OPT_EARG, 'x', NULL);
 
     /* Parse options */
     opterr = 0;
+
     while ((optionID = getopt_long(argc, argv, GETOPT_STRING, LONG_OPTIONS, NULL)) != -1)
     {
         switch (optionID)
@@ -304,17 +300,15 @@ void getPlotType(struct PlotCTX *parameters, int argc, char **argv,
 ParseErr getMagnification(struct PlotCTX *parameters, int argc, char **argv,
                              const struct option longOptions[], const char *getoptString)
 {
+    ParseErr argError;
     int optionID;
 
     while ((optionID = getopt_long(argc, argv, getoptString, longOptions, NULL)) != -1)
     {
         if (optionID == 'x')
         {
-            ParseErr argError = longMagnificationArgument(parameters, optarg, COMPLEX_MIN, COMPLEX_MAX,
-                                    MAGNIFICATION_MIN, MAGNIFICATION_MAX, optionID);
-            
-            if (argError != PARSE_SUCCESS)
-                return argError;
+            argError = longMagnificationArgument(parameters, optarg, COMPLEX_MIN, COMPLEX_MAX,
+                           MAGNIFICATION_MIN, MAGNIFICATION_MAX, optionID);
 
             break;
         }
@@ -323,7 +317,7 @@ ParseErr getMagnification(struct PlotCTX *parameters, int argc, char **argv,
     /* Reset the global optind variable */
     optind = 1;
 
-    return PARSE_SUCCESS;
+    return argError;
 }
 
 
@@ -472,8 +466,8 @@ void plotParameters(struct PlotCTX *parameters, const char *image)
     /* Only display constant value if a Julia set plot */
     if (parameters->type == PLOT_JULIA)
     {
-        snprintf(c, sizeof(c), "%.*g + %.*gi",
-            DBL_PRINTF_PRECISION, creal(parameters->c), DBL_PRINTF_PRECISION, cimag(parameters->c));
+        snprintf(c, sizeof(c), "%.*Lg + %.*Lgi",
+            DBL_PRINTF_PRECISION, creall(parameters->c), DBL_PRINTF_PRECISION, cimagl(parameters->c));
     }
     else
     {
@@ -495,13 +489,13 @@ void plotParameters(struct PlotCTX *parameters, const char *image)
 
     logMessage(INFO, "Plot parameters:\n\
     Plot       = %s\n\
-    Minimum    = %.*g + %.*gi\n\
-    Maximum    = %.*g + %.*gi\n\
+    Minimum    = %.*Lg + %.*Lgi\n\
+    Maximum    = %.*Lg + %.*Lgi\n\
     Constant   = %s\n\
     Iterations = %lu",
         plot,
-        DBL_PRINTF_PRECISION, creal(parameters->minimum), DBL_PRINTF_PRECISION, cimag(parameters->minimum),
-        DBL_PRINTF_PRECISION, creal(parameters->maximum), DBL_PRINTF_PRECISION, cimag(parameters->maximum),
+        DBL_PRINTF_PRECISION, creall(parameters->minimum), DBL_PRINTF_PRECISION, cimagl(parameters->minimum),
+        DBL_PRINTF_PRECISION, creall(parameters->maximum), DBL_PRINTF_PRECISION, cimagl(parameters->maximum),
         c,
         parameters->iterations);
 
@@ -557,28 +551,6 @@ ParseErr uIntMaxArgument(uintmax_t *x, char *argument, uintmax_t min, uintmax_t 
 }
 
 
-/* Wrapper for stringToDouble() */
-ParseErr doubleArgument(double *x, char *argument, double min, double max, char optionID)
-{
-    char *endptr;
-    
-    ParseErr argError = stringToDouble(x, argument, min, max, &endptr);
-
-    if (argError == PARSE_ERANGE || argError == PARSE_EMIN || argError == PARSE_EMAX)
-    {
-        fprintf(stderr, "%s: -%c: Argument out of range, it must be between %.*g and %.*g\n", 
-            programName, optionID, DBL_PRINTF_PRECISION, min, DBL_PRINTF_PRECISION, max);
-        return PARSE_ERANGE;
-    }
-    else if (argError != PARSE_SUCCESS)
-    {
-        return PARSE_EERR;
-    }
-
-    return PARSE_SUCCESS;
-}
-
-
 /* Wrapper for stringToDoubleL() */
 ParseErr longDoubleArgument(long double *x, char *argument, long double min, long double max, char optionID)
 {
@@ -590,29 +562,6 @@ ParseErr longDoubleArgument(long double *x, char *argument, long double min, lon
     {
         fprintf(stderr, "%s: -%c: Argument out of range, it must be between %.*Lg and %.*Lg\n", 
             programName, optionID, DBL_PRINTF_PRECISION, min, DBL_PRINTF_PRECISION, max);
-        return PARSE_ERANGE;
-    }
-    else if (argError != PARSE_SUCCESS)
-    {
-        return PARSE_EERR;
-    }
-
-    return PARSE_SUCCESS;
-}
-
-
-/* Wrapper for stringToComplex() */
-ParseErr complexArgument(complex *z, char *argument, complex min, complex max, char optionID)
-{
-    char *endptr;
-
-    ParseErr argError = stringToComplex(z, argument, min, max, &endptr);
-
-    if (argError == PARSE_ERANGE || argError == PARSE_EMIN || argError == PARSE_EMAX)
-    {
-        fprintf(stderr, "%s: -%c: Argument out of range, it must be between %.*g + %.*gi and %.*g + %.*gi\n", 
-            programName, optionID, DBL_PRINTF_PRECISION, creal(min), DBL_PRINTF_PRECISION, cimag(min),
-            DBL_PRINTF_PRECISION, creal(max), DBL_PRINTF_PRECISION, cimag(max));
         return PARSE_ERANGE;
     }
     else if (argError != PARSE_SUCCESS)
@@ -643,78 +592,6 @@ ParseErr longDoubleComplexArgument(long double complex *z, char *argument,
     {
         return PARSE_EERR;
     }
-
-    return PARSE_SUCCESS;
-}
-
-
-ParseErr magnificationArgument(struct PlotCTX *parameters, char *argument, complex cMin, complex cMax,
-                                  double mMin, double mMax, char optionID)
-{
-    complex rangeDefault, imageCentre;
-    double magnification;
-
-    char *endptr;
-
-    ParseErr argError = stringToComplex(&imageCentre, argument, cMin, cMax, &endptr);
-
-    if (argError == PARSE_SUCCESS)
-    {
-        /* Magnification not explicitly mentioned - default to 1 */
-        magnification = 1.0;
-    }
-    else if (argError == PARSE_EEND)
-    {
-        /* Check for comma separator */
-        while (isspace(*endptr))
-            ++endptr;
-
-        if (*endptr != ',')
-            return PARSE_EFORM;
-
-        ++endptr;
-
-        /* Get magnification argument */
-        argError = doubleArgument(&magnification, endptr, mMin, mMax, optionID);
-
-        if (argError == PARSE_ERANGE || argError == PARSE_EMIN || argError == PARSE_EMAX)
-        {
-            fprintf(stderr, "%s: -%c: Magnification out of range, it must be between %.*f and %.*f\n", 
-                programName, optionID, DBL_PRINTF_PRECISION, mMin, DBL_PRINTF_PRECISION, mMax);
-            return PARSE_ERANGE;
-        }
-        else if (argError != PARSE_SUCCESS)
-        {
-            return PARSE_EERR;
-        }
-    }
-    else if (argError == PARSE_ERANGE || argError == PARSE_EMIN || argError == PARSE_EMAX)
-    {
-        fprintf(stderr, "%s: -%c: Argument out of range, it must be between %.*g + %.*gi and %.*g + %.*gi\n", 
-            programName, optionID, DBL_PRINTF_PRECISION, creal(cMin), DBL_PRINTF_PRECISION, cimag(cMin),
-            DBL_PRINTF_PRECISION, creal(cMax), DBL_PRINTF_PRECISION, cimag(cMax));
-        return PARSE_ERANGE;
-    }
-    else
-    {
-        return PARSE_EFORM;
-    }
-
-    /* Convert centrepoint and magnification to range */
-    switch (parameters->type)
-    {
-        case PLOT_MANDELBROT:
-            rangeDefault = MANDELBROT_PARAMETERS_DEFAULT.maximum - MANDELBROT_PARAMETERS_DEFAULT.minimum;
-            break;
-        case PLOT_JULIA:
-            rangeDefault = JULIA_PARAMETERS_DEFAULT.maximum - JULIA_PARAMETERS_DEFAULT.minimum;
-            break;
-        default:
-            return PARSE_EERR;
-    }
-
-    parameters->minimum = imageCentre - 0.5 * rangeDefault * pow(0.5, magnification - 1.0);
-    parameters->maximum = imageCentre + 0.5 * rangeDefault * pow(0.5, magnification - 1.0);
 
     return PARSE_SUCCESS;
 }
@@ -795,9 +672,6 @@ ParseErr longMagnificationArgument(struct PlotCTX *parameters, char *argument, l
 /* Check user-supplied parameters */
 int validateParameters(struct PlotCTX *parameters)
 {
-    const unsigned int ITERATIONS_RECOMMENDED_MIN = 50;
-    const unsigned int ITERATIONS_RECOMMENDED_MAX = 200;
-
     /* Check colour scheme */
     if (parameters->output != OUTPUT_TERMINAL && parameters->colour.depth == BIT_DEPTH_ASCII)
     {
@@ -827,29 +701,6 @@ int validateParameters(struct PlotCTX *parameters)
         parameters->width = parameters->width + CHAR_BIT - (parameters->width % CHAR_BIT);
         logMessage(WARNING, "For 1-bit pixel colour schemes, the width must be a multiple of %zu. Width set to %zu",
             CHAR_BIT, parameters->width);
-    }
-
-    /* Recommend the iteration count */
-    if (parameters->iterations < ITERATIONS_RECOMMENDED_MIN)
-    {
-        logMessage(WARNING, "Maximum iteration count is low and may result in an imprecise plot, "
-            "recommended range is %u to %u", ITERATIONS_RECOMMENDED_MIN, ITERATIONS_RECOMMENDED_MAX);
-    }
-    else if (parameters->iterations > ITERATIONS_RECOMMENDED_MAX)
-    {
-        logMessage(WARNING, "Maximum iteration count is high and may needlessly use resources without a "
-            "noticeable precision increase, recommended range is %u to %u",
-            ITERATIONS_RECOMMENDED_MIN, ITERATIONS_RECOMMENDED_MAX);
-    }
-
-    /* Recommend a suitable plot range */
-    if (creall(parameters->minimum) < -(ESCAPE_RADIUS) || cimagl(parameters->minimum) < -(ESCAPE_RADIUS)
-           || creall(parameters->maximum) > ESCAPE_RADIUS || cimagl(parameters->maximum) > ESCAPE_RADIUS)
-    {
-        logMessage(WARNING, "The sample set of complex numbers extends outside (%.*Lg, %.*Lg) to (%.*Lg, %.*Lg) "
-            "- the set in which the Mandelbrot/Julia sets are guaranteed to be contained within",
-            DBL_PRINTF_PRECISION, -(ESCAPE_RADIUS), DBL_PRINTF_PRECISION, -(ESCAPE_RADIUS),
-            DBL_PRINTF_PRECISION, ESCAPE_RADIUS, DBL_PRINTF_PRECISION, ESCAPE_RADIUS);
     }
 
     return 0;
