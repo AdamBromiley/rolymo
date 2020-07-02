@@ -31,12 +31,12 @@ void * generateFractal(void *threadInfo)
     size_t rows = thread->block->rows;
     size_t columns = parameters->width;
 
-    char *array = (char *) thread->block->ctx->array->array;
     char *pixel;
+    char *array = (char *) thread->block->ctx->array->array;
     size_t arrayMemberSize = (colour->depth != BIT_DEPTH_1) ? colour->depth / 8 : sizeof(char);
 
-    long double complex xMin = creall(parameters->minimum);
-    long double complex yMax = cimagl(parameters->maximum);
+    long double xMin = creall(parameters->minimum);
+    long double yMax = cimagl(parameters->maximum);
     
     long double pixelWidth = (creall(parameters->maximum) - creall(parameters->minimum)) / (parameters->width - 1);
     long double pixelHeight = (cimagl(parameters->maximum) - cimagl(parameters->minimum)) / parameters->height;
