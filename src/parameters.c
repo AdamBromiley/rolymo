@@ -8,20 +8,29 @@
 #include <string.h>
 
 #include "colour.h"
+#include "ext_precision.h"
 
 
 /* Range of permissible complex numbers */
-const complex COMPLEX_MIN = -(DBL_MAX) - DBL_MAX * I;
-const complex COMPLEX_MAX = DBL_MAX + DBL_MAX * I;
+const complex COMPLEX_MIN = -(DBL_MAX) - (DBL_MAX) * I;
+const complex COMPLEX_MAX = (DBL_MAX) + (DBL_MAX) * I;
+
+/* Range of permissible complex numbers (extended-precision) */
+const long double complex COMPLEX_MIN_EXT = -(LDBL_MAX) - (LDBL_MAX) * I;
+const long double complex COMPLEX_MAX_EXT = (LDBL_MAX) + (LDBL_MAX) * I;
+
+/* Range of permissible constant values */
 const complex C_MIN = -2.0 - 2.0 * I;
 const complex C_MAX = 2.0 + 2.0 * I;
+const long double complex C_MIN_EXT = -2.0L - 2.0L * I;
+const long double complex C_MAX_EXT = 2.0L + 2.0L * I;
 
 /* Range of permissible magnification values */
 const double MAGNIFICATION_MIN = -(DBL_MAX);
 const double MAGNIFICATION_MAX = DBL_MAX;
 
 /* Range of permissible iteration counts */
-const unsigned long ITERATIONS_MIN = 0;
+const unsigned long ITERATIONS_MIN = 0UL;
 const unsigned long ITERATIONS_MAX = ULONG_MAX;
 
 /* Range of permissible dimensions */
@@ -31,11 +40,24 @@ const size_t HEIGHT_MIN = 0;
 const size_t HEIGHT_MAX = SIZE_MAX;
 
 /* Default parameters for Mandelbrot set plot */
-const struct PlotCTX MANDELBROT_PARAMETERS_DEFAULT =
+const PlotCTX MANDELBROT_PARAMETERS_DEFAULT =
 {
     .type = PLOT_MANDELBROT,
-    .minimum = -2.0 - 1.25 * I,
-    .maximum = 0.75 + 1.25 * I,
+    .minimum.c = -2.0 - 1.25 * I,
+    .maximum.c = 0.75 + 1.25 * I,
+    .iterations = ITERATIONS_DEFAULT,
+    .output = OUTPUT_PPM,
+    .file = NULL,
+    .width = 550,
+    .height = 500
+};
+
+/* Default parameters for Mandelbrot set plot (extended-precision) */
+const PlotCTX MANDELBROT_PARAMETERS_DEFAULT_EXT =
+{
+    .type = PLOT_MANDELBROT,
+    .minimum.lc = -2.0L - 1.25L * I,
+    .maximum.lc = 0.75L + 1.25L * I,
     .iterations = ITERATIONS_DEFAULT,
     .output = OUTPUT_PPM,
     .file = NULL,
@@ -44,11 +66,24 @@ const struct PlotCTX MANDELBROT_PARAMETERS_DEFAULT =
 };
 
 /* Default parameters for Julia set plot */
-const struct PlotCTX JULIA_PARAMETERS_DEFAULT =
+const PlotCTX JULIA_PARAMETERS_DEFAULT =
 {
     .type = PLOT_JULIA,
-    .minimum = -2.0 - 2.0 * I,
-    .maximum = 2.0 + 2.0 * I,
+    .minimum.c = -2.0 - 2.0 * I,
+    .maximum.c = 2.0 + 2.0 * I,
+    .iterations = ITERATIONS_DEFAULT,
+    .output = OUTPUT_PPM,
+    .file = NULL,
+    .width = 800,
+    .height = 800
+};
+
+/* Default parameters for Julia set plot (extended-precision) */
+const PlotCTX JULIA_PARAMETERS_DEFAULT_EXT =
+{
+    .type = PLOT_JULIA,
+    .minimum.lc = -2.0L - 2.0L * I,
+    .maximum.lc = 2.0L + 2.0L * I,
     .iterations = ITERATIONS_DEFAULT,
     .output = OUTPUT_PPM,
     .file = NULL,
@@ -58,15 +93,17 @@ const struct PlotCTX JULIA_PARAMETERS_DEFAULT =
 
 
 /* Set default plot settings for Mandelbrot image output */
-int initialiseParameters(struct PlotCTX *parameters, enum PlotType type)
+int initialiseParameters(PlotCTX *parameters, PlotType type)
 {
     switch (type)
     {
         case PLOT_MANDELBROT:
-            *parameters = MANDELBROT_PARAMETERS_DEFAULT;
+            *parameters = (!extPrecision) ? MANDELBROT_PARAMETERS_DEFAULT
+                                          : MANDELBROT_PARAMETERS_DEFAULT_EXT;
             break;
         case PLOT_JULIA:
-            *parameters = JULIA_PARAMETERS_DEFAULT;
+            *parameters = (!extPrecision) ? JULIA_PARAMETERS_DEFAULT
+                                          : JULIA_PARAMETERS_DEFAULT_EXT;
             break;
         default:
             return 1;
@@ -78,7 +115,7 @@ int initialiseParameters(struct PlotCTX *parameters, enum PlotType type)
 }
 
 
-void initialiseTerminalOutputParameters(struct PlotCTX *parameters)
+void initialiseTerminalOutputParameters(PlotCTX *parameters)
 {
     /* Sensible terminal output dimension values */
     const size_t TERMINAL_WIDTH = 80;
@@ -94,7 +131,7 @@ void initialiseTerminalOutputParameters(struct PlotCTX *parameters)
 }
 
 
-void getOutputString(char *dest, struct PlotCTX *parameters, size_t n)
+void getOutputString(char *dest, PlotCTX *parameters, size_t n)
 {
     const char *type;
 
@@ -133,7 +170,7 @@ void getOutputString(char *dest, struct PlotCTX *parameters, size_t n)
 }
 
 
-void getPlotString(char *dest, enum PlotType plot, size_t n)
+void getPlotString(char *dest, PlotType plot, size_t n)
 {
     const char *type;
 

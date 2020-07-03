@@ -11,7 +11,3 @@
 - Aspect ratio specification
 - ASCII art output support
 - More colour schemes and fractals
-
-## Known Bugs
-- WARNING log message with any specified memory limit
-- "Memory allocation failed" with `-z 1000B`

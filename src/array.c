@@ -11,9 +11,9 @@
 
 
 /* Create array metadata structure */
-struct ArrayCTX * createArrayCTX(struct PlotCTX *parameters)
+ArrayCTX * createArrayCTX(PlotCTX *parameters)
 {
-    struct ArrayCTX *ctx;
+    ArrayCTX *ctx;
 
     ctx = malloc(sizeof(*ctx));
 
@@ -28,15 +28,15 @@ struct ArrayCTX * createArrayCTX(struct PlotCTX *parameters)
 
 
 /* To prevent memory overcommitment, the array must be divided into blocks */
-struct Block * mallocArray(struct ArrayCTX *array, size_t bytes)
+Block * mallocArray(ArrayCTX *array, size_t bytes)
 {
     /* Percentage of free physical memory that can be allocated by the program */
     const unsigned int FREE_MEMORY_ALLOCATION = 80;
-    /* Number of malloc() attempts before failure */
-    const unsigned int MALLOC_ESCAPE_ITERATIONS = 16;
+    /* Maximum number of blocks the array should be divided into */
+    const unsigned int BLOCK_COUNT_MAX = 64;
 
-    struct Block *block;
-    struct BlockCTX *ctx;
+    Block *block;
+    BlockCTX *ctx;
 
     void **arrayPtr = &(array->array);
     size_t height, width, rowSize, blockSize;
@@ -79,7 +79,7 @@ struct Block * mallocArray(struct ArrayCTX *array, size_t bytes)
     /* If caller has specified max memory usage */
     if (bytes > 0)
     {
-        if (bytes < freeMemory)
+        if (bytes > freeMemory)
         {
             logMessage(WARNING, "Memory maximum of %zu bytes is greater than the amount of free physical memory"
                 " (%zu bytes). It is recommended to only allow allocation of physical memory for efficiency",
@@ -104,14 +104,12 @@ struct Block * mallocArray(struct ArrayCTX *array, size_t bytes)
     logMessage(DEBUG, "Image array is %zu bytes", height * rowSize);
 
     /* Try to malloc the array, with each iteration decreasing the array size */
-    ctx->count = 0;
+    *arrayPtr = NULL;
 
-    do
+    for (ctx->count = 1; *arrayPtr == NULL && ctx->count <= BLOCK_COUNT_MAX; ctx->count *= 2)
     {
-        if (ctx->count != 0)
-            logMessage(DEBUG, "Memory allocation attempt failed. Retrying...");
-
-        ++(ctx->count);
+        if (ctx->count > 1)
+            logMessage(DEBUG, "Memory allocation attempt failed. Retrying...");    
 
         ctx->rows = height / ctx->count;
         ctx->remainder = height % ctx->count;
@@ -124,9 +122,8 @@ struct Block * mallocArray(struct ArrayCTX *array, size_t bytes)
 
         *arrayPtr = malloc(blockSize);
     }
-    while (*arrayPtr == NULL && ctx->count < MALLOC_ESCAPE_ITERATIONS);
 
-    if (!(*arrayPtr))
+    if (!(*arrayPtr) || blockSize == 0)
     {
         /* If too many malloc() calls have failed */
         logMessage(ERROR, "Memory allocation failed");
@@ -162,10 +159,10 @@ struct Block * mallocArray(struct ArrayCTX *array, size_t bytes)
 
 
 /* Generate a list of threads */
-struct Thread * createThreads(struct Block *block, unsigned int n)
+Thread * createThreads(Block *block, unsigned int n)
 {
-    struct Thread *threads;
-    struct ThreadCTX *ctx;
+    Thread *threads;
+    ThreadCTX *ctx;
 
     logMessage(DEBUG, "Creating thread array");
 
@@ -221,7 +218,7 @@ struct Thread * createThreads(struct Block *block, unsigned int n)
 
 
 /* Free ArrayCTX struct */
-void freeArrayCTX(struct ArrayCTX *ctx)
+void freeArrayCTX(ArrayCTX *ctx)
 {
     if (ctx)
     {
@@ -240,7 +237,7 @@ void freeArrayCTX(struct ArrayCTX *ctx)
 
 
 /* Free Block and nested BlockCTX structs */
-void freeBlock(struct Block *block)
+void freeBlock(Block *block)
 {
     if (block)
     {
@@ -259,7 +256,7 @@ void freeBlock(struct Block *block)
 
 
 /* Free thread list and nested ThreadCTX struct */
-void freeThreads(struct Thread *threads)
+void freeThreads(Thread *threads)
 {
     if (threads)
     {

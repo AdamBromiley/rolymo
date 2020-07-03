@@ -10,13 +10,13 @@
 #define COLOUR_STRING_LENGTH_MAX 32
 
 
-enum EscapeStatus
+typedef enum EscapeStatus
 {
     UNESCAPED,
     ESCAPED
-};
+} EscapeStatus;
 
-enum ColourSchemeType
+typedef enum ColourSchemeType
 {
     COLOUR_SCHEME_TYPE_DEFAULT,
     COLOUR_SCHEME_TYPE_ASCII,
@@ -29,51 +29,53 @@ enum ColourSchemeType
     COLOUR_SCHEME_TYPE_FIRE,
     COLOUR_SCHEME_TYPE_RED_HOT,
     COLOUR_SCHEME_TYPE_MATRIX
-};
+} ColourSchemeType;
 
-enum BitDepth
+typedef enum BitDepth
 {
     BIT_DEPTH_ASCII = 0,
     BIT_DEPTH_1 = 1,
     BIT_DEPTH_8 = 8,
     BIT_DEPTH_24 = 24
-};
+} BitDepth;
 
-struct ColourRGB
+typedef struct ColourRGB
 {
     uint8_t r, g, b;
-};
+} RGB;
 
-struct ColourHSV
+typedef struct ColourHSV
 {
     double h, s, v;
-};
+} HSV;
 
-union ColourMapFunction
+typedef union ColourMapFunction
 {
-    char (*ascii) (double n, enum EscapeStatus status);
-    void (*monochrome) (char *byte, int offset, enum EscapeStatus status);
-    uint8_t (*greyscale) (double n, enum EscapeStatus status);
-    void (*trueColour) (struct ColourRGB *rgb, double n, enum EscapeStatus status);
-};
+    char (*ascii) (double n, EscapeStatus status);
+    void (*monochrome) (char *byte, int offset, EscapeStatus status);
+    uint8_t (*greyscale) (double n, EscapeStatus status);
+    void (*trueColour) (RGB *rgb, double n, EscapeStatus status);
+} ColourMapFunction;
 
-struct ColourScheme
+typedef struct ColourScheme
 {
-    enum ColourSchemeType colour;
-    enum BitDepth depth;
-    union ColourMapFunction mapColour;
-};
+    ColourSchemeType scheme;
+    BitDepth depth;
+    ColourMapFunction mapColour;
+} ColourScheme;
 
 
-extern const enum ColourSchemeType COLOUR_SCHEME_DEFAULT;
-extern const enum ColourSchemeType COLOUR_SCHEME_MIN;
-extern const enum ColourSchemeType COLOUR_SCHEME_MAX;
+extern const ColourSchemeType COLOUR_SCHEME_DEFAULT;
+extern const ColourSchemeType COLOUR_SCHEME_MIN;
+extern const ColourSchemeType COLOUR_SCHEME_MAX;
 
 
-void initialiseColourScheme(struct ColourScheme *scheme, enum ColourSchemeType colour);
-void mapColour(void *pixel, unsigned long n, complex z, int offset, unsigned long max, struct ColourScheme *scheme);
+void initialiseColourScheme(ColourScheme *scheme, ColourSchemeType colour);
+void mapColour(void *pixel, unsigned long n, complex z, int offset, unsigned long max, ColourScheme *scheme);
+void mapColourExt(void *pixel, unsigned long n, long double complex z, int offset, unsigned long max,
+                     ColourScheme *scheme);
 
-void getColourString(char *dest, enum ColourSchemeType colour, size_t n);
+void getColourString(char *dest, ColourSchemeType colour, size_t n);
 
 
 #endif

@@ -8,3 +8,4 @@
  * smoother colour mapping.
  */
 const double ESCAPE_RADIUS = 256.0;
+const long double ESCAPE_RADIUS_EXT = 256.0L;

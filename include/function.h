@@ -2,7 +2,8 @@
 #define FUNCTION_H
 
 
-void * generateFractal(void *thread);
+void * generateFractal(void *threadInfo);
+void * generateFractalExt(void *threadInfo);
 
 
 #endif

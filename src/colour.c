@@ -7,6 +7,7 @@
 #include <stddef.h>
 #include <string.h>
 
+#include "ext_precision.h"
 #include "mandelbrot_parameters.h"
 
 
@@ -14,11 +15,11 @@
 
 
 /* Don't set to DEFAULT because of recursion in initialiseColourScheme() */
-const enum ColourSchemeType COLOUR_SCHEME_DEFAULT = COLOUR_SCHEME_TYPE_RAINBOW;
+const ColourSchemeType COLOUR_SCHEME_DEFAULT = COLOUR_SCHEME_TYPE_RAINBOW;
 
 /* Range of permissible colour scheme enum values */
-const enum ColourSchemeType COLOUR_SCHEME_MIN = COLOUR_SCHEME_TYPE_DEFAULT;
-const enum ColourSchemeType COLOUR_SCHEME_MAX = COLOUR_SCHEME_TYPE_MATRIX;
+const ColourSchemeType COLOUR_SCHEME_MIN = COLOUR_SCHEME_TYPE_DEFAULT;
+const ColourSchemeType COLOUR_SCHEME_MAX = COLOUR_SCHEME_TYPE_MATRIX;
 
 
 /* Character set for terminal output 'colouring' */
@@ -30,27 +31,27 @@ static const double COLOUR_SCALE_MULTIPLIER = 30.0;
 static const double CHAR_SCALE_MULTIPLIER = 0.3;
 
 
-static void hsvToRGB(struct ColourRGB *rgb, struct ColourHSV *hsv);
+static void hsvToRGB(RGB *rgb, HSV *hsv);
 
-static char mapColourSchemeASCII(double n, enum EscapeStatus status);
+static char mapColourSchemeASCII(double n, EscapeStatus status);
 
-static void mapColourSchemeBlackWhite(char *byte, int offset, enum EscapeStatus status);
-static void mapColourSchemeWhiteBlack(char *byte, int offset, enum EscapeStatus status);
+static void mapColourSchemeBlackWhite(char *byte, int offset, EscapeStatus status);
+static void mapColourSchemeWhiteBlack(char *byte, int offset, EscapeStatus status);
 
-static uint8_t mapColourSchemeGreyscale(double n, enum EscapeStatus status);
+static uint8_t mapColourSchemeGreyscale(double n, EscapeStatus status);
 
-static void mapColourSchemeRainbow(struct ColourRGB *rgb, double n, enum EscapeStatus status);
-static void mapColourSchemeRainbowVibrant(struct ColourRGB *rgb, double n, enum EscapeStatus status);
-static void mapColourSchemeRedWhite(struct ColourRGB *rgb, double n, enum EscapeStatus status);
-static void mapColourSchemeFire(struct ColourRGB *rgb, double n, enum EscapeStatus status);
-static void mapColourSchemeRedHot(struct ColourRGB *rgb, double n, enum EscapeStatus status);
-static void mapColourSchemeMatrix(struct ColourRGB *rgb, double n, enum EscapeStatus status);
+static void mapColourSchemeRainbow(RGB *rgb, double n, EscapeStatus status);
+static void mapColourSchemeRainbowVibrant(RGB *rgb, double n, EscapeStatus status);
+static void mapColourSchemeRedWhite(RGB *rgb, double n, EscapeStatus status);
+static void mapColourSchemeFire(RGB *rgb, double n, EscapeStatus status);
+static void mapColourSchemeRedHot(RGB *rgb, double n, EscapeStatus status);
+static void mapColourSchemeMatrix(RGB *rgb, double n, EscapeStatus status);
 
 
 /* Initialise ColourScheme struct */
-void initialiseColourScheme(struct ColourScheme *scheme, enum ColourSchemeType colour)
+void initialiseColourScheme(ColourScheme *scheme, ColourSchemeType colour)
 {
-    scheme->colour = colour;
+    scheme->scheme = colour;
 
     switch (colour)
     {
@@ -107,10 +108,10 @@ void initialiseColourScheme(struct ColourScheme *scheme, enum ColourSchemeType c
 
 
 /* Smooth the iteration count then map it to an RGB value */
-void mapColour(void *pixel, unsigned long n, complex z, int offset, unsigned long max, struct ColourScheme *scheme)
+void mapColour(void *pixel, unsigned long n, complex z, int offset, unsigned long max, ColourScheme *scheme)
 {
-    enum EscapeStatus status = (n < max) ? ESCAPED : UNESCAPED;
-    double nSmooth = 0;
+    EscapeStatus status = (n < max) ? ESCAPED : UNESCAPED;
+    double nSmooth = 0.0;
 
     /* Makes discrete iteration count a continuous value */
     if (status == ESCAPED && scheme->depth != BIT_DEPTH_1)
@@ -136,8 +137,39 @@ void mapColour(void *pixel, unsigned long n, complex z, int offset, unsigned lon
 }
 
 
+/* Smooth the iteration count then map it to an RGB value (extended-precision) */
+void mapColourExt(void *pixel, unsigned long n, long double complex z, int offset, unsigned long max,
+                     ColourScheme *scheme)
+{
+    EscapeStatus status = (n < max) ? ESCAPED : UNESCAPED;
+    double nSmooth = 0.0;
+
+    /* Makes discrete iteration count a continuous value */
+    if (status == ESCAPED && scheme->depth != BIT_DEPTH_1)
+        nSmooth = n + 1.0L - log2l(log2l(cabsl(z)));
+
+    switch (scheme->depth)
+    {
+        case BIT_DEPTH_1:
+            /* Only write every byte */
+            scheme->mapColour.monochrome(pixel, offset, status);
+            break;
+        case BIT_DEPTH_8:
+            *((uint8_t *) pixel) = scheme->mapColour.greyscale(nSmooth, status);
+            break;
+        case BIT_DEPTH_24:
+            scheme->mapColour.trueColour(pixel, nSmooth, status);
+            break;
+        default:
+            return;
+    }
+
+    return;
+}
+
+
 /* Convert colour scheme enum to a string */
-void getColourString(char *dest, enum ColourSchemeType colour, size_t n)
+void getColourString(char *dest, ColourSchemeType colour, size_t n)
 {
     const char *colourString;
 
@@ -186,7 +218,7 @@ void getColourString(char *dest, enum ColourSchemeType colour, size_t n)
 
 
 /* Map HSV colour values to RGB */
-static void hsvToRGB(struct ColourRGB *rgb, struct ColourHSV *hsv)
+static void hsvToRGB(RGB *rgb, HSV *hsv)
 {
     unsigned char i;    
     double x, p, q, r;
@@ -208,7 +240,7 @@ static void hsvToRGB(struct ColourRGB *rgb, struct ColourHSV *hsv)
     }
 
     /* Determines the RGB parameters that vary */
-    i = (unsigned char) floor(hsv->h / 60.0);
+    i = (unsigned char) floorl(hsv->h / 60.0);
     
     x = (hsv->h / 60.0) - i;
 
@@ -260,7 +292,7 @@ static void hsvToRGB(struct ColourRGB *rgb, struct ColourHSV *hsv)
 
 
 /* Maps a given iteration count to an index of outputChars[] */
-static char mapColourSchemeASCII(double n, enum EscapeStatus status)
+static char mapColourSchemeASCII(double n, EscapeStatus status)
 {
     size_t i = OUTPUT_TERMINAL_CHARSET_LENGTH - 1;
 
@@ -272,7 +304,7 @@ static char mapColourSchemeASCII(double n, enum EscapeStatus status)
 
 
 /* Black and white bit map */
-static void mapColourSchemeBlackWhite(char *byte, int offset, enum EscapeStatus status)
+static void mapColourSchemeBlackWhite(char *byte, int offset, EscapeStatus status)
 {
     /* Set/unset n'th bit of the byte */
     if (status == UNESCAPED)
@@ -285,7 +317,7 @@ static void mapColourSchemeBlackWhite(char *byte, int offset, enum EscapeStatus 
 
 
 /* White and black bit map */
-static void mapColourSchemeWhiteBlack(char *byte, int offset, enum EscapeStatus status)
+static void mapColourSchemeWhiteBlack(char *byte, int offset, EscapeStatus status)
 {
     /* Unset/set n'th bit of the byte */
     if (status == UNESCAPED)
@@ -298,14 +330,14 @@ static void mapColourSchemeWhiteBlack(char *byte, int offset, enum EscapeStatus 
 
 
 /* 8-bit greyscale */
-static uint8_t mapColourSchemeGreyscale(double n, enum EscapeStatus status)
+static uint8_t mapColourSchemeGreyscale(double n, EscapeStatus status)
 {
     uint8_t shade = 0;
 
     if (status == ESCAPED)
     {
         /* Gets values between 0 and 255 */
-        shade = (uint8_t) (255 - fabs(fmod(n * 8.5, 510) - 255));
+        shade = (uint8_t) (255.0 - fabs(fmod(n * 8.5, 510.0) - 255.0));
         
         /* Prevent shade getting too dark */
         if (shade < 30)
@@ -317,9 +349,9 @@ static uint8_t mapColourSchemeGreyscale(double n, enum EscapeStatus status)
 
 
 /* All hues */
-static void mapColourSchemeRainbow(struct ColourRGB *rgb, double n, enum EscapeStatus status)
+static void mapColourSchemeRainbow(RGB *rgb, double n, EscapeStatus status)
 {
-    struct ColourHSV hsv =
+    HSV hsv =
     {
         .s = 0.6,
         .v = 0.0
@@ -339,9 +371,9 @@ static void mapColourSchemeRainbow(struct ColourRGB *rgb, double n, enum EscapeS
 
 
 /* All hues with full saturation */
-static void mapColourSchemeRainbowVibrant(struct ColourRGB *rgb, double n, enum EscapeStatus status)
+static void mapColourSchemeRainbowVibrant(RGB *rgb, double n, EscapeStatus status)
 {
-    struct ColourHSV hsv =
+    HSV hsv =
     {
         .s = 1.0,
         .v = 0.0
@@ -360,9 +392,9 @@ static void mapColourSchemeRainbowVibrant(struct ColourRGB *rgb, double n, enum 
 
 
 /* Red inside the set, red/white outside */
-static void mapColourSchemeRedWhite(struct ColourRGB *rgb, double n, enum EscapeStatus status)
+static void mapColourSchemeRedWhite(RGB *rgb, double n, EscapeStatus status)
 {
-    struct ColourHSV hsv =
+    HSV hsv =
     {
         .h = 0.0,
         .s = 1.0,
@@ -385,9 +417,9 @@ static void mapColourSchemeRedWhite(struct ColourRGB *rgb, double n, enum Escape
 
 
 /* Red to yellow */
-static void mapColourSchemeFire(struct ColourRGB *rgb, double n, enum EscapeStatus status)
+static void mapColourSchemeFire(RGB *rgb, double n, EscapeStatus status)
 {
-    struct ColourHSV hsv =
+    HSV hsv =
     {
         .s = 0.85,
         .v = 0.0
@@ -407,13 +439,13 @@ static void mapColourSchemeFire(struct ColourRGB *rgb, double n, enum EscapeStat
 
 
 /* Dark red glow */
-static void mapColourSchemeRedHot(struct ColourRGB *rgb, double n, enum EscapeStatus status)
+static void mapColourSchemeRedHot(RGB *rgb, double n, EscapeStatus status)
 {
-    struct ColourHSV hsv =
+    HSV hsv =
     {
-        .h = 0.0,
-        .s = 1.0,
-        .v = 0.0
+        .h = 0.0L,
+        .s = 1.0L,
+        .v = 0.0L
     };
 
     if (status == ESCAPED)
@@ -441,9 +473,9 @@ static void mapColourSchemeRedHot(struct ColourRGB *rgb, double n, enum EscapeSt
 
 
 /* Dark green glow */
-static void mapColourSchemeMatrix(struct ColourRGB *rgb, double n, enum EscapeStatus status)
+static void mapColourSchemeMatrix(RGB *rgb, double n, EscapeStatus status)
 {
-    struct ColourHSV hsv =
+    HSV hsv =
     {
         .h = 120.0,
         .s = 1.0,

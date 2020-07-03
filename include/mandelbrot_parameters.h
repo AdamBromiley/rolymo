@@ -3,6 +3,7 @@
 
 
 extern const double ESCAPE_RADIUS;
+extern const long double ESCAPE_RADIUS_EXT;
 
 
 #endif
