@@ -1,5 +1,11 @@
 # Changelog
 
+## 2020-07-03
+### Added
+- `-X` option will enable extended-precision mode (use of `long double` types)
+### Changed
+- Fixed memory allocation bug
+
 ## 2020-06-25
 ### Added
 - Centre point & magnification can be specified rather than ranges
