@@ -8,12 +8,12 @@
 #include "libgroot/include/log.h"
 
 #include "array.h"
-#include "colour.h"
+#include "ext_precision.h"
 #include "function.h"
 #include "parameters.h"
 
 
-#define IMAGE_HEADER_LENGTH_MAX 128
+#define IMAGE_HEADER_LEN_MAX 128
 
 
 /* Minimum/maximum memory limit values */
@@ -25,13 +25,13 @@ const unsigned int THREAD_COUNT_MIN = 1;
 const unsigned int THREAD_COUNT_MAX = 512;
 
 
-static void blockToImage(const struct Block *block);
+static void blockToImage(const Block *block);
 
 
 /* Create image file and write header */
-int initialiseImage(struct PlotCTX *parameters, const char *filepath)
+int initialiseImage(PlotCTX *parameters, const char *filepath)
 {
-    char header[IMAGE_HEADER_LENGTH_MAX];
+    char header[IMAGE_HEADER_LEN_MAX];
 
     logMessage(DEBUG, "Opening image file \'%s\'", filepath);
 
@@ -75,15 +75,18 @@ int initialiseImage(struct PlotCTX *parameters, const char *filepath)
 
 
 /* Initialise plot array, run function, then write to file */
-int imageOutput(struct PlotCTX *parameters, size_t memory, unsigned int threadCount)
+int imageOutput(PlotCTX *parameters, size_t memory, unsigned int threadCount)
 {
+    /* Pointer to fractal generation function */
+    void * (*genFractal)(void *) = (!extPrecision) ? generateFractal : generateFractalExt;
+
     /* Array blocks */
-    struct ArrayCTX *array;
-    struct Block *block;
+    ArrayCTX *array;
+    Block *block;
 
     /* Processing threads */
-    struct Thread *threads;
-    struct Thread *thread;
+    Thread *threads;
+    Thread *thread;
 
     /* Create array metadata struct */
     array = createArrayCTX(parameters);
@@ -147,7 +150,7 @@ int imageOutput(struct PlotCTX *parameters, size_t memory, unsigned int threadCo
             thread = &(threads[i]);
             logMessage(INFO, "Spawning thread %u", thread->tid);
     
-            if (pthread_create(&(thread->pid), NULL, generateFractal, thread) != 0)
+            if (pthread_create(&(thread->pid), NULL, genFractal, thread))
             {
                 logMessage(ERROR, "Thread could not be created");
                 freeArrayCTX(array);
@@ -163,8 +166,17 @@ int imageOutput(struct PlotCTX *parameters, size_t memory, unsigned int threadCo
         for (unsigned int i = 0; i < threads->ctx->count; ++i)
         {
             thread = &(threads[i]);
-            pthread_join(thread->pid, NULL);
-            logMessage(INFO, "Thread %u exited", thread->tid);
+
+            if (pthread_join(thread->pid, NULL))
+            {
+                logMessage(ERROR, "Thread %u could not be harvested", thread->tid);
+                freeArrayCTX(array);
+                freeBlock(block);
+                freeThreads(threads);
+                return 1;
+            }
+                
+            logMessage(INFO, "Thread %u joined", thread->tid);
         }
 
         logMessage(INFO, "All threads successfully destroyed");
@@ -184,7 +196,7 @@ int imageOutput(struct PlotCTX *parameters, size_t memory, unsigned int threadCo
 
 
 /* Close image file */
-int closeImage(struct PlotCTX *parameters)
+int closeImage(PlotCTX *parameters)
 {
     logMessage(DEBUG, "Closing image file");
 
@@ -204,12 +216,12 @@ int closeImage(struct PlotCTX *parameters)
 
 
 /* Write block to image file */
-static void blockToImage(const struct Block *block)
+static void blockToImage(const Block *block)
 {
     void *array = block->ctx->array->array;
 
     size_t arrayLength = block->rows * block->ctx->array->parameters->width;
-    long double pixelSize = block->ctx->array->parameters->colour.depth / 8.0L;
+    double pixelSize = block->ctx->array->parameters->colour.depth / 8.0;
     size_t arraySize = arrayLength * pixelSize;
 
     FILE *image = block->ctx->array->parameters->file;
