@@ -15,17 +15,17 @@ BDIR = .
 BIN = $(BDIR)/$(_BIN)
 
 # Source code
-_SRC = array.c colour.c function.c image.c mandelbrot.c mandelbrot_parameters.c parameters.c
+_SRC = array.c colour.c ext_precision.c function.c image.c mandelbrot.c mandelbrot_parameters.c parameters.c
 SDIR = src
 SRC = $(patsubst %,$(SDIR)/%,$(_SRC))
 
 # Header files
-_DEPS = array.h colour.h function.h image.h mandelbrot_parameters.h parameters.h
+_DEPS = array.h colour.h ext_precision.h function.h image.h mandelbrot_parameters.h parameters.h
 HDIR = include
 DEPS = $(patsubst %,$(HDIR)/%,$(_DEPS))
 
 # Object files
-_OBJS = array.o colour.o function.o image.o mandelbrot.o mandelbrot_parameters.o parameters.o
+_OBJS = array.o colour.o ext_precision.o function.o image.o mandelbrot.o mandelbrot_parameters.o parameters.o
 ODIR = obj
 OBJS = $(patsubst %,$(ODIR)/%,$(_OBJS))
 
