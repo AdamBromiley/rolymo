@@ -13,116 +13,264 @@
 #include "parameters.h"
 
 
-static long double dotProduct(long double complex z);
-static long double complex mandelbrot(unsigned long *n, long double complex c, unsigned long max);
-static long double complex julia(unsigned long *n, long double complex z, long double complex c, unsigned long max);
+static double dotProduct(double complex z);
+static long double dotProductExt(long double complex z);
+
+static double complex mandelbrot(unsigned long *n, double complex c, unsigned long max);
+static long double complex mandelbrotExt(unsigned long *n, long double complex c, unsigned long max);
+
+static double complex julia(unsigned long *n, double complex z, double complex c, unsigned long max);
+static long double complex juliaExt(unsigned long *n, long double complex z, long double complex c, unsigned long max);
 
 
 void * generateFractal(void *threadInfo)
 {
-    struct Thread *thread = threadInfo;
-    unsigned int threadCount = thread->ctx->count;
+    Thread *t = threadInfo;
 
-    struct PlotCTX *parameters = thread->block->ctx->array->parameters;
-    enum PlotType plot = parameters->type;
-    struct ColourScheme *colour = &(parameters->colour);
-    enum BitDepth colourDepth = colour->depth;
+    unsigned int tCount = t->ctx->count;
 
-    size_t rows = thread->block->rows;
-    size_t columns = parameters->width;
+    /* Plot parameters */
+    PlotCTX *p = t->block->ctx->array->parameters;
 
-    char *pixel;
-    char *array = (char *) thread->block->ctx->array->array;
-    size_t arrayMemberSize = (colour->depth != BIT_DEPTH_1) ? colour->depth / 8 : sizeof(char);
+    /* Julia set constant */
+    double complex constant = p->c.c;
 
-    long double xMin = creall(parameters->minimum);
-    long double yMax = cimagl(parameters->maximum);
-    
-    long double pixelWidth = (creall(parameters->maximum) - creall(parameters->minimum)) / (parameters->width - 1);
-    long double pixelHeight = (cimagl(parameters->maximum) - cimagl(parameters->minimum)) / parameters->height;
+    /* Maximum iteration count */
+    unsigned long nMax = p->iterations;
 
-    size_t blockOffset = thread->block->id * rows;
-    long double rowOffset = yMax - blockOffset * pixelHeight;
+    PlotType type = p->type;
+    ColourScheme *colour = &(p->colour);
+    BitDepth colourDepth = colour->depth;
 
-    long double complex constant = parameters->c;
+    /* Values at top-left of plot */
+    double reMin = creal(p->minimum.c);
+    double imMax = cimag(p->maximum.c);
 
-    unsigned long max = parameters->iterations;
+    /* Pixel dimensions */
+    double pxWidth = (creal(p->maximum.c) - creal(p->minimum.c)) / (p->width - 1);
+    double pxHeight = (cimag(p->maximum.c) - cimag(p->minimum.c)) / p->height;
 
-    logMessage(INFO, "Thread %u: Generating plot", thread->tid);
+    /* Image array */
+    char *px;
+    char *array = (char *) t->block->ctx->array->array;
+    size_t rows = t->block->rows;
+    size_t columns = p->width;
+    size_t nmemb = (colour->depth != BIT_DEPTH_1) ? colour->depth / CHAR_BIT : sizeof(char);
+    size_t rowSize = columns * nmemb;
+
+    /* Offset of block from start ('top-left') of image array */
+    size_t blockOffset = t->block->id * rows;
+    double rowOffset = imMax - blockOffset * pxHeight;
+
+    logMessage(INFO, "Thread %u: Generating plot", t->tid);
 
     /* Offset by thread ID to ensure each thread gets a unique row */
-    for (size_t y = thread->tid; y < rows; y += threadCount)
+    for (size_t y = t->tid; y < rows; y += tCount)
     {
+        /* Number of bits into current byte (if bit depth < CHAR_BIT) */
         int bitOffset;
 
-        /* Reset to start of row */
-        long double complex c = xMin + (rowOffset - y * pixelHeight) * I;
+        /* Set complex value to start of the row */
+        double complex c = reMin + (rowOffset - y * pxHeight) * I;
 
-        /* Repoint to first pixel of the row */
-        if (colourDepth != BIT_DEPTH_1)
+        /* Set pixel pointer to start of the row */
+        if (colourDepth >= CHAR_BIT)
         {
-            pixel = array + y * columns * arrayMemberSize;
+            px = array + y * rowSize;
         }
         else
         {
             bitOffset = 0;
-            pixel = array + y * (columns / 8) * arrayMemberSize;
+            px = array + y * rowSize / CHAR_BIT;
         }
 
         /* Iterate over the row */
-        for (size_t x = 0; x < columns; ++x, c += pixelWidth)
+        for (size_t x = 0; x < columns; ++x, c += pxWidth)
         {
-            long double complex z;
+            double complex z;
             unsigned long n;
 
-            switch (plot)
+            /* Run fractal function on c */
+            switch (type)
             {
                 case PLOT_JULIA:
-                    z = julia(&n, c, constant, max);
+                    z = julia(&n, c, constant, nMax);
                     break;
                 case PLOT_MANDELBROT:
-                    z = mandelbrot(&n, c, max);
+                    z = mandelbrot(&n, c, nMax);
                     break;
                 default:
-                    pthread_exit(0);
+                    pthread_exit(NULL);
             }
 
-            mapColour(pixel, n, z, bitOffset, max, colour);
+            /* Map iteration count to RGB colour value */
+            mapColour(px, n, z, bitOffset, nMax, colour);
 
-            if (colourDepth != BIT_DEPTH_1)
+            /* Increment pixel pointer */
+            if (colourDepth >= CHAR_BIT)
             {
-                pixel += arrayMemberSize;
+                px += nmemb;
             }
             else if (++bitOffset == CHAR_BIT)
             {
-                pixel += arrayMemberSize;
+                px += nmemb;
                 bitOffset = 0;
             }
         }
     }
 
-    logMessage(INFO, "Thread %u: Plot generated - exiting", thread->tid);
+    logMessage(INFO, "Thread %u: Plot generated - exiting", t->tid);
     
-    pthread_exit(0);
+    pthread_exit(NULL);
 }
 
 
-static long double dotProduct(long double complex z)
+void * generateFractalExt(void *threadInfo)
+{
+    Thread *t = threadInfo;
+
+    unsigned int tCount = t->ctx->count;
+
+    /* Plot parameters */
+    PlotCTX *p = t->block->ctx->array->parameters;
+
+    /* Julia set constant */
+    long double complex constant = p->c.lc;
+
+    /* Maximum iteration count */
+    unsigned long nMax = p->iterations;
+
+    PlotType type = p->type;
+    ColourScheme *colour = &(p->colour);
+    BitDepth colourDepth = colour->depth;
+
+    /* Values at top-left of plot */
+    long double reMin = creall(p->minimum.lc);
+    long double imMax = cimagl(p->maximum.lc);
+    
+    /* Pixel dimensions */
+    long double pxWidth = (creall(p->maximum.lc) - creall(p->minimum.lc)) / (p->width - 1);
+    long double pxHeight = (cimagl(p->maximum.lc) - cimagl(p->minimum.lc)) / p->height;
+
+    /* Image array */
+    char *px;
+    char *array = (char *) t->block->ctx->array->array;
+    size_t rows = t->block->rows;
+    size_t columns = p->width;
+    size_t nmemb = (colour->depth != BIT_DEPTH_1) ? colour->depth / CHAR_BIT : sizeof(char);
+    size_t rowSize = columns * nmemb;
+
+    /* Offset of block from start ('top-left') of image array */
+    size_t blockOffset = t->block->id * rows;
+    long double rowOffset = imMax - blockOffset * pxHeight;
+
+    logMessage(INFO, "Thread %u: Generating plot", t->tid);
+
+    /* Offset by thread ID to ensure each thread gets a unique row */
+    for (size_t y = t->tid; y < rows; y += tCount)
+    {
+        /* Number of bits into current byte (if bit depth < CHAR_BIT) */
+        int bitOffset;
+
+        /* Set complex value to start of the row */
+        double complex c = reMin + (rowOffset - y * pxHeight) * I;
+
+        /* Set pixel pointer to start of the row */
+        if (colourDepth >= CHAR_BIT)
+        {
+            px = array + y * rowSize;
+        }
+        else
+        {
+            bitOffset = 0;
+            px = array + y * rowSize / CHAR_BIT;
+        }
+
+        /* Iterate over the row */
+        for (size_t x = 0; x < columns; ++x, c += pxWidth)
+        {
+            long double complex z;
+            unsigned long n;
+
+            /* Run fractal function on c */
+            switch (type)
+            {
+                case PLOT_JULIA:
+                    z = juliaExt(&n, c, constant, nMax);
+                    break;
+                case PLOT_MANDELBROT:
+                    z = mandelbrotExt(&n, c, nMax);
+                    break;
+                default:
+                    pthread_exit(NULL);
+            }
+
+            /* Map iteration count to RGB colour value */
+            mapColourExt(px, n, z, bitOffset, nMax, colour);
+
+            /* Increment pixel pointer */
+            if (colourDepth >= CHAR_BIT)
+            {
+                px += nmemb;
+            }
+            else if (++bitOffset == CHAR_BIT)
+            {
+                px += nmemb;
+                bitOffset = 0;
+            }
+        }
+    }
+
+    logMessage(INFO, "Thread %u: Plot generated - exiting", t->tid);
+    
+    pthread_exit(NULL);
+}
+
+
+static double dotProduct(double complex z)
+{
+    return creal(z) * creal(z) + cimag(z) * cimag(z);
+}
+
+
+static long double dotProductExt(long double complex z)
 {
     return creall(z) * creall(z) + cimagl(z) * cimagl(z);
 }
 
 
 /* Perform Mandelbrot set function */
-static long double complex mandelbrot(unsigned long *n, long double complex c, unsigned long max)
+static double complex mandelbrot(unsigned long *n, double complex c, unsigned long max)
+{
+    double complex z = 0.0 + 0.0 * I;
+    double cdot = dotProduct(c);
+
+    if (256.0 * cdot * cdot - 96.0 * cdot + 32.0 * creal(c) - 3.0 >= 0.0
+        && 16.0 * (cdot + 2.0 * creal(c) + 1.0) - 1.0 >= 0.0)
+    {
+        for (*n = 0; cabs(z) < ESCAPE_RADIUS && *n < max; ++(*n))
+            z = z * z + c;
+    }
+    else
+    {
+        /* Ignore main and secondary bulb */
+        *n = max;
+    }
+
+    return z;
+}
+
+
+/* Perform Mandelbrot set function (extended-precision) */
+static long double complex mandelbrotExt(unsigned long *n, long double complex c, unsigned long max)
 {
     long double complex z = 0.0L + 0.0L * I;
-    long double cdot = dotProduct(c);
+    long double cdot = dotProductExt(c);
 
     if (256.0L * cdot * cdot - 96.0L * cdot + 32.0L * creall(c) - 3.0L >= 0.0L
         && 16.0L * (cdot + 2.0L * creall(c) + 1.0L) - 1.0L >= 0.0L)
     {
-        for (*n = 0; cabsl(z) < ESCAPE_RADIUS && *n < max; ++(*n))
+        for (*n = 0; cabsl(z) < ESCAPE_RADIUS_EXT && *n < max; ++(*n))
             z = z * z + c;
     }
     else
@@ -136,7 +284,17 @@ static long double complex mandelbrot(unsigned long *n, long double complex c, u
 
 
 /* Perform Julia set function */
-static long double complex julia(unsigned long *n, long double complex z, long double complex c, unsigned long max)
+static double complex julia(unsigned long *n, double complex z, double complex c, unsigned long max)
+{
+    for (*n = 0; cabs(z) < ESCAPE_RADIUS && *n < max; ++(*n))
+        z = z * z + c;
+
+    return z;
+}
+
+
+/* Perform Julia set function (extended-precision) */
+static long double complex juliaExt(unsigned long *n, long double complex z, long double complex c, unsigned long max)
 {
     for (*n = 0; cabsl(z) < ESCAPE_RADIUS && *n < max; ++(*n))
         z = z * z + c;
