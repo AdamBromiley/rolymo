@@ -9,13 +9,14 @@
 
 extern const size_t MEMORY_MIN;
 extern const size_t MEMORY_MAX;
+
 extern const unsigned int THREAD_COUNT_MIN;
 extern const unsigned int THREAD_COUNT_MAX;
 
 
-int initialiseImage(struct PlotCTX *parameters, const char *filepath);
-int imageOutput(struct PlotCTX *parameters, size_t memory, unsigned int threadCount);
-int closeImage(struct PlotCTX *parameters);
+int initialiseImage(PlotCTX *parameters, const char *filepath);
+int imageOutput(PlotCTX *parameters, size_t memory, unsigned int threadCount);
+int closeImage(PlotCTX *parameters);
 
 
 #endif
