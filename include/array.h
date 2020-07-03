@@ -4,53 +4,51 @@
 
 #include <pthread.h>
 #include <stddef.h>
-#include <stdint.h>
 
-#include "colour.h"
 #include "parameters.h"
 
 
-struct ArrayCTX
+typedef struct ArrayCTX
 {
     void *array;
-    struct PlotCTX *parameters;
-};
+    PlotCTX *parameters;
+} ArrayCTX;
 
-struct BlockCTX
+typedef struct BlockCTX
 {
     unsigned int count;
     size_t rows, remainder;
-    struct ArrayCTX *array;
-};
+    ArrayCTX *array;
+} BlockCTX;
 
-struct Block
+typedef struct Block
 {
     unsigned int id;
     size_t rows;
-    struct BlockCTX *ctx;
-};
+    BlockCTX *ctx;
+} Block;
 
-struct ThreadCTX
+typedef struct ThreadCTX
 {
     unsigned int count;
-};
+} ThreadCTX;
 
-struct Thread
+typedef struct Thread
 {
     pthread_t pid;
     unsigned int tid;
-    struct Block *block;
-    struct ThreadCTX *ctx;
-};
+    Block *block;
+    ThreadCTX *ctx;
+} Thread;
 
 
-struct ArrayCTX * createArrayCTX(struct PlotCTX *parameters);
-struct Block * mallocArray(struct ArrayCTX *array, size_t bytes);
-struct Thread * createThreads(struct Block *block, unsigned int n);
+ArrayCTX * createArrayCTX(PlotCTX *parameters);
+Block * mallocArray(ArrayCTX *array, size_t bytes);
+Thread * createThreads(Block *block, unsigned int n);
 
-void freeArrayCTX(struct ArrayCTX *ctx);
-void freeBlock(struct Block *block);
-void freeThreads(struct Thread *threads);
+void freeArrayCTX(ArrayCTX *ctx);
+void freeBlock(Block *block);
+void freeThreads(Thread *threads);
 
 
 #endif
