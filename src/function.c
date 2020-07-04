@@ -13,13 +13,13 @@
 #include "parameters.h"
 
 
-static double dotProduct(double complex z);
+static double dotProduct(complex z);
 static long double dotProductExt(long double complex z);
 
-static double complex mandelbrot(unsigned long *n, double complex c, unsigned long max);
+static complex mandelbrot(unsigned long *n, complex c, unsigned long max);
 static long double complex mandelbrotExt(unsigned long *n, long double complex c, unsigned long max);
 
-static double complex julia(unsigned long *n, double complex z, double complex c, unsigned long max);
+static complex julia(unsigned long *n, complex z, complex c, unsigned long max);
 static long double complex juliaExt(unsigned long *n, long double complex z, long double complex c, unsigned long max);
 
 
@@ -33,7 +33,7 @@ void * generateFractal(void *threadInfo)
     PlotCTX *p = t->block->ctx->array->parameters;
 
     /* Julia set constant */
-    double complex constant = p->c.c;
+    complex constant = p->c.c;
 
     /* Maximum iteration count */
     unsigned long nMax = p->iterations;
@@ -71,7 +71,7 @@ void * generateFractal(void *threadInfo)
         int bitOffset;
 
         /* Set complex value to start of the row */
-        double complex c = reMin + (rowOffset - y * pxHeight) * I;
+        complex c = reMin + (rowOffset - y * pxHeight) * I;
 
         /* Set pixel pointer to start of the row */
         if (colourDepth >= CHAR_BIT)
@@ -87,7 +87,7 @@ void * generateFractal(void *threadInfo)
         /* Iterate over the row */
         for (size_t x = 0; x < columns; ++x, c += pxWidth)
         {
-            double complex z;
+            complex z;
             unsigned long n;
 
             /* Run fractal function on c */
@@ -173,7 +173,7 @@ void * generateFractalExt(void *threadInfo)
         int bitOffset;
 
         /* Set complex value to start of the row */
-        double complex c = reMin + (rowOffset - y * pxHeight) * I;
+        long double complex c = reMin + (rowOffset - y * pxHeight) * I;
 
         /* Set pixel pointer to start of the row */
         if (colourDepth >= CHAR_BIT)
@@ -227,7 +227,7 @@ void * generateFractalExt(void *threadInfo)
 }
 
 
-static double dotProduct(double complex z)
+static double dotProduct(complex z)
 {
     return creal(z) * creal(z) + cimag(z) * cimag(z);
 }
@@ -240,9 +240,9 @@ static long double dotProductExt(long double complex z)
 
 
 /* Perform Mandelbrot set function */
-static double complex mandelbrot(unsigned long *n, double complex c, unsigned long max)
+static complex mandelbrot(unsigned long *n, complex c, unsigned long max)
 {
-    double complex z = 0.0 + 0.0 * I;
+    complex z = 0.0 + 0.0 * I;
     double cdot = dotProduct(c);
 
     if (256.0 * cdot * cdot - 96.0 * cdot + 32.0 * creal(c) - 3.0 >= 0.0
@@ -284,7 +284,7 @@ static long double complex mandelbrotExt(unsigned long *n, long double complex c
 
 
 /* Perform Julia set function */
-static double complex julia(unsigned long *n, double complex z, double complex c, unsigned long max)
+static complex julia(unsigned long *n, complex z, complex c, unsigned long max)
 {
     for (*n = 0; cabs(z) < ESCAPE_RADIUS && *n < max; ++(*n))
         z = z * z + c;
