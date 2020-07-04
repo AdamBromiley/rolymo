@@ -12,3 +12,6 @@
 - ASCII art output support
 - More colour schemes and fractals
 - Automatic precision extension at certain magnifications
+
+## Miscellaneous
+- Update [README.md](README.md)
