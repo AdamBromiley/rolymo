@@ -78,7 +78,22 @@ int initialiseImage(PlotCTX *parameters, const char *filepath)
 int imageOutput(PlotCTX *parameters, size_t memory, unsigned int threadCount)
 {
     /* Pointer to fractal generation function */
-    void * (*genFractal)(void *) = (!extPrecision) ? generateFractal : generateFractalExt;
+    void * (*genFractal)(void *);
+
+    switch (precision)
+    {
+        case STD_PRECISION:
+            genFractal = generateFractal;
+            break;
+        case EXT_PRECISION:
+            genFractal = generateFractalExt;
+            break;
+        case ARB_PRECISION:
+            genFractal = generateFractalArb;
+            break;
+        default:
+            return 1;
+    }
 
     /* Array blocks */
     ArrayCTX *array;
