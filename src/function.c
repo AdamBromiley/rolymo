@@ -276,7 +276,7 @@ void * generateFractalArb(void *threadInfo)
     mpfr_init2(pxWidth, ARB_PRECISION_BITS);
 
     /* TODO: subtract 1? */
-    mpfr_set_uj(width, (uintmax_t) width, ARB_REAL_ROUNDING);
+    mpfr_set_uj(width, (uintmax_t) p->width, ARB_REAL_ROUNDING);
     mpfr_sub(pxWidth, mpc_realref(p->maximum.mpc), mpc_realref(p->minimum.mpc), ARB_REAL_ROUNDING);
     mpfr_div(pxWidth, pxWidth, width, ARB_REAL_ROUNDING);
 
@@ -287,7 +287,7 @@ void * generateFractalArb(void *threadInfo)
     mpfr_init2(height, ARB_PRECISION_BITS);
     mpfr_init2(pxHeight, ARB_PRECISION_BITS);
 
-    mpfr_set_uj(height, (uintmax_t) height, ARB_IMAG_ROUNDING);
+    mpfr_set_uj(height, (uintmax_t) p->height, ARB_IMAG_ROUNDING);
     mpfr_sub(pxHeight, mpc_imagref(p->maximum.mpc), mpc_imagref(p->minimum.mpc), ARB_IMAG_ROUNDING);
     mpfr_div(pxHeight, pxHeight, height, ARB_IMAG_ROUNDING);
 
@@ -299,7 +299,7 @@ void * generateFractalArb(void *threadInfo)
     mpfr_init2(blockOffset, ARB_PRECISION_BITS);
     mpfr_init2(rowOffset, ARB_PRECISION_BITS);
 
-    mpfr_set_uj(blockOffset, (uintmax_t) (t->block->id * rows), ARB_IMAG_ROUNDING);
+    mpfr_set_uj(blockOffset, (uintmax_t) (t->block->id * rows + t->tid), ARB_IMAG_ROUNDING);
     mpfr_mul(blockOffset, blockOffset, pxHeight, ARB_IMAG_ROUNDING);
     mpfr_sub(rowOffset, imMax, blockOffset, ARB_IMAG_ROUNDING);
 
@@ -312,6 +312,8 @@ void * generateFractalArb(void *threadInfo)
 
     mpfr_t norm;
     mpfr_init2(norm, ARB_PRECISION_BITS);
+
+    mpfr_mul_ui(pxHeight, pxHeight, (unsigned long) tCount, ARB_IMAG_ROUNDING);
 
     logMessage(INFO, "Thread %u: Generating plot", t->tid);
 
