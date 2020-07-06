@@ -4,6 +4,7 @@
 
 void * generateFractal(void *threadInfo);
 void * generateFractalExt(void *threadInfo);
+void * generateFractalArb(void *threadInfo);
 
 
 #endif
