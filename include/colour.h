@@ -6,6 +6,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <mpfr.h>
+
 
 #define COLOUR_STRING_LENGTH_MAX 32
 
@@ -74,6 +76,7 @@ void initialiseColourScheme(ColourScheme *scheme, ColourSchemeType colour);
 void mapColour(void *pixel, unsigned long n, complex z, int offset, unsigned long max, ColourScheme *scheme);
 void mapColourExt(void *pixel, unsigned long n, long double complex z, int offset, unsigned long max,
                      ColourScheme *scheme);
+void mapColourArb(void *pixel, unsigned long n, mpfr_t norm, int offset, unsigned long max, ColourScheme *scheme);
 
 void getColourString(char *dest, ColourSchemeType colour, size_t n);
 

@@ -7,6 +7,8 @@
 #include <stddef.h>
 #include <string.h>
 
+#include <mpfr.h>
+
 #include "ext_precision.h"
 #include "mandelbrot_parameters.h"
 
@@ -147,6 +149,39 @@ void mapColourExt(void *pixel, unsigned long n, long double complex z, int offse
     /* Makes discrete iteration count a continuous value */
     if (status == ESCAPED && scheme->depth != BIT_DEPTH_1)
         nSmooth = n + 1.0L - log2l(log2l(cabsl(z)));
+
+    switch (scheme->depth)
+    {
+        case BIT_DEPTH_1:
+            /* Only write every byte */
+            scheme->mapColour.monochrome(pixel, offset, status);
+            break;
+        case BIT_DEPTH_8:
+            *((uint8_t *) pixel) = scheme->mapColour.greyscale(nSmooth, status);
+            break;
+        case BIT_DEPTH_24:
+            scheme->mapColour.trueColour(pixel, nSmooth, status);
+            break;
+        default:
+            return;
+    }
+
+    return;
+}
+
+
+/* Smooth the iteration count then map it to an RGB value (arbitrary-precision) */
+void mapColourArb(void *pixel, unsigned long n, mpfr_t norm, int offset, unsigned long max, ColourScheme *scheme)
+{
+    EscapeStatus status = (n < max) ? ESCAPED : UNESCAPED;
+    double nSmooth = 0.0;
+
+    /* Makes discrete iteration count a continuous value */
+    if (status == ESCAPED && scheme->depth != BIT_DEPTH_1)
+    {
+        mpfr_log2(norm, norm, ARB_REAL_ROUNDING);
+        nSmooth = n + 2.0 - log2(mpfr_get_d(norm, ARB_REAL_ROUNDING));
+    }
 
     switch (scheme->depth)
     {
