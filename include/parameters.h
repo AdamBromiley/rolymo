@@ -54,6 +54,8 @@ extern const long double complex C_MAX_EXT;
 
 extern const double MAGNIFICATION_MIN;
 extern const double MAGNIFICATION_MAX;
+extern const double MAGNIFICATION_MIN_EXT;
+extern const double MAGNIFICATION_MAX_EXT;
 
 extern const unsigned long ITERATIONS_MIN;
 extern const unsigned long ITERATIONS_MAX;
@@ -65,11 +67,15 @@ extern const size_t HEIGHT_MAX;
 
 extern const PlotCTX MANDELBROT_PARAMETERS_DEFAULT;
 extern const PlotCTX MANDELBROT_PARAMETERS_DEFAULT_EXT;
+extern const PlotCTX MANDELBROT_PARAMETERS_DEFAULT_ARB;
+
 extern const PlotCTX JULIA_PARAMETERS_DEFAULT;
 extern const PlotCTX JULIA_PARAMETERS_DEFAULT_EXT;
+extern const PlotCTX JULIA_PARAMETERS_DEFAULT_ARB;
 
 
-int initialiseParameters(PlotCTX *parameters, PlotType type);
+PlotCTX * createPlotCTX(PlotType type);
+void freePlotCTX(PlotCTX *parameters);
 void initialiseTerminalOutputParameters(PlotCTX *parameters);
 
 void getOutputString(char *dest, PlotCTX *parameters, size_t n);

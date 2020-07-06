@@ -5,7 +5,10 @@
 #include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
+
+#include <mpc.h>
 
 #include "colour.h"
 #include "ext_precision.h"
@@ -22,12 +25,18 @@ const long double complex COMPLEX_MAX_EXT = (LDBL_MAX) + (LDBL_MAX) * I;
 /* Range of permissible constant values */
 const complex C_MIN = -2.0 - 2.0 * I;
 const complex C_MAX = 2.0 + 2.0 * I;
+
+/* Range of permissible constant values (extended-precision) */
 const long double complex C_MIN_EXT = -2.0L - 2.0L * I;
 const long double complex C_MAX_EXT = 2.0L + 2.0L * I;
 
 /* Range of permissible magnification values */
 const double MAGNIFICATION_MIN = -(DBL_MAX);
 const double MAGNIFICATION_MAX = DBL_MAX;
+
+/* Range of permissible magnification values (extended-precision) */
+const double MAGNIFICATION_MIN_EXT = -(LDBL_MAX);
+const double MAGNIFICATION_MAX_EXT = LDBL_MAX;
 
 /* Range of permissible iteration counts */
 const unsigned long ITERATIONS_MIN = 0UL;
@@ -65,6 +74,17 @@ const PlotCTX MANDELBROT_PARAMETERS_DEFAULT_EXT =
     .height = 500
 };
 
+/* Default parameters for Mandelbrot set plot (arbitrary-precision) */
+const PlotCTX MANDELBROT_PARAMETERS_DEFAULT_ARB =
+{
+    .type = PLOT_MANDELBROT,
+    .iterations = ITERATIONS_DEFAULT,
+    .output = OUTPUT_PPM,
+    .file = NULL,
+    .width = 550,
+    .height = 500
+};
+
 /* Default parameters for Julia set plot */
 const PlotCTX JULIA_PARAMETERS_DEFAULT =
 {
@@ -91,27 +111,116 @@ const PlotCTX JULIA_PARAMETERS_DEFAULT_EXT =
     .height = 800
 };
 
-
-/* Set default plot settings for Mandelbrot image output */
-int initialiseParameters(PlotCTX *parameters, PlotType type)
+/* Default parameters for Julia set plot (arbitrary-precision) */
+const PlotCTX JULIA_PARAMETERS_DEFAULT_ARB =
 {
+    .type = PLOT_JULIA,
+    .iterations = ITERATIONS_DEFAULT,
+    .output = OUTPUT_PPM,
+    .file = NULL,
+    .width = 800,
+    .height = 800
+};
+
+
+/* Create plot parameters object and set default plot settings */
+PlotCTX * createPlotCTX(PlotType type)
+{
+    PlotCTX *parameters = malloc(sizeof(PlotCTX));
+
+    if (!parameters)
+        return NULL;
+
     switch (type)
     {
         case PLOT_MANDELBROT:
-            *parameters = (!extPrecision) ? MANDELBROT_PARAMETERS_DEFAULT
-                                          : MANDELBROT_PARAMETERS_DEFAULT_EXT;
+            switch (precision)
+            {
+                case STD_PRECISION:
+                    *parameters = MANDELBROT_PARAMETERS_DEFAULT;
+                    break;
+                case EXT_PRECISION:
+                    *parameters = MANDELBROT_PARAMETERS_DEFAULT_EXT;
+                    break;
+                case ARB_PRECISION:
+                    *parameters = MANDELBROT_PARAMETERS_DEFAULT_ARB;
+
+                    mpc_init2(parameters->minimum.mpc, ARB_PRECISION_BITS);
+                    mpc_set_d_d(parameters->minimum.mpc, creal(MANDELBROT_PARAMETERS_DEFAULT.minimum.c),
+                        cimag(MANDELBROT_PARAMETERS_DEFAULT.minimum.c), ARB_CMPLX_ROUNDING);
+
+                    mpc_init2(parameters->maximum.mpc, ARB_PRECISION_BITS);
+                    mpc_set_d_d(parameters->maximum.mpc, creal(MANDELBROT_PARAMETERS_DEFAULT.maximum.c),
+                        cimag(MANDELBROT_PARAMETERS_DEFAULT.maximum.c), ARB_CMPLX_ROUNDING);
+
+                    mpc_init2(parameters->c.mpc, ARB_PRECISION_BITS);
+
+                    break;
+                default:
+                    free(parameters);
+                    return NULL;
+            }
+
             break;
         case PLOT_JULIA:
-            *parameters = (!extPrecision) ? JULIA_PARAMETERS_DEFAULT
-                                          : JULIA_PARAMETERS_DEFAULT_EXT;
+            switch (precision)
+            {
+                case STD_PRECISION:
+                    *parameters = JULIA_PARAMETERS_DEFAULT;
+                    break;
+                case EXT_PRECISION:
+                    *parameters = JULIA_PARAMETERS_DEFAULT_EXT;
+                    break;
+                case ARB_PRECISION:
+                    *parameters = JULIA_PARAMETERS_DEFAULT_ARB;
+
+                    mpc_init2(parameters->minimum.mpc, ARB_PRECISION_BITS);
+                    mpc_set_d_d(parameters->minimum.mpc, creal(JULIA_PARAMETERS_DEFAULT.minimum.c),
+                        cimag(JULIA_PARAMETERS_DEFAULT.minimum.c), ARB_CMPLX_ROUNDING);
+
+                    mpc_init2(parameters->maximum.mpc, ARB_PRECISION_BITS);
+                    mpc_set_d_d(parameters->maximum.mpc, creal(JULIA_PARAMETERS_DEFAULT.maximum.c),
+                        cimag(JULIA_PARAMETERS_DEFAULT.maximum.c), ARB_CMPLX_ROUNDING);
+
+                    mpc_init2(parameters->c.mpc, ARB_PRECISION_BITS);
+                    mpc_set_d_d(parameters->c.mpc, creal(JULIA_PARAMETERS_DEFAULT.c.c),
+                        cimag(JULIA_PARAMETERS_DEFAULT.c.c), ARB_CMPLX_ROUNDING);
+
+                    break;
+                default:
+                    free(parameters);
+                    return NULL;
+            }
+
             break;
         default:
-            return 1;
+            free(parameters);
+            return NULL;
     }
 
     initialiseColourScheme(&(parameters->colour), COLOUR_SCHEME_TYPE_DEFAULT);
 
-    return 0;
+    return parameters;
+}
+
+
+void freePlotCTX(PlotCTX *parameters)
+{
+    if (precision == ARB_PRECISION)
+    {
+        mpc_clear(parameters->minimum.mpc);
+        mpc_clear(parameters->maximum.mpc);
+        mpc_clear(parameters->c.mpc);
+    }
+
+    if (parameters->file)
+        fclose(parameters->file);
+
+    parameters->file = NULL;
+
+    free(parameters);
+
+    return;
 }
 
 
