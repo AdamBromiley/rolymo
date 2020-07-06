@@ -7,6 +7,12 @@ The Mandelbrot set is the set of complex numbers `c` for which the function `f(x
 - Output to the NetPBM family of image files - `.pbm`, `.pgm`, and `.ppm`
 - ASCII art output to the terminal
 
+## Dependencies
+The following dependencies must be installed to system:
+- The [GNU Multiple Precision Arithmetic Library](https://gmplib.org/) (GMP), version 5.0.0 or later
+- The [GNU Multiple Precision Floating-Point Reliable Library](https://www.mpfr.org/) (MPFR), version 3.0.0 or later
+- The [GNU Multiple Precision Complex Library](http://www.multiprecision.org/mpc/home.html) (MPC)
+
 ## Usage
 From the program's root directory, `make` compiles the `mandelbrot` binary.
 
