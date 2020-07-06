@@ -47,7 +47,7 @@ LPATHS = $(patsubst %,-L%,$(LDIRS))
 RPATHS = $(subst $(SPACE),$(COMMA),$(patsubst %,-rpath=%,$(LDIRS)))
 
 # Libraries to be linked with `-l`
-_LDLIBS = groot percy m
+_LDLIBS = groot percy m mpc mpfr gmp
 LDLIBS = $(patsubst %,-l%,$(_LDLIBS))
 
 
