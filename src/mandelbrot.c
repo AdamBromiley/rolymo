@@ -527,9 +527,12 @@ int usage(void)
     printf("Optimisation:\n");
     printf("  -T COUNT,  --threads=COUNT    Use COUNT number of processing threads\n");
     printf("                                [+] Default = Online processor count\n");
-    printf("  -X                            Enable extended precision mode\n");
+    printf("  -X         --extended         Enable extended-precision mode\n");
     printf("                                [+] The extended floating-point type will be used for calculations\n");
     printf("                                [+] This will increase precision at high zoom but may be slower\n");
+    printf("  -A         --arbitrary        Enable arbitrary-precision mode\n");
+    printf("                                [+] MPFR floating-points will be used for calculations\n");
+    printf("                                [+] This increases precision beyond -X but will be considerably slower\n");
     printf("  -z MEM,    --memory=MEM       Limit memory usage to MEM megabytes\n");
     printf("                                [+] Default = 80%% of free physical memory\n");
     printf("Log settings:\n");
