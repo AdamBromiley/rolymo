@@ -106,7 +106,7 @@ Block * mallocArray(ArrayCTX *array, size_t bytes)
     /* Try to malloc the array, with each iteration decreasing the array size */
     *arrayPtr = NULL;
 
-    for (ctx->count = 1; *arrayPtr == NULL && ctx->count <= BLOCK_COUNT_MAX; ctx->count *= 2)
+    for (ctx->count = 1; ctx->count <= BLOCK_COUNT_MAX; ctx->count *= 2)
     {
         if (ctx->count > 1)
             logMessage(DEBUG, "Memory allocation attempt failed. Retrying...");    
@@ -121,6 +121,9 @@ Block * mallocArray(ArrayCTX *array, size_t bytes)
             continue;
 
         *arrayPtr = malloc(blockSize);
+
+        if (*arrayPtr)
+            break;
     }
 
     if (!(*arrayPtr) || blockSize == 0)
