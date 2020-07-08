@@ -126,9 +126,9 @@ const PlotCTX JULIA_PARAMETERS_DEFAULT_ARB =
 /* Create plot parameters object and set default plot settings */
 PlotCTX * createPlotCTX(PlotType type)
 {
-    PlotCTX *parameters = malloc(sizeof(PlotCTX));
+    PlotCTX *p = malloc(sizeof(PlotCTX));
 
-    if (!parameters)
+    if (!p)
         return NULL;
 
     switch (type)
@@ -137,27 +137,27 @@ PlotCTX * createPlotCTX(PlotType type)
             switch (precision)
             {
                 case STD_PRECISION:
-                    *parameters = MANDELBROT_PARAMETERS_DEFAULT;
+                    *p = MANDELBROT_PARAMETERS_DEFAULT;
                     break;
                 case EXT_PRECISION:
-                    *parameters = MANDELBROT_PARAMETERS_DEFAULT_EXT;
+                    *p = MANDELBROT_PARAMETERS_DEFAULT_EXT;
                     break;
                 case ARB_PRECISION:
-                    *parameters = MANDELBROT_PARAMETERS_DEFAULT_ARB;
+                    *p = MANDELBROT_PARAMETERS_DEFAULT_ARB;
 
-                    mpc_init2(parameters->minimum.mpc, ARB_PRECISION_BITS);
-                    mpc_set_d_d(parameters->minimum.mpc, creal(MANDELBROT_PARAMETERS_DEFAULT.minimum.c),
+                    mpc_init2(p->minimum.mpc, ARB_PRECISION_BITS);
+                    mpc_set_d_d(p->minimum.mpc, creal(MANDELBROT_PARAMETERS_DEFAULT.minimum.c),
                         cimag(MANDELBROT_PARAMETERS_DEFAULT.minimum.c), ARB_CMPLX_ROUNDING);
 
-                    mpc_init2(parameters->maximum.mpc, ARB_PRECISION_BITS);
-                    mpc_set_d_d(parameters->maximum.mpc, creal(MANDELBROT_PARAMETERS_DEFAULT.maximum.c),
+                    mpc_init2(p->maximum.mpc, ARB_PRECISION_BITS);
+                    mpc_set_d_d(p->maximum.mpc, creal(MANDELBROT_PARAMETERS_DEFAULT.maximum.c),
                         cimag(MANDELBROT_PARAMETERS_DEFAULT.maximum.c), ARB_CMPLX_ROUNDING);
 
-                    mpc_init2(parameters->c.mpc, ARB_PRECISION_BITS);
+                    mpc_init2(p->c.mpc, ARB_PRECISION_BITS);
 
                     break;
                 default:
-                    free(parameters);
+                    free(p);
                     return NULL;
             }
 
@@ -166,88 +166,88 @@ PlotCTX * createPlotCTX(PlotType type)
             switch (precision)
             {
                 case STD_PRECISION:
-                    *parameters = JULIA_PARAMETERS_DEFAULT;
+                    *p = JULIA_PARAMETERS_DEFAULT;
                     break;
                 case EXT_PRECISION:
-                    *parameters = JULIA_PARAMETERS_DEFAULT_EXT;
+                    *p = JULIA_PARAMETERS_DEFAULT_EXT;
                     break;
                 case ARB_PRECISION:
-                    *parameters = JULIA_PARAMETERS_DEFAULT_ARB;
+                    *p = JULIA_PARAMETERS_DEFAULT_ARB;
 
-                    mpc_init2(parameters->minimum.mpc, ARB_PRECISION_BITS);
-                    mpc_set_d_d(parameters->minimum.mpc, creal(JULIA_PARAMETERS_DEFAULT.minimum.c),
+                    mpc_init2(p->minimum.mpc, ARB_PRECISION_BITS);
+                    mpc_set_d_d(p->minimum.mpc, creal(JULIA_PARAMETERS_DEFAULT.minimum.c),
                         cimag(JULIA_PARAMETERS_DEFAULT.minimum.c), ARB_CMPLX_ROUNDING);
 
-                    mpc_init2(parameters->maximum.mpc, ARB_PRECISION_BITS);
-                    mpc_set_d_d(parameters->maximum.mpc, creal(JULIA_PARAMETERS_DEFAULT.maximum.c),
+                    mpc_init2(p->maximum.mpc, ARB_PRECISION_BITS);
+                    mpc_set_d_d(p->maximum.mpc, creal(JULIA_PARAMETERS_DEFAULT.maximum.c),
                         cimag(JULIA_PARAMETERS_DEFAULT.maximum.c), ARB_CMPLX_ROUNDING);
 
-                    mpc_init2(parameters->c.mpc, ARB_PRECISION_BITS);
-                    mpc_set_d_d(parameters->c.mpc, creal(JULIA_PARAMETERS_DEFAULT.c.c),
+                    mpc_init2(p->c.mpc, ARB_PRECISION_BITS);
+                    mpc_set_d_d(p->c.mpc, creal(JULIA_PARAMETERS_DEFAULT.c.c),
                         cimag(JULIA_PARAMETERS_DEFAULT.c.c), ARB_CMPLX_ROUNDING);
 
                     break;
                 default:
-                    free(parameters);
+                    free(p);
                     return NULL;
             }
 
             break;
         default:
-            free(parameters);
+            free(p);
             return NULL;
     }
 
-    initialiseColourScheme(&(parameters->colour), COLOUR_SCHEME_TYPE_DEFAULT);
+    initialiseColourScheme(&(p->colour), COLOUR_SCHEME_TYPE_DEFAULT);
 
-    return parameters;
+    return p;
 }
 
 
-void freePlotCTX(PlotCTX *parameters)
+void freePlotCTX(PlotCTX *p)
 {
     if (precision == ARB_PRECISION)
     {
-        mpc_clear(parameters->minimum.mpc);
-        mpc_clear(parameters->maximum.mpc);
-        mpc_clear(parameters->c.mpc);
+        mpc_clear(p->minimum.mpc);
+        mpc_clear(p->maximum.mpc);
+        mpc_clear(p->c.mpc);
     }
 
-    if (parameters->file)
-        fclose(parameters->file);
+    if (p->file)
+        fclose(p->file);
 
-    parameters->file = NULL;
+    p->file = NULL;
 
-    free(parameters);
+    free(p);
 
     return;
 }
 
 
-void initialiseTerminalOutputParameters(PlotCTX *parameters)
+void initialiseTerminalOutputParameters(PlotCTX *p)
 {
     /* Sensible terminal output dimension values */
     const size_t TERMINAL_WIDTH = 80;
     const size_t TERMINAL_HEIGHT = 46;
 
-    parameters->file = stdout;
-    parameters->width = TERMINAL_WIDTH;
-    parameters->height = TERMINAL_HEIGHT;
+    p->file = stdout;
+    p->width = TERMINAL_WIDTH;
+    p->height = TERMINAL_HEIGHT;
     
-    initialiseColourScheme(&(parameters->colour), COLOUR_SCHEME_TYPE_ASCII);
+    initialiseColourScheme(&(p->colour), COLOUR_SCHEME_TYPE_ASCII);
 
     return;
 }
 
 
-void getOutputString(char *dest, PlotCTX *parameters, size_t n)
+void getOutputString(char *dest, PlotCTX *p, size_t n)
 {
     const char *type;
 
-    switch (parameters->output)
+    switch (p->output)
     {
         case OUTPUT_PPM:
-            switch (parameters->colour.depth)
+            switch (p->colour.depth)
             {
                 case BIT_DEPTH_1:
                     type = "Portable Bit Map (.pbm)";

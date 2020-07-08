@@ -75,10 +75,10 @@ extern const PlotCTX JULIA_PARAMETERS_DEFAULT_ARB;
 
 
 PlotCTX * createPlotCTX(PlotType type);
-void freePlotCTX(PlotCTX *parameters);
-void initialiseTerminalOutputParameters(PlotCTX *parameters);
+void freePlotCTX(PlotCTX *p);
+void initialiseTerminalOutputParameters(PlotCTX *p);
 
-void getOutputString(char *dest, PlotCTX *parameters, size_t n);
+void getOutputString(char *dest, PlotCTX *p, size_t n);
 void getPlotString(char *dest, PlotType plot, size_t n);
 
 

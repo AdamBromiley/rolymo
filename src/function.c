@@ -36,7 +36,7 @@ void * generateFractal(void *threadInfo)
     unsigned int tCount = t->ctx->count;
 
     /* Plot parameters */
-    PlotCTX *p = t->block->ctx->array->parameters;
+    PlotCTX *p = t->block->ctx->array->params;
 
     /* Julia set constant */
     complex constant = p->c.c;
@@ -138,7 +138,7 @@ void * generateFractalExt(void *threadInfo)
     unsigned int tCount = t->ctx->count;
 
     /* Plot parameters */
-    PlotCTX *p = t->block->ctx->array->parameters;
+    PlotCTX *p = t->block->ctx->array->params;
 
     /* Julia set constant */
     long double complex constant = p->c.lc;
@@ -240,7 +240,7 @@ void * generateFractalArb(void *threadInfo)
     unsigned int tCount = t->ctx->count;
 
     /* Plot parameters */
-    PlotCTX *p = t->block->ctx->array->parameters;
+    PlotCTX *p = t->block->ctx->array->params;
 
     /* Julia set constant */
     mpc_t constant;
