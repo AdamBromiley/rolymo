@@ -91,12 +91,14 @@ all: $(BIN)
 
 
 
-.PHONY: make-sublibs
-# Make all dependencies
-make-sublibs:
+# Build Make dependencies
+.PHONY: build-make
+build-make:
 	for directory in $(SUBMAKE); do \
 		$(MAKE) -C $$directory; \
 	done
+
+
 
 
 # Compile source into object files
@@ -105,7 +107,7 @@ $(OBJS): $(ODIR)/%.o: $(SDIR)/%.c
 	$(CC) -c $< $(CFLAGS) -o $@
 
 # Link object files into executable
-$(BIN): $(OBJS) make-sublibs
+$(BIN): $(OBJS) build-make
 	@ mkdir -p var
 	@ mkdir -p $(BDIR)
 	$(LD) $(OBJS) $(LDFLAGS) -o $(BIN)
@@ -113,6 +115,7 @@ $(BIN): $(OBJS) make-sublibs
 
 
 
+# Clean repository
 .PHONY: clean clean-all
 # Remove object files and binary
 clean:
