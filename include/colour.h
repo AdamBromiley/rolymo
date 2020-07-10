@@ -18,9 +18,9 @@ typedef enum EscapeStatus
     ESCAPED
 } EscapeStatus;
 
+/* Values must not be negative or larger than ULONG_MAX */
 typedef enum ColourSchemeType
 {
-    COLOUR_SCHEME_TYPE_DEFAULT,
     COLOUR_SCHEME_TYPE_ASCII,
     COLOUR_SCHEME_TYPE_BLACK_WHITE,
     COLOUR_SCHEME_TYPE_WHITE_BLACK,
@@ -67,16 +67,11 @@ typedef struct ColourScheme
 } ColourScheme;
 
 
-extern const ColourSchemeType COLOUR_SCHEME_DEFAULT;
-extern const ColourSchemeType COLOUR_SCHEME_MIN;
-extern const ColourSchemeType COLOUR_SCHEME_MAX;
-
-
-void initialiseColourScheme(ColourScheme *scheme, ColourSchemeType colour);
+int initialiseColourScheme(ColourScheme *scheme, ColourSchemeType colour);
 void mapColour(void *pixel, unsigned long n, complex z, int offset, unsigned long max, ColourScheme *scheme);
 void mapColourExt(void *pixel, unsigned long n, long double complex z, int offset, unsigned long max,
                      ColourScheme *scheme);
-void mapColourArb(void *pixel, unsigned long n, mpfr_t norm, int offset, unsigned long max, ColourScheme *scheme);
+void mapColourMP(void *pixel, unsigned long n, mpfr_t norm, int offset, unsigned long max, ColourScheme *scheme);
 
 void getColourString(char *dest, ColourSchemeType colour, size_t n);
 
