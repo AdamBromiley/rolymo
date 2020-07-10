@@ -16,11 +16,8 @@
 #define OUTPUT_TERMINAL_CHARSET_ " .:-=+*#%@"
 
 
-/* Don't set to DEFAULT because of recursion in initialiseColourScheme() */
-const ColourSchemeType COLOUR_SCHEME_DEFAULT = COLOUR_SCHEME_TYPE_RAINBOW;
-
 /* Range of permissible colour scheme enum values */
-const ColourSchemeType COLOUR_SCHEME_MIN = COLOUR_SCHEME_TYPE_DEFAULT;
+const ColourSchemeType COLOUR_SCHEME_MIN = COLOUR_SCHEME_TYPE_ASCII;
 const ColourSchemeType COLOUR_SCHEME_MAX = COLOUR_SCHEME_TYPE_MATRIX;
 
 
@@ -51,15 +48,12 @@ static void mapColourSchemeMatrix(RGB *rgb, double n, EscapeStatus status);
 
 
 /* Initialise ColourScheme struct */
-void initialiseColourScheme(ColourScheme *scheme, ColourSchemeType colour)
+int initialiseColourScheme(ColourScheme *scheme, ColourSchemeType colour)
 {
     scheme->scheme = colour;
 
     switch (colour)
     {
-        case COLOUR_SCHEME_TYPE_DEFAULT:
-            initialiseColourScheme(scheme, COLOUR_SCHEME_DEFAULT);
-            break;
         case COLOUR_SCHEME_TYPE_ASCII:
             scheme->depth = BIT_DEPTH_ASCII;
             scheme->mapColour.ascii = mapColourSchemeASCII;
@@ -101,11 +95,10 @@ void initialiseColourScheme(ColourScheme *scheme, ColourSchemeType colour)
             scheme->mapColour.trueColour = mapColourSchemeMatrix;
             break;
         default:
-            initialiseColourScheme(scheme, COLOUR_SCHEME_DEFAULT);
-            break;
+            return 1;
     }
 
-    return;
+    return 0;
 }
 
 
@@ -171,7 +164,7 @@ void mapColourExt(void *pixel, unsigned long n, long double complex z, int offse
 
 
 /* Smooth the iteration count then map it to an RGB value (arbitrary-precision) */
-void mapColourArb(void *pixel, unsigned long n, mpfr_t norm, int offset, unsigned long max, ColourScheme *scheme)
+void mapColourMP(void *pixel, unsigned long n, mpfr_t norm, int offset, unsigned long max, ColourScheme *scheme)
 {
     EscapeStatus status = (n < max) ? ESCAPED : UNESCAPED;
     double nSmooth = 0.0;
@@ -179,8 +172,8 @@ void mapColourArb(void *pixel, unsigned long n, mpfr_t norm, int offset, unsigne
     /* Makes discrete iteration count a continuous value */
     if (status == ESCAPED && scheme->depth != BIT_DEPTH_1)
     {
-        mpfr_log2(norm, norm, ARB_REAL_ROUNDING);
-        nSmooth = n + 2.0 - log2(mpfr_get_d(norm, ARB_REAL_ROUNDING));
+        mpfr_log2(norm, norm, MP_REAL_RND);
+        nSmooth = n + 2.0 - log2(mpfr_get_d(norm, MP_REAL_RND));
     }
 
     switch (scheme->depth)

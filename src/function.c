@@ -22,16 +22,21 @@ static long double dotProductExt(long double complex z);
 
 static complex mandelbrot(unsigned long *n, complex c, unsigned long max);
 static long double complex mandelbrotExt(unsigned long *n, long double complex c, unsigned long max);
-static void mandelbrotArb(unsigned long *n, mpc_t z, mpfr_t norm, mpc_t c, unsigned long max);
+static void mandelbrotMP(unsigned long *n, mpc_t z, mpfr_t norm, mpc_t c, unsigned long max);
 
 static complex julia(unsigned long *n, complex z, complex c, unsigned long max);
 static long double complex juliaExt(unsigned long *n, long double complex z, long double complex c, unsigned long max);
-static void juliaArb(unsigned long *n, mpc_t z, mpfr_t norm, mpc_t c, unsigned long max);
+static void juliaMP(unsigned long *n, mpc_t z, mpfr_t norm, mpc_t c, unsigned long max);
 
 
 void * generateFractal(void *threadInfo)
 {
     Thread *t = threadInfo;
+
+    /*
+     * Because the loops may run for billions of iterations, all relevant struct
+     * members are cached before use.
+     */
 
     unsigned int tCount = t->ctx->count;
 
@@ -53,8 +58,8 @@ void * generateFractal(void *threadInfo)
     double imMax = cimag(p->maximum.c);
 
     /* Pixel dimensions */
-    double pxWidth = (creal(p->maximum.c) - creal(p->minimum.c)) / (p->width - 1);
-    double pxHeight = (cimag(p->maximum.c) - cimag(p->minimum.c)) / p->height;
+    double pxWidth = (p->width > 1) ? (creal(p->maximum.c) - creal(p->minimum.c)) / (p->width - 1) : 0.0;
+    double pxHeight = (p->height > 1) ? (cimag(p->maximum.c) - cimag(p->minimum.c)) / (p->height - 1) : 0.0;
 
     /* Image array */
     char *px;
@@ -135,6 +140,11 @@ void * generateFractalExt(void *threadInfo)
 {
     Thread *t = threadInfo;
 
+    /*
+     * Because the loops may run for billions of iterations, all relevant struct
+     * members are cached before use.
+     */
+
     unsigned int tCount = t->ctx->count;
 
     /* Plot parameters */
@@ -155,8 +165,8 @@ void * generateFractalExt(void *threadInfo)
     long double imMax = cimagl(p->maximum.lc);
     
     /* Pixel dimensions */
-    long double pxWidth = (creall(p->maximum.lc) - creall(p->minimum.lc)) / (p->width - 1);
-    long double pxHeight = (cimagl(p->maximum.lc) - cimagl(p->minimum.lc)) / p->height;
+    long double pxWidth = (p->width > 1) ? (creall(p->maximum.lc) - creall(p->minimum.lc)) / (p->width - 1) : 0.0L;
+    long double pxHeight = (p->height > 1) ? (cimagl(p->maximum.lc) - cimagl(p->minimum.lc)) / (p->height - 1) : 0.0L;
 
     /* Image array */
     char *px;
@@ -233,9 +243,14 @@ void * generateFractalExt(void *threadInfo)
 }
 
 
-void * generateFractalArb(void *threadInfo)
+void * generateFractalMP(void *threadInfo)
 {
     Thread *t = threadInfo;
+
+    /*
+     * Because the loops may run for billions of iterations, all relevant struct
+     * members are cached before use.
+     */
 
     unsigned int tCount = t->ctx->count;
 
@@ -244,8 +259,8 @@ void * generateFractalArb(void *threadInfo)
 
     /* Julia set constant */
     mpc_t constant;
-    mpc_init2(constant, ARB_PRECISION_BITS);
-    mpc_set(constant, p->c.mpc, ARB_CMPLX_ROUNDING);
+    mpc_init2(constant, mpSignificandSize);
+    mpc_set(constant, p->c.mpc, MP_COMPLEX_RND);
 
     /* Maximum iteration count */
     unsigned long nMax = p->iterations;
@@ -256,11 +271,11 @@ void * generateFractalArb(void *threadInfo)
 
     /* Values at top-left of plot */
     mpfr_t reMin, imMax;
-    mpfr_init2(reMin, ARB_PRECISION_BITS);
-    mpfr_init2(imMax, ARB_PRECISION_BITS);
+    mpfr_init2(reMin, mpSignificandSize);
+    mpfr_init2(imMax, mpSignificandSize);
 
-    mpfr_set(reMin, mpc_realref(p->minimum.mpc), ARB_REAL_ROUNDING);
-    mpfr_set(imMax, mpc_imagref(p->maximum.mpc), ARB_IMAG_ROUNDING);
+    mpfr_set(reMin, mpc_realref(p->minimum.mpc), MP_REAL_RND);
+    mpfr_set(imMax, mpc_imagref(p->maximum.mpc), MP_IMAG_RND);
 
     /* Image array */
     char *px;
@@ -271,49 +286,66 @@ void * generateFractalArb(void *threadInfo)
     size_t rowSize = columns * nmemb;
 
     /* Width value */
-    mpfr_t width, pxWidth;
-    mpfr_init2(width, ARB_PRECISION_BITS);
-    mpfr_init2(pxWidth, ARB_PRECISION_BITS);
+    mpfr_t pxWidth;
+    mpfr_init2(pxWidth, mpSignificandSize);
 
-    /* TODO: subtract 1? */
-    mpfr_set_uj(width, (uintmax_t) p->width, ARB_REAL_ROUNDING);
-    mpfr_sub(pxWidth, mpc_realref(p->maximum.mpc), mpc_realref(p->minimum.mpc), ARB_REAL_ROUNDING);
-    mpfr_div(pxWidth, pxWidth, width, ARB_REAL_ROUNDING);
+    if (p->width > 1)
+    {
+        mpfr_t width;
+        mpfr_init2(width, mpSignificandSize);
 
-    mpfr_clear(width);
+        mpfr_set_uj(width, (uintmax_t) (p->width - 1), MP_REAL_RND);
+        mpfr_sub(pxWidth, mpc_realref(p->maximum.mpc), mpc_realref(p->minimum.mpc), MP_REAL_RND);
+        mpfr_div(pxWidth, pxWidth, width, MP_REAL_RND);
+
+        mpfr_clear(width);
+    }
+    else
+    {
+        mpfr_set_d(pxWidth, 0.0, MP_REAL_RND);
+    }
 
     /* Height value */
-    mpfr_t height, pxHeight;
-    mpfr_init2(height, ARB_PRECISION_BITS);
-    mpfr_init2(pxHeight, ARB_PRECISION_BITS);
+    mpfr_t pxHeight;
+    mpfr_init2(pxHeight, mpSignificandSize);
 
-    mpfr_set_uj(height, (uintmax_t) p->height, ARB_IMAG_ROUNDING);
-    mpfr_sub(pxHeight, mpc_imagref(p->maximum.mpc), mpc_imagref(p->minimum.mpc), ARB_IMAG_ROUNDING);
-    mpfr_div(pxHeight, pxHeight, height, ARB_IMAG_ROUNDING);
+    if (p->height > 1)
+    {
+        mpfr_t height;
+        mpfr_init2(height, mpSignificandSize);
 
-    mpfr_clear(height);
+        mpfr_set_uj(height, (uintmax_t) (p->height - 1), MP_IMAG_RND);
+        mpfr_sub(pxHeight, mpc_imagref(p->maximum.mpc), mpc_imagref(p->minimum.mpc), MP_IMAG_RND);
+        mpfr_div(pxHeight, pxHeight, height, MP_IMAG_RND);
+
+        /* Rather than calculate row im-value as rowOffset - y * pxHeight, just subtract pxHeight * tCount each time */
+        mpfr_mul_ui(pxHeight, pxHeight, (unsigned long) tCount, MP_IMAG_RND);
+
+        mpfr_clear(height);
+    }
+    else
+    {
+        mpfr_set_d(pxHeight, 0.0, MP_IMAG_RND);
+    }
 
     /* Offset of block from start ('top-left') of image array */
     mpfr_t blockOffset, rowOffset;
+    mpfr_init2(blockOffset, mpSignificandSize);
+    mpfr_init2(rowOffset, mpSignificandSize);
 
-    mpfr_init2(blockOffset, ARB_PRECISION_BITS);
-    mpfr_init2(rowOffset, ARB_PRECISION_BITS);
-
-    mpfr_set_uj(blockOffset, (uintmax_t) (t->block->id * rows + t->tid), ARB_IMAG_ROUNDING);
-    mpfr_mul(blockOffset, blockOffset, pxHeight, ARB_IMAG_ROUNDING);
-    mpfr_sub(rowOffset, imMax, blockOffset, ARB_IMAG_ROUNDING);
+    mpfr_set_uj(blockOffset, (uintmax_t) (t->block->id * rows + t->tid), MP_IMAG_RND);
+    mpfr_mul(blockOffset, blockOffset, pxHeight, MP_IMAG_RND);
+    mpfr_sub(rowOffset, imMax, blockOffset, MP_IMAG_RND);
 
     mpfr_clear(blockOffset);
 
     /* Calculation variables */
     mpc_t z, c;
-    mpc_init2(z, ARB_PRECISION_BITS);
-    mpc_init2(c, ARB_PRECISION_BITS);
+    mpc_init2(z, mpSignificandSize);
+    mpc_init2(c, mpSignificandSize);
 
     mpfr_t norm;
-    mpfr_init2(norm, ARB_PRECISION_BITS);
-
-    mpfr_mul_ui(pxHeight, pxHeight, (unsigned long) tCount, ARB_IMAG_ROUNDING);
+    mpfr_init2(norm, mpSignificandSize);
 
     logMessage(INFO, "Thread %u: Generating plot", t->tid);
 
@@ -324,7 +356,7 @@ void * generateFractalArb(void *threadInfo)
         int bitOffset;
 
         /* Set complex value to start of the row */
-        mpc_set_fr_fr(c, reMin, rowOffset, ARB_CMPLX_ROUNDING);
+        mpc_set_fr_fr(c, reMin, rowOffset, MP_COMPLEX_RND);
 
         /* Set pixel pointer to start of the row */
         if (colourDepth >= CHAR_BIT)
@@ -338,7 +370,7 @@ void * generateFractalArb(void *threadInfo)
         }
 
         /* Iterate over the row */
-        for (size_t x = 0; x < columns; ++x, mpc_add_fr(c, c, pxWidth, ARB_REAL_ROUNDING))
+        for (size_t x = 0; x < columns; ++x, mpc_add_fr(c, c, pxWidth, MP_REAL_RND))
         {
             unsigned long n;
 
@@ -346,10 +378,10 @@ void * generateFractalArb(void *threadInfo)
             switch (type)
             {
                 case PLOT_JULIA:
-                    juliaArb(&n, c, norm, constant, nMax);
+                    juliaMP(&n, c, norm, constant, nMax);
                     break;
                 case PLOT_MANDELBROT:
-                    mandelbrotArb(&n, z, norm, c, nMax);
+                    mandelbrotMP(&n, z, norm, c, nMax);
                     break;
                 default:
                     mpfr_clears(reMin, imMax, pxWidth, pxHeight, rowOffset, norm, NULL);
@@ -360,7 +392,7 @@ void * generateFractalArb(void *threadInfo)
             }
 
             /* Map iteration count to RGB colour value */
-            mapColourArb(px, n, norm, bitOffset, nMax, colour);
+            mapColourMP(px, n, norm, bitOffset, nMax, colour);
 
             /* Increment pixel pointer */
             if (colourDepth >= CHAR_BIT)
@@ -374,7 +406,7 @@ void * generateFractalArb(void *threadInfo)
             }
         }
 
-        mpfr_sub(rowOffset, rowOffset, pxHeight, ARB_IMAG_ROUNDING);
+        mpfr_sub(rowOffset, rowOffset, pxHeight, MP_IMAG_RND);
     }
 
     mpfr_clears(reMin, imMax, pxWidth, pxHeight, rowOffset, norm, NULL);
@@ -445,16 +477,16 @@ static long double complex mandelbrotExt(unsigned long *n, long double complex c
 
 
 /* Perform Mandelbrot set function (arbitrary-precision) */
-static void mandelbrotArb(unsigned long *n, mpc_t z, mpfr_t norm, mpc_t c, unsigned long max)
+static void mandelbrotMP(unsigned long *n, mpc_t z, mpfr_t norm, mpc_t c, unsigned long max)
 {
-    mpc_set_d_d(z, 0.0, 0.0, ARB_CMPLX_ROUNDING);
-    mpc_norm(norm, z, ARB_REAL_ROUNDING);
+    mpc_set_d_d(z, 0.0, 0.0, MP_COMPLEX_RND);
+    mpc_norm(norm, z, MP_REAL_RND);
 
-    for (*n = 0; mpfr_cmp_d(norm, ESCAPE_RADIUS_ARB * ESCAPE_RADIUS_ARB) < 0 && *n < max; ++(*n))
+    for (*n = 0; mpfr_cmp_d(norm, ESCAPE_RADIUS_MP * ESCAPE_RADIUS_MP) < 0 && *n < max; ++(*n))
     {
-        mpc_sqr(z, z, ARB_CMPLX_ROUNDING);
-        mpc_add(z, z, c, ARB_CMPLX_ROUNDING);
-        mpc_norm(norm, z, ARB_REAL_ROUNDING);
+        mpc_sqr(z, z, MP_COMPLEX_RND);
+        mpc_add(z, z, c, MP_COMPLEX_RND);
+        mpc_norm(norm, z, MP_REAL_RND);
     }
 
     return;
@@ -482,15 +514,15 @@ static long double complex juliaExt(unsigned long *n, long double complex z, lon
 
 
 /* Perform Julia set function (arbitrary-precision) */
-static void juliaArb(unsigned long *n, mpc_t z, mpfr_t norm, mpc_t c, unsigned long max)
+static void juliaMP(unsigned long *n, mpc_t z, mpfr_t norm, mpc_t c, unsigned long max)
 {
-    mpc_norm(norm, z, ARB_REAL_ROUNDING);
+    mpc_norm(norm, z, MP_REAL_RND);
     
     for (*n = 0; mpfr_cmp_d(norm, ESCAPE_RADIUS * ESCAPE_RADIUS) < 0 && *n < max; ++(*n))
     {
-        mpc_sqr(z, z, ARB_CMPLX_ROUNDING);
-        mpc_add(z, z, c, ARB_CMPLX_ROUNDING);
-        mpc_norm(norm, z, ARB_REAL_ROUNDING);
+        mpc_sqr(z, z, MP_COMPLEX_RND);
+        mpc_add(z, z, c, MP_COMPLEX_RND);
+        mpc_norm(norm, z, MP_REAL_RND);
     }
 
     return;

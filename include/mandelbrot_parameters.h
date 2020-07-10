@@ -4,7 +4,7 @@
 
 extern const double ESCAPE_RADIUS;
 extern const long double ESCAPE_RADIUS_EXT;
-extern const double ESCAPE_RADIUS_ARB;
+extern const double ESCAPE_RADIUS_MP;
 
 
 #endif
