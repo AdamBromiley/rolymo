@@ -11,7 +11,7 @@
 
 
 /* Create array metadata structure */
-ArrayCTX * createArrayCTX(PlotCTX *parameters)
+ArrayCTX * createArrayCTX(PlotCTX *p)
 {
     ArrayCTX *ctx;
 
@@ -21,7 +21,7 @@ ArrayCTX * createArrayCTX(PlotCTX *parameters)
         return NULL;
 
     ctx->array = NULL;
-    ctx->parameters = parameters;
+    ctx->params = p;
 
     return ctx;
 }
@@ -46,7 +46,7 @@ Block * mallocArray(ArrayCTX *array, size_t bytes)
 
     logMessage(DEBUG, "Generating image array context");
 
-    if (!(array->parameters))
+    if (!(array->params))
     {
         logMessage(ERROR, "Pointer to plotting parameters structure not found");
         return NULL;
@@ -97,16 +97,16 @@ Block * mallocArray(ArrayCTX *array, size_t bytes)
 
     logMessage(DEBUG, "Creating image array");
 
-    height = array->parameters->height;
-    width = array->parameters->width;
-    rowSize = width * array->parameters->colour.depth / 8;
+    height = array->params->height;
+    width = array->params->width;
+    rowSize = width * array->params->colour.depth / 8;
 
     logMessage(DEBUG, "Image array is %zu bytes", height * rowSize);
 
     /* Try to malloc the array, with each iteration decreasing the array size */
     *arrayPtr = NULL;
 
-    for (ctx->count = 1; *arrayPtr == NULL && ctx->count <= BLOCK_COUNT_MAX; ctx->count *= 2)
+    for (ctx->count = 1; ctx->count <= BLOCK_COUNT_MAX; ctx->count *= 2)
     {
         if (ctx->count > 1)
             logMessage(DEBUG, "Memory allocation attempt failed. Retrying...");    
@@ -121,6 +121,9 @@ Block * mallocArray(ArrayCTX *array, size_t bytes)
             continue;
 
         *arrayPtr = malloc(blockSize);
+
+        if (*arrayPtr)
+            break;
     }
 
     if (!(*arrayPtr) || blockSize == 0)

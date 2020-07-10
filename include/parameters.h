@@ -11,8 +11,6 @@
 #include "ext_precision.h"
 
 
-#define ITERATIONS_DEFAULT 100
-
 #define OUTPUT_STR_LEN_MAX 64
 #define PLOT_STR_LEN_MAX 32
 
@@ -20,13 +18,13 @@
 typedef enum PlotType
 {
     PLOT_NONE,
-    PLOT_MANDELBROT,
-    PLOT_JULIA
+    PLOT_JULIA,
+    PLOT_MANDELBROT
 } PlotType;
 
 typedef enum OutputType
 {
-    OUTPUT_PPM,
+    OUTPUT_PNM,
     OUTPUT_TERMINAL
 } OutputType;
 
@@ -42,37 +40,26 @@ typedef struct PlotCTX
 } PlotCTX;
 
 
-extern const complex COMPLEX_MIN;
-extern const complex COMPLEX_MAX;
-extern const long double complex COMPLEX_MIN_EXT;
-extern const long double complex COMPLEX_MAX_EXT;
+extern const size_t JULIA_TERMINAL_WIDTH_DEFAULT;
+extern const size_t JULIA_TERMINAL_HEIGHT_DEFAULT;
+extern const size_t MANDELBROT_TERMINAL_WIDTH_DEFAULT;
+extern const size_t MANDELBROT_TERMINAL_HEIGHT_DEFAULT;
 
-extern const complex C_MIN;
-extern const complex C_MAX;
-extern const long double complex C_MIN_EXT;
-extern const long double complex C_MAX_EXT;
+extern const ColourSchemeType COLOUR_SCHEME_DEFAULT;
 
-extern const double MAGNIFICATION_MIN;
-extern const double MAGNIFICATION_MAX;
-
-extern const unsigned long ITERATIONS_MIN;
-extern const unsigned long ITERATIONS_MAX;
-
-extern const size_t WIDTH_MIN;
-extern const size_t WIDTH_MAX;
-extern const size_t HEIGHT_MIN;
-extern const size_t HEIGHT_MAX;
+extern const PlotCTX JULIA_PARAMETERS_DEFAULT;
+extern const PlotCTX JULIA_PARAMETERS_DEFAULT_EXT;
+extern const PlotCTX JULIA_PARAMETERS_DEFAULT_MP;
 
 extern const PlotCTX MANDELBROT_PARAMETERS_DEFAULT;
 extern const PlotCTX MANDELBROT_PARAMETERS_DEFAULT_EXT;
-extern const PlotCTX JULIA_PARAMETERS_DEFAULT;
-extern const PlotCTX JULIA_PARAMETERS_DEFAULT_EXT;
+extern const PlotCTX MANDELBROT_PARAMETERS_DEFAULT_MP;
 
 
-int initialiseParameters(PlotCTX *parameters, PlotType type);
-void initialiseTerminalOutputParameters(PlotCTX *parameters);
+PlotCTX * createPlotCTX(PlotType plot, OutputType output);
+void freePlotCTX(PlotCTX *p);
 
-void getOutputString(char *dest, PlotCTX *parameters, size_t n);
+void getOutputString(char *dest, PlotCTX *p, size_t n);
 void getPlotString(char *dest, PlotType plot, size_t n);
 
 

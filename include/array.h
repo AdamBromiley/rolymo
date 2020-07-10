@@ -11,7 +11,7 @@
 typedef struct ArrayCTX
 {
     void *array;
-    PlotCTX *parameters;
+    PlotCTX *params;
 } ArrayCTX;
 
 typedef struct BlockCTX
@@ -42,7 +42,7 @@ typedef struct Thread
 } Thread;
 
 
-ArrayCTX * createArrayCTX(PlotCTX *parameters);
+ArrayCTX * createArrayCTX(PlotCTX *p);
 Block * mallocArray(ArrayCTX *array, size_t bytes);
 Thread * createThreads(Block *block, unsigned int n);
 

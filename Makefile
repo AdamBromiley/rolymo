@@ -15,17 +15,17 @@ BDIR = .
 BIN = $(BDIR)/$(_BIN)
 
 # Source code
-_SRC = array.c colour.c ext_precision.c function.c image.c mandelbrot.c mandelbrot_parameters.c parameters.c
+_SRC = arg_ranges.c array.c colour.c ext_precision.c function.c image.c mandelbrot.c mandelbrot_parameters.c parameters.c
 SDIR = src
 SRC = $(patsubst %,$(SDIR)/%,$(_SRC))
 
 # Header files
-_DEPS = array.h colour.h ext_precision.h function.h image.h mandelbrot_parameters.h parameters.h
+_DEPS = arg_ranges.h array.h colour.h ext_precision.h function.h image.h mandelbrot_parameters.h parameters.h
 HDIR = include
 DEPS = $(patsubst %,$(HDIR)/%,$(_DEPS))
 
 # Object files
-_OBJS = array.o colour.o ext_precision.o function.o image.o mandelbrot.o mandelbrot_parameters.o parameters.o
+_OBJS = arg_ranges.o array.o colour.o ext_precision.o function.o image.o mandelbrot.o mandelbrot_parameters.o parameters.o
 ODIR = obj
 OBJS = $(patsubst %,$(ODIR)/%,$(_OBJS))
 
@@ -47,7 +47,7 @@ LPATHS = $(patsubst %,-L%,$(LDIRS))
 RPATHS = $(subst $(SPACE),$(COMMA),$(patsubst %,-rpath=%,$(LDIRS)))
 
 # Libraries to be linked with `-l`
-_LDLIBS = groot percy m
+_LDLIBS = groot percy m mpc mpfr gmp
 LDLIBS = $(patsubst %,-l%,$(_LDLIBS))
 
 
@@ -91,12 +91,14 @@ all: $(BIN)
 
 
 
-.PHONY: make-sublibs
-# Make all dependencies
-make-sublibs:
+# Build Make dependencies
+.PHONY: build-make
+build-make:
 	for directory in $(SUBMAKE); do \
 		$(MAKE) -C $$directory; \
 	done
+
+
 
 
 # Compile source into object files
@@ -105,7 +107,7 @@ $(OBJS): $(ODIR)/%.o: $(SDIR)/%.c
 	$(CC) -c $< $(CFLAGS) -o $@
 
 # Link object files into executable
-$(BIN): $(OBJS) make-sublibs
+$(BIN): $(OBJS) build-make
 	@ mkdir -p var
 	@ mkdir -p $(BDIR)
 	$(LD) $(OBJS) $(LDFLAGS) -o $(BIN)
@@ -113,6 +115,7 @@ $(BIN): $(OBJS) make-sublibs
 
 
 
+# Clean repository
 .PHONY: clean clean-all
 # Remove object files and binary
 clean:

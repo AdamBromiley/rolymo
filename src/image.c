@@ -29,15 +29,15 @@ static void blockToImage(const Block *block);
 
 
 /* Create image file and write header */
-int initialiseImage(PlotCTX *parameters, const char *filepath)
+int initialiseImage(PlotCTX *p, const char *filepath)
 {
     char header[IMAGE_HEADER_LEN_MAX];
 
     logMessage(DEBUG, "Opening image file \'%s\'", filepath);
 
-    parameters->file = fopen(filepath, "wb");
+    p->file = fopen(filepath, "wb");
 
-    if (!parameters->file)
+    if (!p->file)
     {
         logMessage(ERROR, "File \'%s\' could not be opened", filepath);
         return 1;
@@ -47,26 +47,26 @@ int initialiseImage(PlotCTX *parameters, const char *filepath)
     logMessage(DEBUG, "Writing header to image");
 
     /* Write PNM file header */
-    switch (parameters->colour.depth)
+    switch (p->colour.depth)
     {
         case BIT_DEPTH_1:
             /* PBM file */
-            snprintf(header, sizeof(header), "P4 %zu %zu ", parameters->width, parameters->height);
+            snprintf(header, sizeof(header), "P4 %zu %zu ", p->width, p->height);
             break;
         case BIT_DEPTH_8:
             /* PGM file */
-            snprintf(header, sizeof(header), "P5 %zu %zu 255 ", parameters->width, parameters->height);
+            snprintf(header, sizeof(header), "P5 %zu %zu 255 ", p->width, p->height);
             break;
         case BIT_DEPTH_24:
             /* PPM file */
-            snprintf(header, sizeof(header), "P6 %zu %zu 255 ", parameters->width, parameters->height);
+            snprintf(header, sizeof(header), "P6 %zu %zu 255 ", p->width, p->height);
             break;
         default:
             logMessage(ERROR, "Could not determine bit depth");
             return 1;
     }
 
-    fprintf(parameters->file, "%s", header);
+    fprintf(p->file, "%s", header);
 
     logMessage(DEBUG, "Header \'%s\' successfully wrote to image", header);
 
@@ -75,10 +75,25 @@ int initialiseImage(PlotCTX *parameters, const char *filepath)
 
 
 /* Initialise plot array, run function, then write to file */
-int imageOutput(PlotCTX *parameters, size_t memory, unsigned int threadCount)
+int imageOutput(PlotCTX *p, size_t mem, unsigned int threadCount)
 {
     /* Pointer to fractal generation function */
-    void * (*genFractal)(void *) = (!extPrecision) ? generateFractal : generateFractalExt;
+    void * (*genFractal)(void *);
+
+    switch (precision)
+    {
+        case STD_PRECISION:
+            genFractal = generateFractal;
+            break;
+        case EXT_PRECISION:
+            genFractal = generateFractalExt;
+            break;
+        case MUL_PRECISION:
+            genFractal = generateFractalMP;
+            break;
+        default:
+            return 1;
+    }
 
     /* Array blocks */
     ArrayCTX *array;
@@ -89,13 +104,13 @@ int imageOutput(PlotCTX *parameters, size_t memory, unsigned int threadCount)
     Thread *thread;
 
     /* Create array metadata struct */
-    array = createArrayCTX(parameters);
+    array = createArrayCTX(p);
 
     if (!array)
         return 1;
 
     /* Allocate memory to the array in manageable blocks */
-    block = mallocArray(array, memory);
+    block = mallocArray(array, mem);
 
     if (!block)
     {
@@ -196,20 +211,20 @@ int imageOutput(PlotCTX *parameters, size_t memory, unsigned int threadCount)
 
 
 /* Close image file */
-int closeImage(PlotCTX *parameters)
+int closeImage(PlotCTX *p)
 {
     logMessage(DEBUG, "Closing image file");
 
-    if (fclose(parameters->file))
+    if (fclose(p->file))
     {
         logMessage(WARNING, "Image file could not be closed");
-        parameters->file = NULL;
+        p->file = NULL;
         return 1;
     }
 
-    logMessage(DEBUG, "Image file closed");
+    p->file = NULL;
 
-    parameters->file = NULL;
+    logMessage(DEBUG, "Image file closed");
 
     return 0;
 }
@@ -220,14 +235,14 @@ static void blockToImage(const Block *block)
 {
     void *array = block->ctx->array->array;
 
-    size_t arrayLength = block->rows * block->ctx->array->parameters->width;
-    double pixelSize = block->ctx->array->parameters->colour.depth / 8.0;
+    size_t arrayLength = block->rows * block->ctx->array->params->width;
+    double pixelSize = block->ctx->array->params->colour.depth / 8.0;
     size_t arraySize = arrayLength * pixelSize;
 
-    FILE *image = block->ctx->array->parameters->file;
+    FILE *image = block->ctx->array->params->file;
 
     logMessage(INFO, "Writing %zu pixels (%zu bytes; pixel size = %d bits) to image file",
-        arrayLength, arraySize, block->ctx->array->parameters->colour.depth);
+        arrayLength, arraySize, block->ctx->array->params->colour.depth);
 
     fwrite(array, sizeof(char), arraySize, image);
 

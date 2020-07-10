@@ -5,65 +5,24 @@
 #include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
+
+#include <mpc.h>
 
 #include "colour.h"
 #include "ext_precision.h"
 
 
-/* Range of permissible complex numbers */
-const complex COMPLEX_MIN = -(DBL_MAX) - (DBL_MAX) * I;
-const complex COMPLEX_MAX = (DBL_MAX) + (DBL_MAX) * I;
+/* Default terminal output dimensions */
+const size_t JULIA_TERMINAL_WIDTH_DEFAULT = 80;
+const size_t JULIA_TERMINAL_HEIGHT_DEFAULT = 46;
+const size_t MANDELBROT_TERMINAL_WIDTH_DEFAULT = 80;
+const size_t MANDELBROT_TERMINAL_HEIGHT_DEFAULT = 46;
 
-/* Range of permissible complex numbers (extended-precision) */
-const long double complex COMPLEX_MIN_EXT = -(LDBL_MAX) - (LDBL_MAX) * I;
-const long double complex COMPLEX_MAX_EXT = (LDBL_MAX) + (LDBL_MAX) * I;
-
-/* Range of permissible constant values */
-const complex C_MIN = -2.0 - 2.0 * I;
-const complex C_MAX = 2.0 + 2.0 * I;
-const long double complex C_MIN_EXT = -2.0L - 2.0L * I;
-const long double complex C_MAX_EXT = 2.0L + 2.0L * I;
-
-/* Range of permissible magnification values */
-const double MAGNIFICATION_MIN = -(DBL_MAX);
-const double MAGNIFICATION_MAX = DBL_MAX;
-
-/* Range of permissible iteration counts */
-const unsigned long ITERATIONS_MIN = 0UL;
-const unsigned long ITERATIONS_MAX = ULONG_MAX;
-
-/* Range of permissible dimensions */
-const size_t WIDTH_MIN = 0;
-const size_t WIDTH_MAX = SIZE_MAX;
-const size_t HEIGHT_MIN = 0;
-const size_t HEIGHT_MAX = SIZE_MAX;
-
-/* Default parameters for Mandelbrot set plot */
-const PlotCTX MANDELBROT_PARAMETERS_DEFAULT =
-{
-    .type = PLOT_MANDELBROT,
-    .minimum.c = -2.0 - 1.25 * I,
-    .maximum.c = 0.75 + 1.25 * I,
-    .iterations = ITERATIONS_DEFAULT,
-    .output = OUTPUT_PPM,
-    .file = NULL,
-    .width = 550,
-    .height = 500
-};
-
-/* Default parameters for Mandelbrot set plot (extended-precision) */
-const PlotCTX MANDELBROT_PARAMETERS_DEFAULT_EXT =
-{
-    .type = PLOT_MANDELBROT,
-    .minimum.lc = -2.0L - 1.25L * I,
-    .maximum.lc = 0.75L + 1.25L * I,
-    .iterations = ITERATIONS_DEFAULT,
-    .output = OUTPUT_PPM,
-    .file = NULL,
-    .width = 550,
-    .height = 500
-};
+/* Default colour schemes */
+const ColourSchemeType COLOUR_SCHEME_DEFAULT = COLOUR_SCHEME_TYPE_RAINBOW;
+const ColourSchemeType TERMINAL_COLOUR_SCHEME_DEFAULT = COLOUR_SCHEME_TYPE_ASCII;
 
 /* Default parameters for Julia set plot */
 const PlotCTX JULIA_PARAMETERS_DEFAULT =
@@ -71,8 +30,8 @@ const PlotCTX JULIA_PARAMETERS_DEFAULT =
     .type = PLOT_JULIA,
     .minimum.c = -2.0 - 2.0 * I,
     .maximum.c = 2.0 + 2.0 * I,
-    .iterations = ITERATIONS_DEFAULT,
-    .output = OUTPUT_PPM,
+    .iterations = 100,
+    .output = OUTPUT_PNM,
     .file = NULL,
     .width = 800,
     .height = 800
@@ -84,61 +43,131 @@ const PlotCTX JULIA_PARAMETERS_DEFAULT_EXT =
     .type = PLOT_JULIA,
     .minimum.lc = -2.0L - 2.0L * I,
     .maximum.lc = 2.0L + 2.0L * I,
-    .iterations = ITERATIONS_DEFAULT,
-    .output = OUTPUT_PPM,
+    .iterations = 100,
+    .output = OUTPUT_PNM,
     .file = NULL,
     .width = 800,
     .height = 800
 };
 
-
-/* Set default plot settings for Mandelbrot image output */
-int initialiseParameters(PlotCTX *parameters, PlotType type)
+/* Default parameters for Julia set plot (arbitrary-precision) */
+const PlotCTX JULIA_PARAMETERS_DEFAULT_MP =
 {
-    switch (type)
+    .type = PLOT_JULIA,
+    .iterations = 100,
+    .output = OUTPUT_PNM,
+    .file = NULL,
+    .width = 800,
+    .height = 800
+};
+
+/* Default parameters for Mandelbrot set plot */
+const PlotCTX MANDELBROT_PARAMETERS_DEFAULT =
+{
+    .type = PLOT_MANDELBROT,
+    .minimum.c = -2.0 - 1.25 * I,
+    .maximum.c = 0.75 + 1.25 * I,
+    .iterations = 100,
+    .output = OUTPUT_PNM,
+    .file = NULL,
+    .width = 550,
+    .height = 500
+};
+
+/* Default parameters for Mandelbrot set plot (extended-precision) */
+const PlotCTX MANDELBROT_PARAMETERS_DEFAULT_EXT =
+{
+    .type = PLOT_MANDELBROT,
+    .minimum.lc = -2.0L - 1.25L * I,
+    .maximum.lc = 0.75L + 1.25L * I,
+    .iterations = 100,
+    .output = OUTPUT_PNM,
+    .file = NULL,
+    .width = 550,
+    .height = 500
+};
+
+/* Default parameters for Mandelbrot set plot (arbitrary-precision) */
+const PlotCTX MANDELBROT_PARAMETERS_DEFAULT_MP =
+{
+    .type = PLOT_MANDELBROT,
+    .iterations = 100,
+    .output = OUTPUT_PNM,
+    .file = NULL,
+    .width = 550,
+    .height = 500
+};
+
+
+static int initialiseMP(PlotCTX *p);
+static void freeMP(PlotCTX *p);
+
+static int initialiseImageOutputParameters(PlotCTX *p);
+static int initialiseTerminalOutputParameters(PlotCTX *p);
+
+
+/* Create plot parameters object and set default plot settings */
+PlotCTX * createPlotCTX(PlotType plot, OutputType output)
+{
+    int ret;
+
+    PlotCTX *p = malloc(sizeof(PlotCTX));
+
+    if (!p)
+        return NULL;
+
+    p->type = plot;
+
+    switch (output)
     {
-        case PLOT_MANDELBROT:
-            *parameters = (!extPrecision) ? MANDELBROT_PARAMETERS_DEFAULT
-                                          : MANDELBROT_PARAMETERS_DEFAULT_EXT;
+        case OUTPUT_PNM:
+            ret = initialiseImageOutputParameters(p);
             break;
-        case PLOT_JULIA:
-            *parameters = (!extPrecision) ? JULIA_PARAMETERS_DEFAULT
-                                          : JULIA_PARAMETERS_DEFAULT_EXT;
+        case OUTPUT_TERMINAL:
+            ret = initialiseTerminalOutputParameters(p);
             break;
         default:
-            return 1;
+            free(p);
+            return NULL;
     }
 
-    initialiseColourScheme(&(parameters->colour), COLOUR_SCHEME_TYPE_DEFAULT);
+    if (ret)
+    {
+        free(p);
+        return NULL;
+    }
 
-    return 0;
+    return p;
 }
 
 
-void initialiseTerminalOutputParameters(PlotCTX *parameters)
+/* Free the PlotCTX from memory */
+void freePlotCTX(PlotCTX *p)
 {
-    /* Sensible terminal output dimension values */
-    const size_t TERMINAL_WIDTH = 80;
-    const size_t TERMINAL_HEIGHT = 46;
+    if (precision == MUL_PRECISION)
+        freeMP(p);
 
-    parameters->file = stdout;
-    parameters->width = TERMINAL_WIDTH;
-    parameters->height = TERMINAL_HEIGHT;
-    
-    initialiseColourScheme(&(parameters->colour), COLOUR_SCHEME_TYPE_ASCII);
+    if (p->file)
+    {
+        fclose(p->file);
+        p->file = NULL;
+    }
+
+    free(p);
 
     return;
 }
 
 
-void getOutputString(char *dest, PlotCTX *parameters, size_t n)
+/* Get output type */
+void getOutputString(char *dest, PlotCTX *p, size_t n)
 {
     const char *type;
 
-    switch (parameters->output)
+    switch (p->output)
     {
-        case OUTPUT_PPM:
-            switch (parameters->colour.depth)
+        case OUTPUT_PNM:
+            switch (p->colour.depth)
             {
                 case BIT_DEPTH_1:
                     type = "Portable Bit Map (.pbm)";
@@ -170,6 +199,7 @@ void getOutputString(char *dest, PlotCTX *parameters, size_t n)
 }
 
 
+/* Convert plot type to string */
 void getPlotString(char *dest, PlotType plot, size_t n)
 {
     const char *type;
@@ -191,4 +221,166 @@ void getPlotString(char *dest, PlotType plot, size_t n)
     dest[n - 1] = '\0';
 
     return;
+}
+
+
+/* Initialise MP parameters to extended-precision defaults */
+static int initialiseMP(PlotCTX *p)
+{
+    long double complex minimum;
+    long double complex maximum;
+
+    /* Initialise MP parameters */
+    mpc_init2(p->minimum.mpc, mpSignificandSize);
+    mpc_init2(p->maximum.mpc, mpSignificandSize);
+    mpc_init2(p->c.mpc, mpSignificandSize);
+
+    switch (p->type)
+    {
+        case PLOT_JULIA:
+            minimum = JULIA_PARAMETERS_DEFAULT_EXT.minimum.lc;
+            maximum = JULIA_PARAMETERS_DEFAULT_EXT.maximum.lc;
+            break;
+        case PLOT_MANDELBROT:
+            minimum = MANDELBROT_PARAMETERS_DEFAULT_EXT.minimum.lc;
+            maximum = MANDELBROT_PARAMETERS_DEFAULT_EXT.maximum.lc;
+            break;
+        default:
+            return 1;
+    }
+
+    mpc_set_ldc(p->minimum.mpc, minimum, MP_COMPLEX_RND);
+    mpc_set_ldc(p->maximum.mpc, maximum, MP_COMPLEX_RND);
+
+    return 0;
+}
+
+
+/* Free MP parameters */
+static void freeMP(PlotCTX *p)
+{
+    mpc_clear(p->minimum.mpc);
+    mpc_clear(p->maximum.mpc);
+    mpc_clear(p->c.mpc);
+
+    return;
+}
+
+
+static int initialiseImageOutputParameters(PlotCTX *p)
+{
+    switch (p->type)
+    {
+        case PLOT_JULIA:
+            switch (precision)
+            {
+                case STD_PRECISION:
+                    *p = JULIA_PARAMETERS_DEFAULT;
+                    break;
+                case EXT_PRECISION:
+                    *p = JULIA_PARAMETERS_DEFAULT_EXT;
+                    break;
+                case MUL_PRECISION:
+                    *p = JULIA_PARAMETERS_DEFAULT_MP;
+                    initialiseMP(p);
+                    break;
+                default:
+                    return 1;
+            }
+
+            break;
+        case PLOT_MANDELBROT:
+            switch (precision)
+            {
+                case STD_PRECISION:
+                    *p = MANDELBROT_PARAMETERS_DEFAULT;
+                    break;
+                case EXT_PRECISION:
+                    *p = MANDELBROT_PARAMETERS_DEFAULT_EXT;
+                    break;
+                case MUL_PRECISION:
+                    *p = MANDELBROT_PARAMETERS_DEFAULT_MP;
+                    initialiseMP(p);
+                    break;
+                default:
+                    return 1;
+            }
+
+            break;
+        default:
+            return 1;
+    }
+
+    p->output = OUTPUT_PNM;
+    
+    if (initialiseColourScheme(&(p->colour), COLOUR_SCHEME_DEFAULT))
+    {
+        freeMP(p);
+        return 1;
+    }
+
+    return 0;
+}
+
+
+static int initialiseTerminalOutputParameters(PlotCTX *p)
+{
+    switch(p->type)
+    {
+        case PLOT_JULIA:
+            switch (precision)
+            {
+                case STD_PRECISION:
+                    *p = JULIA_PARAMETERS_DEFAULT;
+                    break;
+                case EXT_PRECISION:
+                    *p = JULIA_PARAMETERS_DEFAULT_EXT;
+                    break;
+                case MUL_PRECISION:
+                    *p = JULIA_PARAMETERS_DEFAULT_MP;
+                    initialiseMP(p);
+                    break;
+                default:
+                    return 1;
+            }
+
+            p->width = JULIA_TERMINAL_WIDTH_DEFAULT;
+            p->height = JULIA_TERMINAL_HEIGHT_DEFAULT;
+            
+            break;
+        case PLOT_MANDELBROT:
+            switch (precision)
+            {
+                case STD_PRECISION:
+                    *p = MANDELBROT_PARAMETERS_DEFAULT;
+                    break;
+                case EXT_PRECISION:
+                    *p = MANDELBROT_PARAMETERS_DEFAULT_EXT;
+                    break;
+                case MUL_PRECISION:
+                    *p = MANDELBROT_PARAMETERS_DEFAULT_MP;
+                    initialiseMP(p);
+                    break;
+                default:
+                    return 1;
+            }
+
+            p->width = MANDELBROT_TERMINAL_WIDTH_DEFAULT;
+            p->height = MANDELBROT_TERMINAL_HEIGHT_DEFAULT;
+
+            break;
+        default:
+            return 1;
+    }
+
+    p->output = OUTPUT_TERMINAL;
+    p->file = stdout;
+    
+    if (initialiseColourScheme(&(p->colour), TERMINAL_COLOUR_SCHEME_DEFAULT))
+    {
+        freeMP(p);
+        return 1;
+    }
+
+    return 0;
 }
