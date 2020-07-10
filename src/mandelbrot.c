@@ -1,5 +1,6 @@
 #include <complex.h>
 #include <ctype.h>
+#include <float.h>
 #include <getopt.h>
 #include <inttypes.h>
 #include <limits.h>
@@ -395,6 +396,7 @@ ParseErr setPrecision(int argc, char **argv, const struct option opts[], const c
             case 'A':
                 a = true;
                 precision = MUL_PRECISION;
+                mpSignificandSize = MP_BITS_DEFAULT;
 
                 if (optarg)
                 {
@@ -402,6 +404,11 @@ ParseErr setPrecision(int argc, char **argv, const struct option opts[], const c
 
                     if (argError != PARSE_SUCCESS)
                         return argError;
+
+                    if (tempUL < MPFR_PREC_MIN || tempUL > MPFR_PREC_MAX)
+                        return PARSE_ERANGE;
+
+                    mpSignificandSize = (mpfr_prec_t) tempUL;
                 }
 
                 break;
@@ -512,15 +519,15 @@ int usage(void)
     printf("  -c SCHEME, --colour=SCHEME    Specify colour palette to use\n");
     printf("                                [+] Default = %d\n", COLOUR_SCHEME_DEFAULT);
     printf("                                [+] SCHEME may be:\n");
-    printf("                                    2  = Black and white\n");
-    printf("                                    3  = White and black\n");
-    printf("                                    4  = Greyscale\n");
-    printf("                                    5  = Rainbow\n");
-    printf("                                    6  = Vibrant rainbow\n");
-    printf("                                    7  = Red and white\n");
-    printf("                                    8  = Fire\n");
-    printf("                                    9  = Red hot\n");
-    printf("                                    10 = Matrix\n");
+    printf("                                    1  = Black and white\n");
+    printf("                                    2  = White and black\n");
+    printf("                                    3  = Greyscale\n");
+    printf("                                    4  = Rainbow\n");
+    printf("                                    5  = Vibrant rainbow\n");
+    printf("                                    6  = Red and white\n");
+    printf("                                    7  = Fire\n");
+    printf("                                    8  = Red hot\n");
+    printf("                                    9  = Matrix\n");
     printf("                                [+] Black and white schemes are 1-bit\n");
     printf("                                [+] Greyscale schemes are 8-bit\n");
     printf("                                [+] Coloured schemes are full 24-bit\n\n");
@@ -528,7 +535,7 @@ int usage(void)
     printf("                                [+] Default = \'%s\'\n", OUTPUT_FILEPATH_DEFAULT);
     printf("  -r WIDTH,  --width=WIDTH      The width of the image file in pixels\n");
     printf("                                [+] If using a 1-bit colour scheme, WIDTH must be a multiple of %u to "
-           "allow for\n                                    bit-width pixels\n", CHAR_BIT);
+           "allow for\n                                    bit-width pixels\n", (unsigned int) CHAR_BIT);
     printf("  -s HEIGHT, --height=HEIGHT    The height of the image file in pixels\n");
     printf("  -t                            Output to stdout using ASCII characters as shading\n");
     printf("Plot type:\n");
@@ -548,7 +555,7 @@ int usage(void)
     printf("      MAX        = %.*g + %.*gi\n",
            DBL_PRINTF_PRECISION, creal(JULIA_PARAMETERS_DEFAULT.maximum.c),
            DBL_PRINTF_PRECISION, cimag(JULIA_PARAMETERS_DEFAULT.maximum.c));
-    printf("      ITERATIONS = %zu\n", JULIA_PARAMETERS_DEFAULT.iterations);
+    printf("      ITERATIONS = %lu\n", JULIA_PARAMETERS_DEFAULT.iterations);
     printf("      WIDTH      = %zu\n", JULIA_PARAMETERS_DEFAULT.width);
     printf("      HEIGHT     = %zu\n\n", JULIA_PARAMETERS_DEFAULT.height);
     printf("    Mandelbrot set:\n");
@@ -558,22 +565,24 @@ int usage(void)
     printf("      MAX        = %.*g + %.*gi\n",
            DBL_PRINTF_PRECISION, creal(MANDELBROT_PARAMETERS_DEFAULT.maximum.c),
            DBL_PRINTF_PRECISION, cimag(MANDELBROT_PARAMETERS_DEFAULT.maximum.c));
-    printf("      ITERATIONS = %zu\n", JULIA_PARAMETERS_DEFAULT.iterations);
+    printf("      ITERATIONS = %lu\n", JULIA_PARAMETERS_DEFAULT.iterations);
     printf("      WIDTH      = %zu\n", MANDELBROT_PARAMETERS_DEFAULT.width);
     printf("      HEIGHT     = %zu\n\n", MANDELBROT_PARAMETERS_DEFAULT.height);
     printf("Optimisation:\n");
-    printf("  -T COUNT,  --threads=COUNT    Use COUNT number of processing threads\n");
-    printf("                                [+] Default = Online processor count\n");
-    printf("  -X         --extended         Enable extended-precision mode\n");
-    printf("                                [+] The extended floating-point type will be used for calculations\n");
-    printf("                                [+] This will increase precision at high zoom but may be slower\n");
-    printf("  -A         --arbitrary        Enable arbitrary-precision mode\n");
+    printf("  -A [PREC], --arbitrary[=PREC] Enable arbitrary-precision mode, with optional number of bits of precision\n");
+    printf("                                [+] Default = %zu bits\n", (size_t) MP_BITS_DEFAULT);
     printf("                                [+] MPFR floating-points will be used for calculations\n");
     printf("                                [+] This increases precision beyond -X but will be considerably slower\n");
+    printf("  -T COUNT,  --threads=COUNT    Use COUNT number of processing threads\n");
+    printf("                                [+] Default = Online processor count\n");
+    printf("  -X,        --extended         Enable extended-precision (%zu bits, compared to the standard-precision "
+           "%zu bits)\n", (size_t) LDBL_MANT_DIG, (size_t) DBL_MANT_DIG);
+    printf("                                [+] The extended floating-point type will be used for calculations\n");
+    printf("                                [+] This will increase precision at high zoom but may be slower\n");
     printf("  -z MEM,    --memory=MEM       Limit memory usage to MEM megabytes\n");
     printf("                                [+] Default = 80%% of free physical memory\n");
     printf("Log settings:\n");
-    printf("  --log[=FILE]                  Output log to file, with optional file path argument\n");
+    printf("             --log[=FILE]       Output log to file, with optional file path argument\n");
     printf("                                [+] Default = \'%s\'\n", LOG_FILEPATH_DEFAULT);
     printf("                                [+] Option may be used with \'-v\'\n");
     printf("  -l LEVEL,  --log-level=LEVEL  Only log messages more severe than LEVEL\n");
@@ -585,17 +594,17 @@ int usage(void)
     printf("                                    3  = WARNING\n");
     printf("                                    4  = INFO\n");
     printf("                                    5  = DEBUG\n");
-    printf("  -v,        --verbose          Redirect log to stderr\n");
+    printf("  -v,        --verbose          Redirect log to stderr\n\n");
+    printf("Miscellaneous:\n");
     printf("             --help             Display this help message and exit\n\n");
     printf("Examples:\n");
-    printf("  mandelbrot\n");
-    printf("  mandelbrot -j \"0.1 - 0.2e-2i\" -o \"juliaset.pnm\"\n");
-    printf("  mandelbrot -t\n");
-    printf("  mandelbrot -i 200 --width=5500 --height=5000 --colour=9\n\n");
+    printf("  %s\n", programName);
+    printf("  %s -j \"0.1 - 0.2e-2i\" -o \"juliaset.pnm\"\n", programName);
+    printf("  %s -t\n", programName);
+    printf("  %s -i 200 --width=5500 --height=5000 --colour=9\n\n", programName);
 
     return EXIT_SUCCESS;
 }
-
 
 /* Print program parameters to log */
 void programParameters(const char *log)

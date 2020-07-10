@@ -31,6 +31,7 @@ extern const size_t WIDTH_MAX;
 extern const size_t HEIGHT_MIN;
 extern const size_t HEIGHT_MAX;
 
+const mpfr_prec_t MP_BITS_DEFAULT;
 const mpfr_prec_t MP_BITS_MIN;
 const mpfr_prec_t MP_BITS_MAX;
 

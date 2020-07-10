@@ -43,5 +43,6 @@ const size_t HEIGHT_MIN = 1;
 const size_t HEIGHT_MAX = SIZE_MAX;
 
 /* Range of permissible precisions (arbitrary-precision) */
+const mpfr_prec_t MP_BITS_DEFAULT = 128;
 const mpfr_prec_t MP_BITS_MIN = 1;
 const mpfr_prec_t MP_BITS_MAX = 16384;
