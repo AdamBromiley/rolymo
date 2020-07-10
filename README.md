@@ -3,7 +3,8 @@
 The Mandelbrot set is the set of complex numbers `c` for which the function `f(x)=z^2+c` does not diverge when iterated from `z=0`.
 
 ## Features
-- Complete control over the plot with command-line arguments
+- Arbitrary-precision floating point support
+- Julia set plotting
 - Output to the NetPBM family of image files - `.pbm`, `.pgm`, and `.ppm`
 - ASCII art output to the terminal
 
@@ -29,17 +30,17 @@ A Mandelbrot and Julia set plotter.
 Mandatory arguments to long options are mandatory for short options too.
 Output parameters:
   -c SCHEME, --colour=SCHEME    Specify colour palette to use
-                                [+] Default = 5
+                                [+] Default = 4
                                 [+] SCHEME may be:
-                                    2  = Black and white
-                                    3  = White and black
-                                    4  = Greyscale
-                                    5  = Rainbow
-                                    6  = Vibrant rainbow
-                                    7  = Red and white
-                                    8  = Fire
-                                    9  = Red hot
-                                    10 = Matrix
+                                    1  = Black and white
+                                    2  = White and black
+                                    3  = Greyscale
+                                    4  = Rainbow
+                                    5  = Vibrant rainbow
+                                    6  = Red and white
+                                    7  = Fire
+                                    8  = Red hot
+                                    9  = Matrix
                                 [+] Black and white schemes are 1-bit
                                 [+] Greyscale schemes are 8-bit
                                 [+] Coloured schemes are full 24-bit
@@ -57,28 +58,41 @@ Plot parameters:
   -m MIN,    --min=MIN          Minimum value to plot
   -M MAX,    --max=MAX          Maximum value to plot
   -i NMAX,   --iterations=NMAX  The maximum number of function iterations before a number is deemed to be within the set
-                                [+] Default = 100
                                 [+] A larger maximum leads to a preciser plot but increases computation time
 
-  Default parameters:
+  Default parameters (standard-precision):
     Julia Set:
-      MIN    = -2 + -2i
-      MAX    = 2 + 2i
-      WIDTH  = 800
-      HEIGHT = 800
+      MIN        = -2 + -2i
+      MAX        = 2 + 2i
+      ITERATIONS = 100
+      WIDTH      = 800
+      HEIGHT     = 800
 
     Mandelbrot set:
-      MIN    = -2 + -1.25i
-      MAX    = 0.75 + 1.25i
-      WIDTH  = 550
-      HEIGHT = 500
+      MIN        = -2 + -1.25i
+      MAX        = 0.75 + 1.25i
+      ITERATIONS = 100
+      WIDTH      = 550
+      HEIGHT     = 500
 
-Miscellaneous:
-  --log[=FILE]                  Output log to file, with optional file path argument
+Optimisation:
+  -A [PREC], --arbitrary[=PREC] Enable arbitrary-precision mode, with optional number of bits of precision
+                                [+] Default = 128 bits
+                                [+] MPFR floating-points will be used for calculations
+                                [+] This increases precision beyond -X but will be considerably slower
+  -T COUNT,  --threads=COUNT    Use COUNT number of processing threads
+                                [+] Default = Online processor count
+  -X,        --extended         Enable extended-precision (64 bits, compared to the standard-precision 53 bits)
+                                [+] The extended floating-point type will be used for calculations
+                                [+] This will increase precision at high zoom but may be slower
+  -z MEM,    --memory=MEM       Limit memory usage to MEM megabytes
+                                [+] Default = 80% of free physical memory
+Log settings:
+             --log[=FILE]       Output log to file, with optional file path argument
                                 [+] Default = 'var/mandelbrot.log'
                                 [+] Option may be used with '-v'
   -l LEVEL,  --log-level=LEVEL  Only log messages more severe than LEVEL
-                                [+] Default = 4
+                                [+] Default = INFO    
                                 [+] LEVEL may be:
                                     0  = NONE (log nothing)
                                     1  = FATAL
@@ -87,13 +101,15 @@ Miscellaneous:
                                     4  = INFO
                                     5  = DEBUG
   -v,        --verbose          Redirect log to stderr
+
+Miscellaneous:
              --help             Display this help message and exit
 
 Examples:
-  mandelbrot
-  mandelbrot -j "0.1 - 0.2e-2i" -o "juliaset.pnm"
-  mandelbrot -t
-  mandelbrot -i 200 --width=5500 --height=5000 --colour=9
+  ./mandelbrot
+  ./mandelbrot -j "0.1 - 0.2e-2i" -o "juliaset.pnm"
+  ./mandelbrot -t
+  ./mandelbrot -i 200 --width=5500 --height=5000 --colour=9
 
 ```
 

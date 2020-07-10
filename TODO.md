@@ -1,7 +1,7 @@
 # Todo List
 
 ## New Features
-- Arbitrary precision numbers
+- Only enable MP extension with compiler flag
 - GPU calculation
 - Bespoke compression library
 - PNG support (with compression library)

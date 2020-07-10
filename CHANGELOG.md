@@ -1,5 +1,8 @@
 # Changelog
 
+## 2020-07-10
+- `-A` option will enable arbitrary-precision mode (use of multiple precision MPFR/MPC types)
+
 ## 2020-07-03
 ### Added
 - `-X` option will enable extended-precision mode (use of `long double` types)
