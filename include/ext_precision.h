@@ -12,7 +12,7 @@ typedef enum PrecisionMode
 {
     STD_PRECISION,
     EXT_PRECISION,
-    ARB_PRECISION
+    MUL_PRECISION
 } PrecisionMode;
 
 typedef union ExtDouble
@@ -30,14 +30,14 @@ typedef union ExtComplex
 } ExtComplex;
 
 
-extern const mpfr_prec_t ARB_PRECISION_BITS;
-
-extern const mpc_rnd_t ARB_CMPLX_ROUNDING;
-extern const mpfr_rnd_t ARB_REAL_ROUNDING;
-extern const mpfr_rnd_t ARB_IMAG_ROUNDING;
+extern const mpc_rnd_t MP_COMPLEX_RND;
+extern const mpfr_rnd_t MP_REAL_RND;
+extern const mpfr_rnd_t MP_IMAG_RND;
 
 
 extern PrecisionMode precision;
+
+extern mpfr_prec_t mpSignificandSize;
 
 
 #endif

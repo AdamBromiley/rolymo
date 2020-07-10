@@ -4,13 +4,10 @@
 #include <mpc.h>
 
 
-/* Number of bits for the significand of arbitrary-precision numbers */
-const mpfr_prec_t ARB_PRECISION_BITS = 256;
-
-/* Rounding characteristic of MPC and MPFR operations (round both parts towards zero) */
-const mpc_rnd_t ARB_CMPLX_ROUNDING = MPC_RNDZZ;
-const mpfr_rnd_t ARB_REAL_ROUNDING = MPFR_RNDZ;
-const mpfr_rnd_t ARB_IMAG_ROUNDING = MPFR_RNDZ;
+/* Rounding characteristic of MPC and MPFR operations (round towards zero) */
+const mpc_rnd_t MP_COMPLEX_RND = MPC_RNDZZ;
+const mpfr_rnd_t MP_REAL_RND = MPFR_RNDZ;
+const mpfr_rnd_t MP_IMAG_RND = MPFR_RNDZ;
 
 
 /*
@@ -20,10 +17,10 @@ const mpfr_rnd_t ARB_IMAG_ROUNDING = MPFR_RNDZ;
  * Extended-precision mode enables the use of `long double` and
  * `long double complex` data types.
  * 
- * Arbitrary precision mode makes use of the GMP library for floating-points
- * (`mpf_t`), and the MPC library for complex types (`mpc_t`). The reason
- * `mpfr_t` (part of the MPFR library) is not used for arbitrary-precision
- * floating-points is purely for micro-optimisation at the sacrifice of accurate
- * rounding.
+ * MPitrary precision mode makes use of the GMP library for floating-points
+ * (`mpfr_t`), and the MPC library for complex types (`mpc_t`).
  */
 PrecisionMode precision = STD_PRECISION;
+
+/* Number of bits for the significand of multi-precision numbers */
+mpfr_prec_t mpSignificandSize = 128;
