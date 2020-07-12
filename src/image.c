@@ -88,9 +88,13 @@ int imageOutput(PlotCTX *p, size_t mem, unsigned int threadCount)
         case EXT_PRECISION:
             genFractal = generateFractalExt;
             break;
+        
+        #ifdef MP_PREC
         case MUL_PRECISION:
             genFractal = generateFractalMP;
             break;
+        #endif
+        
         default:
             return 1;
     }

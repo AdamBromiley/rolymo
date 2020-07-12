@@ -6,8 +6,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef MP_PREC
 #include <mpfr.h>
 #include <mpc.h>
+#endif
 
 #include "libgroot/include/log.h"
 
@@ -22,11 +24,17 @@ static long double dotProductExt(long double complex z);
 
 static complex mandelbrot(unsigned long *n, complex c, unsigned long max);
 static long double complex mandelbrotExt(unsigned long *n, long double complex c, unsigned long max);
+
+#ifdef MP_PREC
 static void mandelbrotMP(unsigned long *n, mpc_t z, mpfr_t norm, mpc_t c, unsigned long max);
+#endif
 
 static complex julia(unsigned long *n, complex z, complex c, unsigned long max);
 static long double complex juliaExt(unsigned long *n, long double complex z, long double complex c, unsigned long max);
+
+#ifdef MP_PREC
 static void juliaMP(unsigned long *n, mpc_t z, mpfr_t norm, mpc_t c, unsigned long max);
+#endif
 
 
 void * generateFractal(void *threadInfo)
@@ -243,6 +251,7 @@ void * generateFractalExt(void *threadInfo)
 }
 
 
+#ifdef MP_PREC
 void * generateFractalMP(void *threadInfo)
 {
     Thread *t = threadInfo;
@@ -418,6 +427,7 @@ void * generateFractalMP(void *threadInfo)
     
     pthread_exit(NULL);
 }
+#endif
 
 
 static double dotProduct(complex z)
@@ -477,6 +487,7 @@ static long double complex mandelbrotExt(unsigned long *n, long double complex c
 
 
 /* Perform Mandelbrot set function (arbitrary-precision) */
+#ifdef MP_PREC
 static void mandelbrotMP(unsigned long *n, mpc_t z, mpfr_t norm, mpc_t c, unsigned long max)
 {
     mpc_set_d_d(z, 0.0, 0.0, MP_COMPLEX_RND);
@@ -491,6 +502,7 @@ static void mandelbrotMP(unsigned long *n, mpc_t z, mpfr_t norm, mpc_t c, unsign
 
     return;
 }
+#endif
 
 
 /* Perform Julia set function */
@@ -514,6 +526,7 @@ static long double complex juliaExt(unsigned long *n, long double complex z, lon
 
 
 /* Perform Julia set function (arbitrary-precision) */
+#ifdef MP_PREC
 static void juliaMP(unsigned long *n, mpc_t z, mpfr_t norm, mpc_t c, unsigned long max)
 {
     mpc_norm(norm, z, MP_REAL_RND);
@@ -527,3 +540,4 @@ static void juliaMP(unsigned long *n, mpc_t z, mpfr_t norm, mpc_t c, unsigned lo
 
     return;
 }
+#endif

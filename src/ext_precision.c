@@ -1,5 +1,9 @@
 #include "ext_precision.h"
 
+#include <stddef.h>
+#include <string.h>
+
+#ifdef MP_PREC
 #include <mpfr.h>
 #include <mpc.h>
 
@@ -8,6 +12,11 @@
 const mpc_rnd_t MP_COMPLEX_RND = MPC_RNDZZ;
 const mpfr_rnd_t MP_REAL_RND = MPFR_RNDZ;
 const mpfr_rnd_t MP_IMAG_RND = MPFR_RNDZ;
+
+
+/* Number of bits for the significand of multi-precision numbers */
+mpfr_prec_t mpSignificandSize = 128;
+#endif
 
 
 /*
@@ -22,5 +31,32 @@ const mpfr_rnd_t MP_IMAG_RND = MPFR_RNDZ;
  */
 PrecisionMode precision = STD_PRECISION;
 
-/* Number of bits for the significand of multi-precision numbers */
-mpfr_prec_t mpSignificandSize = 128;
+
+int getPrecisionString(char *dest, PrecisionMode prec, size_t n)
+{
+    const char *precStr;
+
+    switch (prec)
+    {
+        case STD_PRECISION:
+            precStr = "STANDARD";
+            break;
+        case EXT_PRECISION:
+            precStr = "EXTENDED";
+            break;
+        
+        #ifdef MP_PREC
+        case MUL_PRECISION:
+            precStr = "ARBITRARY";
+            break;
+        #endif
+        
+        default:
+            return 1;
+    }
+
+    strncpy(dest, precStr, n);
+    dest[n - 1] = '\0';
+
+    return 0;
+}

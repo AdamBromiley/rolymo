@@ -15,17 +15,20 @@ BDIR = .
 BIN = $(BDIR)/$(_BIN)
 
 # Source code
-_SRC = arg_ranges.c array.c colour.c ext_precision.c function.c image.c mandelbrot.c mandelbrot_parameters.c parameters.c
+_SRC = arg_ranges.c array.c colour.c ext_precision.c function.c image.c \
+	   mandelbrot.c mandelbrot_parameters.c parameters.c
 SDIR = src
 SRC = $(patsubst %,$(SDIR)/%,$(_SRC))
 
 # Header files
-_DEPS = arg_ranges.h array.h colour.h ext_precision.h function.h image.h mandelbrot_parameters.h parameters.h
+_DEPS = arg_ranges.h array.h colour.h ext_precision.h function.h image.h \
+        mandelbrot_parameters.h parameters.h
 HDIR = include
 DEPS = $(patsubst %,$(HDIR)/%,$(_DEPS))
 
 # Object files
-_OBJS = arg_ranges.o array.o colour.o ext_precision.o function.o image.o mandelbrot.o mandelbrot_parameters.o parameters.o
+_OBJS = arg_ranges.o array.o colour.o ext_precision.o function.o image.o \
+        mandelbrot.o mandelbrot_parameters.o parameters.o
 ODIR = obj
 OBJS = $(patsubst %,$(ODIR)/%,$(_OBJS))
 
@@ -47,8 +50,12 @@ LPATHS = $(patsubst %,-L%,$(LDIRS))
 RPATHS = $(subst $(SPACE),$(COMMA),$(patsubst %,-rpath=%,$(LDIRS)))
 
 # Libraries to be linked with `-l`
-_LDLIBS = groot percy m mpc mpfr gmp
+_LDLIBS = groot percy m
 LDLIBS = $(patsubst %,-l%,$(_LDLIBS))
+
+# Multi-precision libraries to be linked with `-l`
+_LDLIBS_MP = mpc mpfr gmp
+LDLIBS_MP = $(patsubst %,-l%,$(_LDLIBS_MP))
 
 
 
@@ -85,8 +92,13 @@ LDFLAGS = $(LPATHS) -Wl,$(RPATHS) $(LDLIBS) $(LDOPT) -pthread
 
 
 
-.PHONY: all
+.PHONY: all mp
+# Build with standard-precision
 all: $(BIN)
+# Build with multiple-precision extension
+mp: CFLAGS += -D"MP_PREC"
+mp: LDFLAGS += $(LDLIBS_MP)
+mp: $(BIN)
 
 
 
