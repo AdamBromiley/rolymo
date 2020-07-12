@@ -6,10 +6,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef MP_PREC
 #include <mpfr.h>
-
-
-#define COLOUR_STRING_LENGTH_MAX 32
+#endif
 
 
 typedef enum EscapeStatus
@@ -67,13 +66,20 @@ typedef struct ColourScheme
 } ColourScheme;
 
 
+extern const ColourSchemeType COLOUR_SCHEME_MIN;
+extern const ColourSchemeType COLOUR_SCHEME_MAX;
+
+
 int initialiseColourScheme(ColourScheme *scheme, ColourSchemeType colour);
 void mapColour(void *pixel, unsigned long n, complex z, int offset, unsigned long max, ColourScheme *scheme);
 void mapColourExt(void *pixel, unsigned long n, long double complex z, int offset, unsigned long max,
                      ColourScheme *scheme);
-void mapColourMP(void *pixel, unsigned long n, mpfr_t norm, int offset, unsigned long max, ColourScheme *scheme);
 
-void getColourString(char *dest, ColourSchemeType colour, size_t n);
+#ifdef MP_PREC
+void mapColourMP(void *pixel, unsigned long n, mpfr_t norm, int offset, unsigned long max, ColourScheme *scheme);
+#endif
+
+int getColourString(char *dest, ColourSchemeType colour, size_t n);
 
 
 #endif

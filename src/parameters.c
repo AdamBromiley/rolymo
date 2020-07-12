@@ -8,7 +8,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef MP_PREC
 #include <mpc.h>
+#endif
 
 #include "colour.h"
 #include "ext_precision.h"
@@ -51,6 +53,7 @@ const PlotCTX JULIA_PARAMETERS_DEFAULT_EXT =
 };
 
 /* Default parameters for Julia set plot (arbitrary-precision) */
+#ifdef MP_PREC
 const PlotCTX JULIA_PARAMETERS_DEFAULT_MP =
 {
     .type = PLOT_JULIA,
@@ -60,6 +63,7 @@ const PlotCTX JULIA_PARAMETERS_DEFAULT_MP =
     .width = 800,
     .height = 800
 };
+#endif
 
 /* Default parameters for Mandelbrot set plot */
 const PlotCTX MANDELBROT_PARAMETERS_DEFAULT =
@@ -88,6 +92,7 @@ const PlotCTX MANDELBROT_PARAMETERS_DEFAULT_EXT =
 };
 
 /* Default parameters for Mandelbrot set plot (arbitrary-precision) */
+#ifdef MP_PREC
 const PlotCTX MANDELBROT_PARAMETERS_DEFAULT_MP =
 {
     .type = PLOT_MANDELBROT,
@@ -101,6 +106,7 @@ const PlotCTX MANDELBROT_PARAMETERS_DEFAULT_MP =
 
 static int initialiseMP(PlotCTX *p);
 static void freeMP(PlotCTX *p);
+#endif
 
 static int initialiseImageOutputParameters(PlotCTX *p);
 static int initialiseTerminalOutputParameters(PlotCTX *p);
@@ -144,8 +150,10 @@ PlotCTX * createPlotCTX(PlotType plot, OutputType output)
 /* Free the PlotCTX from memory */
 void freePlotCTX(PlotCTX *p)
 {
+    #ifdef MP_PREC
     if (precision == MUL_PRECISION)
         freeMP(p);
+    #endif
 
     if (p->file)
     {
@@ -160,7 +168,7 @@ void freePlotCTX(PlotCTX *p)
 
 
 /* Get output type */
-void getOutputString(char *dest, PlotCTX *p, size_t n)
+int getOutputString(char *dest, PlotCTX *p, size_t n)
 {
     const char *type;
 
@@ -179,7 +187,7 @@ void getOutputString(char *dest, PlotCTX *p, size_t n)
                     type = "Portable Pixel Map (.ppm)";
                     break;
                 default:
-                    type = "Unknown Portable Any Map (.pnm) format";
+                    type = "Portable Any Map (.pnm)";
                     break;
             }
 
@@ -188,19 +196,18 @@ void getOutputString(char *dest, PlotCTX *p, size_t n)
             type = "Terminal output";
             break;
         default:
-            type = "Unknown output type";
-            break;
+            return 1;
     }
 
     strncpy(dest, type, n);
     dest[n - 1] = '\0';
 
-    return;
+    return 0;
 }
 
 
 /* Convert plot type to string */
-void getPlotString(char *dest, PlotType plot, size_t n)
+int getPlotString(char *dest, PlotType plot, size_t n)
 {
     const char *type;
 
@@ -213,18 +220,18 @@ void getPlotString(char *dest, PlotType plot, size_t n)
             type = "Mandelbrot set";
             break;
         default:
-            type = "Unknown plot type";
-            break;
+            return 1;
     }
 
     strncpy(dest, type, n);
     dest[n - 1] = '\0';
 
-    return;
+    return 0;
 }
 
 
 /* Initialise MP parameters to extended-precision defaults */
+#ifdef MP_PREC
 static int initialiseMP(PlotCTX *p)
 {
     long double complex minimum;
@@ -265,6 +272,7 @@ static void freeMP(PlotCTX *p)
 
     return;
 }
+#endif
 
 
 static int initialiseImageOutputParameters(PlotCTX *p)
@@ -280,10 +288,14 @@ static int initialiseImageOutputParameters(PlotCTX *p)
                 case EXT_PRECISION:
                     *p = JULIA_PARAMETERS_DEFAULT_EXT;
                     break;
+                
+                #ifdef MP_PREC
                 case MUL_PRECISION:
                     *p = JULIA_PARAMETERS_DEFAULT_MP;
                     initialiseMP(p);
                     break;
+                #endif
+
                 default:
                     return 1;
             }
@@ -298,10 +310,14 @@ static int initialiseImageOutputParameters(PlotCTX *p)
                 case EXT_PRECISION:
                     *p = MANDELBROT_PARAMETERS_DEFAULT_EXT;
                     break;
+                
+                #ifdef MP_PREC
                 case MUL_PRECISION:
                     *p = MANDELBROT_PARAMETERS_DEFAULT_MP;
                     initialiseMP(p);
                     break;
+                #endif
+
                 default:
                     return 1;
             }
@@ -315,7 +331,10 @@ static int initialiseImageOutputParameters(PlotCTX *p)
     
     if (initialiseColourScheme(&(p->colour), COLOUR_SCHEME_DEFAULT))
     {
+        #ifdef MP_PREC
         freeMP(p);
+        #endif
+
         return 1;
     }
 
@@ -336,10 +355,14 @@ static int initialiseTerminalOutputParameters(PlotCTX *p)
                 case EXT_PRECISION:
                     *p = JULIA_PARAMETERS_DEFAULT_EXT;
                     break;
+
+                #ifdef MP_PREC
                 case MUL_PRECISION:
                     *p = JULIA_PARAMETERS_DEFAULT_MP;
                     initialiseMP(p);
                     break;
+                #endif
+
                 default:
                     return 1;
             }
@@ -357,10 +380,14 @@ static int initialiseTerminalOutputParameters(PlotCTX *p)
                 case EXT_PRECISION:
                     *p = MANDELBROT_PARAMETERS_DEFAULT_EXT;
                     break;
+                
+                #ifdef MP_PREC
                 case MUL_PRECISION:
                     *p = MANDELBROT_PARAMETERS_DEFAULT_MP;
                     initialiseMP(p);
                     break;
+                #endif
+
                 default:
                     return 1;
             }
@@ -378,7 +405,10 @@ static int initialiseTerminalOutputParameters(PlotCTX *p)
     
     if (initialiseColourScheme(&(p->colour), TERMINAL_COLOUR_SCHEME_DEFAULT))
     {
+        #ifdef MP_PREC
         freeMP(p);
+        #endif
+        
         return 1;
     }
 

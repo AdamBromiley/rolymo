@@ -11,10 +11,6 @@
 #include "ext_precision.h"
 
 
-#define OUTPUT_STR_LEN_MAX 64
-#define PLOT_STR_LEN_MAX 32
-
-
 typedef enum PlotType
 {
     PLOT_NONE,
@@ -49,7 +45,10 @@ extern const ColourSchemeType COLOUR_SCHEME_DEFAULT;
 
 extern const PlotCTX JULIA_PARAMETERS_DEFAULT;
 extern const PlotCTX JULIA_PARAMETERS_DEFAULT_EXT;
+
+#ifdef MP_PREC
 extern const PlotCTX JULIA_PARAMETERS_DEFAULT_MP;
+#endif
 
 extern const PlotCTX MANDELBROT_PARAMETERS_DEFAULT;
 extern const PlotCTX MANDELBROT_PARAMETERS_DEFAULT_EXT;
@@ -59,8 +58,8 @@ extern const PlotCTX MANDELBROT_PARAMETERS_DEFAULT_MP;
 PlotCTX * createPlotCTX(PlotType plot, OutputType output);
 void freePlotCTX(PlotCTX *p);
 
-void getOutputString(char *dest, PlotCTX *p, size_t n);
-void getPlotString(char *dest, PlotType plot, size_t n);
+int getOutputString(char *dest, PlotCTX *p, size_t n);
+int getPlotString(char *dest, PlotType plot, size_t n);
 
 
 #endif

@@ -5,7 +5,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef MP_PREC
 #include <mpfr.h>
+#endif
 
 
 /* Range of permissible complex numbers */
@@ -43,6 +45,8 @@ const size_t HEIGHT_MIN = 1;
 const size_t HEIGHT_MAX = SIZE_MAX;
 
 /* Range of permissible precisions (arbitrary-precision) */
+#ifdef MP_PREC
 const mpfr_prec_t MP_BITS_DEFAULT = 128;
 const mpfr_prec_t MP_BITS_MIN = 1;
 const mpfr_prec_t MP_BITS_MAX = 16384;
+#endif

@@ -3,11 +3,13 @@
 #include <complex.h>
 #include <limits.h>
 #include <math.h>
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 
+#ifdef MP_PREC
 #include <mpfr.h>
+#endif
 
 #include "ext_precision.h"
 #include "mandelbrot_parameters.h"
@@ -164,6 +166,7 @@ void mapColourExt(void *pixel, unsigned long n, long double complex z, int offse
 
 
 /* Smooth the iteration count then map it to an RGB value (arbitrary-precision) */
+#ifdef MP_PREC
 void mapColourMP(void *pixel, unsigned long n, mpfr_t norm, int offset, unsigned long max, ColourScheme *scheme)
 {
     EscapeStatus status = (n < max) ? ESCAPED : UNESCAPED;
@@ -194,10 +197,11 @@ void mapColourMP(void *pixel, unsigned long n, mpfr_t norm, int offset, unsigned
 
     return;
 }
+#endif
 
 
 /* Convert colour scheme enum to a string */
-void getColourString(char *dest, ColourSchemeType colour, size_t n)
+int getColourString(char *dest, ColourSchemeType colour, size_t n)
 {
     const char *colourString;
 
@@ -234,14 +238,13 @@ void getColourString(char *dest, ColourSchemeType colour, size_t n)
             colourString = "Matrix";
             break;
         default:
-            colourString = "Unknown colour scheme";
-            break;
+            return 1;
     }
 
     strncpy(dest, colourString, n);
     dest[n - 1] = '\0';
 
-    return;
+    return 0;
 }
 
 

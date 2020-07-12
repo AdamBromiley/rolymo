@@ -9,4 +9,7 @@
  */
 const double ESCAPE_RADIUS = 256.0;
 const long double ESCAPE_RADIUS_EXT = 256.0L;
+
+#ifdef MP_PREC
 const double ESCAPE_RADIUS_MP = 256.0;
+#endif
