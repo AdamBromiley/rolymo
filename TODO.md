@@ -1,7 +1,6 @@
 # Todo List
 
 ## New Features
-- Only enable MP extension with compiler flag
 - GPU calculation
 - Bespoke compression library
 - PNG support (with compression library)
@@ -12,6 +11,3 @@
 - ASCII art output support
 - More colour schemes and fractals
 - Automatic precision extension at certain magnifications
-
-## Miscellaneous
-- Update [README.md](README.md)
