@@ -8,6 +8,5 @@
 - GUI to explore and render the image real-time
 - Progress bar
 - Aspect ratio specification
-- ASCII art output support
 - More colour schemes and fractals
 - Automatic precision extension at certain magnifications

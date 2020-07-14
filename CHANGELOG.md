@@ -1,5 +1,11 @@
 # Changelog
 
+## 2020-07-14
+### Added
+- ASCII art output with `-t`
+### Changed
+- ASCII art output can be outputted to a text file with `-o`
+
 ## 2020-07-12
 ### Changed
 - `make mp` will build with arbitray-precision floating-point support (as opposed to `make`, without)
