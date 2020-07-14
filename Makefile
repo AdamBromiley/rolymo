@@ -96,6 +96,7 @@ LDFLAGS = $(LPATHS) -Wl,$(RPATHS) $(LDLIBS) $(LDOPT) -pthread
 # Build with standard-precision
 all: $(BIN)
 # Build with multiple-precision extension
+mp: PERCY_MP = mp
 mp: CFLAGS += -D"MP_PREC"
 mp: LDFLAGS += $(LDLIBS_MP)
 mp: $(BIN)
@@ -104,11 +105,12 @@ mp: $(BIN)
 
 
 # Build Make dependencies
-.PHONY: build-make
-build-make:
-	for directory in $(SUBMAKE); do \
-		$(MAKE) -C $$directory; \
-	done
+.PHONY: build-make build-libgroot build-percy
+build-make: build-libgroot build-percy
+build-libgroot:
+	$(MAKE) -C $(LDIR)/libgroot
+build-percy:
+	$(MAKE) -C $(LDIR)/percy $(PERCY_MP)
 
 
 
