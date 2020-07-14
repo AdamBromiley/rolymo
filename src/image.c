@@ -240,7 +240,9 @@ static void blockToImage(const Block *block)
     void *array = block->ctx->array->array;
 
     size_t arrayLength = block->rows * block->ctx->array->params->width;
-    double pixelSize = block->ctx->array->params->colour.depth / 8.0;
+    double pixelSize = (block->ctx->array->params->colour.depth == BIT_DEPTH_ASCII)
+                       ? sizeof(char)
+                       : block->ctx->array->params->colour.depth / 8.0;
     size_t arraySize = arrayLength * pixelSize;
 
     FILE *image = block->ctx->array->params->file;
@@ -248,7 +250,17 @@ static void blockToImage(const Block *block)
     logMessage(INFO, "Writing %zu pixels (%zu bytes; pixel size = %d bits) to image file",
         arrayLength, arraySize, block->ctx->array->params->colour.depth);
 
-    fwrite(array, sizeof(char), arraySize, image);
+    if (block->ctx->array->params->colour.depth != BIT_DEPTH_ASCII)
+        fwrite(array, sizeof(char), arraySize, image);
+    else
+    {
+        for (size_t i = 0; i < block->rows; ++i)
+        {
+            fwrite(array, sizeof(char), block->ctx->array->params->width, image);
+            putchar('\n');
+            array = (char *) array + block->ctx->array->params->width;
+        }
+    }
 
     logMessage(INFO, "Block successfully wrote to file");
 

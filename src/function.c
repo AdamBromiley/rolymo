@@ -74,7 +74,10 @@ void * generateFractal(void *threadInfo)
     char *array = (char *) t->block->ctx->array->array;
     size_t rows = t->block->rows;
     size_t columns = p->width;
-    size_t nmemb = (colour->depth != BIT_DEPTH_1) ? colour->depth / CHAR_BIT : sizeof(char);
+    size_t nmemb = (colourDepth <= CHAR_BIT || colourDepth == BIT_DEPTH_ASCII)
+                   ? sizeof(char)
+                   : colourDepth / CHAR_BIT;
+
     size_t rowSize = columns * nmemb;
 
     /* Offset of block from start ('top-left') of image array */
@@ -93,7 +96,7 @@ void * generateFractal(void *threadInfo)
         complex c = reMin + (rowOffset - y * pxHeight) * I;
 
         /* Set pixel pointer to start of the row */
-        if (colourDepth >= CHAR_BIT)
+        if (colourDepth >= CHAR_BIT || colourDepth == BIT_DEPTH_ASCII)
         {
             px = array + y * rowSize;
         }
@@ -126,7 +129,7 @@ void * generateFractal(void *threadInfo)
             mapColour(px, n, z, bitOffset, nMax, colour);
 
             /* Increment pixel pointer */
-            if (colourDepth >= CHAR_BIT)
+            if (colourDepth >= CHAR_BIT || colourDepth == BIT_DEPTH_ASCII)
             {
                 px += nmemb;
             }
@@ -181,7 +184,9 @@ void * generateFractalExt(void *threadInfo)
     char *array = (char *) t->block->ctx->array->array;
     size_t rows = t->block->rows;
     size_t columns = p->width;
-    size_t nmemb = (colour->depth != BIT_DEPTH_1) ? colour->depth / CHAR_BIT : sizeof(char);
+    size_t nmemb = (colourDepth <= CHAR_BIT || colourDepth == BIT_DEPTH_ASCII)
+                   ? sizeof(char)
+                   : colourDepth / CHAR_BIT;
     size_t rowSize = columns * nmemb;
 
     /* Offset of block from start ('top-left') of image array */
@@ -200,7 +205,7 @@ void * generateFractalExt(void *threadInfo)
         long double complex c = reMin + (rowOffset - y * pxHeight) * I;
 
         /* Set pixel pointer to start of the row */
-        if (colourDepth >= CHAR_BIT)
+        if (colourDepth >= CHAR_BIT || colourDepth == BIT_DEPTH_ASCII)
         {
             px = array + y * rowSize;
         }
@@ -233,7 +238,7 @@ void * generateFractalExt(void *threadInfo)
             mapColourExt(px, n, z, bitOffset, nMax, colour);
 
             /* Increment pixel pointer */
-            if (colourDepth >= CHAR_BIT)
+            if (colourDepth >= CHAR_BIT || colourDepth == BIT_DEPTH_ASCII)
             {
                 px += nmemb;
             }
@@ -291,7 +296,9 @@ void * generateFractalMP(void *threadInfo)
     char *array = (char *) t->block->ctx->array->array;
     size_t rows = t->block->rows;
     size_t columns = p->width;
-    size_t nmemb = (colour->depth != BIT_DEPTH_1) ? colour->depth / CHAR_BIT : sizeof(char);
+    size_t nmemb = (colourDepth <= CHAR_BIT || colourDepth == BIT_DEPTH_ASCII)
+                   ? sizeof(char)
+                   : colourDepth / CHAR_BIT;
     size_t rowSize = columns * nmemb;
 
     /* Width value */
@@ -368,7 +375,7 @@ void * generateFractalMP(void *threadInfo)
         mpc_set_fr_fr(c, reMin, rowOffset, MP_COMPLEX_RND);
 
         /* Set pixel pointer to start of the row */
-        if (colourDepth >= CHAR_BIT)
+        if (colourDepth >= CHAR_BIT || colourDepth == BIT_DEPTH_ASCII)
         {
             px = array + y * rowSize;
         }
@@ -404,7 +411,7 @@ void * generateFractalMP(void *threadInfo)
             mapColourMP(px, n, norm, bitOffset, nMax, colour);
 
             /* Increment pixel pointer */
-            if (colourDepth >= CHAR_BIT)
+            if (colourDepth >= CHAR_BIT || colourDepth == BIT_DEPTH_ASCII)
             {
                 px += nmemb;
             }

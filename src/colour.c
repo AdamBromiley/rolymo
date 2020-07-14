@@ -116,6 +116,9 @@ void mapColour(void *pixel, unsigned long n, complex z, int offset, unsigned lon
 
     switch (scheme->depth)
     {
+        case BIT_DEPTH_ASCII:
+            *((char *) pixel) = scheme->mapColour.ascii(nSmooth, status);
+            break;
         case BIT_DEPTH_1:
             /* Only write every byte */
             scheme->mapColour.monochrome(pixel, offset, status);
@@ -147,6 +150,9 @@ void mapColourExt(void *pixel, unsigned long n, long double complex z, int offse
 
     switch (scheme->depth)
     {
+        case BIT_DEPTH_ASCII:
+            *((char *) pixel) = scheme->mapColour.ascii(nSmooth, status);
+            break;
         case BIT_DEPTH_1:
             /* Only write every byte */
             scheme->mapColour.monochrome(pixel, offset, status);
@@ -181,6 +187,9 @@ void mapColourMP(void *pixel, unsigned long n, mpfr_t norm, int offset, unsigned
 
     switch (scheme->depth)
     {
+        case BIT_DEPTH_ASCII:
+            *((char *) pixel) = scheme->mapColour.ascii(nSmooth, status);
+            break;
         case BIT_DEPTH_1:
             /* Only write every byte */
             scheme->mapColour.monochrome(pixel, offset, status);
@@ -325,10 +334,12 @@ static void hsvToRGB(RGB *rgb, HSV *hsv)
 /* Maps a given iteration count to an index of outputChars[] */
 static char mapColourSchemeASCII(double n, EscapeStatus status)
 {
-    size_t i = OUTPUT_TERMINAL_CHARSET_LENGTH - 1;
+    size_t i;
 
     if (status == ESCAPED)
-        i = (size_t) fmod((CHAR_SCALE_MULTIPLIER * n), i);  
+        i = ((size_t) (CHAR_SCALE_MULTIPLIER * n)) % (OUTPUT_TERMINAL_CHARSET_LENGTH - 1);
+    else
+        i = OUTPUT_TERMINAL_CHARSET_LENGTH - 1;
 
     return OUTPUT_TERMINAL_CHARSET[i];
 }

@@ -99,7 +99,10 @@ Block * mallocArray(ArrayCTX *array, size_t bytes)
 
     height = array->params->height;
     width = array->params->width;
-    rowSize = width * array->params->colour.depth / 8;
+
+    rowSize = (array->params->colour.depth == BIT_DEPTH_ASCII)
+                ? width * sizeof(char)
+                : width * array->params->colour.depth / 8;
 
     logMessage(DEBUG, "Image array is %zu bytes", height * rowSize);
 

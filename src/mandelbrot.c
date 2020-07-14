@@ -36,7 +36,7 @@
 #define LOG_TIME_FORMAT_STR_LEN_MAX 16
 #define OUTPUT_STR_LEN_MAX 64
 #define COLOUR_STR_LEN_MAX 32
-#define BIT_DEPTH_STR_LEN_MAX 16
+#define BIT_DEPTH_STR_LEN_MAX 32
 #define PLOT_STR_LEN_MAX 32
 #define COMPLEX_STR_LEN_MAX 32
 #define PRECISION_STR_LEN_MAX 16
@@ -387,10 +387,13 @@ int main(int argc, char **argv)
     plotParameters(parameters, outputFilepath);
 
     /* Open image file and write header */
-    if (initialiseImage(parameters, outputFilepath))
+    if (parameters->output == OUTPUT_PNM)
     {
-        freePlotCTX(parameters);
-        return EXIT_FAILURE;
+        if (initialiseImage(parameters, outputFilepath))
+        {
+            freePlotCTX(parameters);
+            return EXIT_FAILURE;
+        }
     }
     
     /* Produce plot */
@@ -745,11 +748,16 @@ void plotParameters(PlotCTX *p, const char *image)
     /* Convert bit depth integer to string */
     if (p->colour.depth > 0)
     {
-        snprintf(depthStr, sizeof(depthStr), "%d-bit", p->colour.depth);
+        snprintf(depthStr, sizeof(depthStr), "(%d-bit)", p->colour.depth);
+    }
+    else if (p->colour.depth == 0)
+    {
+        strncpy(depthStr, "", sizeof(depthStr));
+        depthStr[sizeof(depthStr) - 1] = '\0';
     }
     else
     {
-        strncpy(depthStr, "Invalid bit depth", sizeof(depthStr));
+        strncpy(depthStr, "(Invalid bit depth)", sizeof(depthStr));
         depthStr[sizeof(depthStr) - 1] = '\0';
     }
 
@@ -837,7 +845,7 @@ void plotParameters(PlotCTX *p, const char *image)
                      "    Output     = %s\n"
                      "    Image file = %s\n"
                      "    Dimensions = %zu px * %zu px\n"
-                     "    Colour     = %s (%s)",
+                     "    Colour     = %s %s",
                outputStr,
                (image == NULL) ? "-" : image,
                p->width,
