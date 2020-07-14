@@ -142,6 +142,7 @@ int main(int argc, char **argv)
 
     /* Image file path */
     char outputFilepath[FILEPATH_LEN_MAX] = OUTPUT_FILEPATH_DEFAULT;
+    bool oFlag = false;
 
     /* Log parameters */
     char logFilepath[FILEPATH_LEN_MAX] = LOG_FILEPATH_DEFAULT;
@@ -166,7 +167,7 @@ int main(int argc, char **argv)
     else if (argError != PARSE_SUCCESS)
         return getoptErrorMessage(OPT_EARG, opt, NULL);
 
-    /* 
+    /*
      * Do one getopt pass to get the plot type then create the parameters struct
      * and fill with default values
      */
@@ -302,6 +303,7 @@ int main(int argc, char **argv)
 
                 break;
             case 'o':
+                oFlag = true;
                 strncpy(outputFilepath, optarg, sizeof(outputFilepath));
                 outputFilepath[sizeof(outputFilepath) - 1] = '\0';
                 break;
@@ -384,16 +386,21 @@ int main(int argc, char **argv)
 
     /* Output settings */
     programParameters(logFilepath);
-    plotParameters(parameters, outputFilepath);
 
-    /* Open image file and write header */
-    if (parameters->output == OUTPUT_PNM)
+    /* Open image file and write header (if PNM) */
+    if (parameters->output != OUTPUT_TERMINAL || oFlag == true)
     {
+        plotParameters(parameters, outputFilepath);
+
         if (initialiseImage(parameters, outputFilepath))
         {
             freePlotCTX(parameters);
             return EXIT_FAILURE;
         }
+    }
+    else
+    {
+        plotParameters(parameters, NULL);
     }
     
     /* Produce plot */
@@ -602,7 +609,8 @@ int usage(void)
                                               "                                  bit-width pixels\n",
                                               (unsigned int) CHAR_BIT);
     printf("  -s HEIGHT, --height=HEIGHT    The height of the image file in pixels\n");
-    printf("  -t                            Output to stdout using ASCII characters as shading\n");
+    printf("  -t                            Output to stdout (or, with -o, text file) using ASCII characters as "
+                                           "shading\n");
     printf("Plot type:\n");
     printf("  -j CONSTANT                   Plot Julia set with specified constant parameter\n");
     printf("Plot parameters:\n");
@@ -720,7 +728,7 @@ void programParameters(const char *log)
 
 
 /* Print plot parameters to log */
-void plotParameters(PlotCTX *p, const char *image)
+void plotParameters(PlotCTX *p, const char *fp)
 {
     char outputStr[OUTPUT_STR_LEN_MAX];
     char colourStr[COLOUR_STR_LEN_MAX];
@@ -842,24 +850,24 @@ void plotParameters(PlotCTX *p, const char *image)
     }
 
     logMessage(INFO, "Image settings:\n"
-                     "    Output     = %s\n"
-                     "    Image file = %s\n"
-                     "    Dimensions = %zu px * %zu px\n"
-                     "    Colour     = %s %s",
+                     "    Output      = %s\n"
+                     "    Output file = %s\n"
+                     "    Dimensions  = %zu px * %zu px\n"
+                     "    Colour      = %s %s",
                outputStr,
-               (image == NULL) ? "-" : image,
+               (!fp) ? "-" : fp,
                p->width,
                p->height,
                colourStr,
                depthStr);
 
     logMessage(INFO, "Plot parameters:\n"
-                     "    Plot       = %s\n"
-                     "    Minimum    = %s\n"
-                     "    Maximum    = %s\n"
-                     "    Constant   = %s\n"
-                     "    Iterations = %lu\n"
-                     "    Precision  = %s",
+                     "    Plot        = %s\n"
+                     "    Minimum     = %s\n"
+                     "    Maximum     = %s\n"
+                     "    Constant    = %s\n"
+                     "    Iterations  = %lu\n"
+                     "    Precision   = %s",
                typeStr,
                minStr,
                maxStr,

@@ -3,6 +3,7 @@
 #include <pthread.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 
 #include "libgroot/include/log.h"
@@ -31,8 +32,6 @@ static void blockToImage(const Block *block);
 /* Create image file and write header */
 int initialiseImage(PlotCTX *p, const char *filepath)
 {
-    char header[IMAGE_HEADER_LEN_MAX];
-
     logMessage(DEBUG, "Opening image file \'%s\'", filepath);
 
     p->file = fopen(filepath, "wb");
@@ -44,31 +43,37 @@ int initialiseImage(PlotCTX *p, const char *filepath)
     }
 
     logMessage(DEBUG, "Image file successfully opened");
-    logMessage(DEBUG, "Writing header to image");
 
-    /* Write PNM file header */
-    switch (p->colour.depth)
+    if (p->output == OUTPUT_PNM)
     {
-        case BIT_DEPTH_1:
-            /* PBM file */
-            snprintf(header, sizeof(header), "P4 %zu %zu ", p->width, p->height);
-            break;
-        case BIT_DEPTH_8:
-            /* PGM file */
-            snprintf(header, sizeof(header), "P5 %zu %zu 255 ", p->width, p->height);
-            break;
-        case BIT_DEPTH_24:
-            /* PPM file */
-            snprintf(header, sizeof(header), "P6 %zu %zu 255 ", p->width, p->height);
-            break;
-        default:
-            logMessage(ERROR, "Could not determine bit depth");
-            return 1;
+        char header[IMAGE_HEADER_LEN_MAX];
+
+        logMessage(DEBUG, "Writing header to image");
+
+        /* Write PNM file header */
+        switch (p->colour.depth)
+        {
+            case BIT_DEPTH_1:
+                /* PBM file */
+                snprintf(header, sizeof(header), "P4 %zu %zu ", p->width, p->height);
+                break;
+            case BIT_DEPTH_8:
+                /* PGM file */
+                snprintf(header, sizeof(header), "P5 %zu %zu 255 ", p->width, p->height);
+                break;
+            case BIT_DEPTH_24:
+                /* PPM file */
+                snprintf(header, sizeof(header), "P6 %zu %zu 255 ", p->width, p->height);
+                break;
+            default:
+                logMessage(ERROR, "Could not determine bit depth");
+                return 1;
+        }
+
+        fprintf(p->file, "%s", header);
+
+        logMessage(DEBUG, "Header \'%s\' successfully wrote to image", header);
     }
-
-    fprintf(p->file, "%s", header);
-
-    logMessage(DEBUG, "Header \'%s\' successfully wrote to image", header);
 
     return 0;
 }
@@ -237,28 +242,35 @@ int closeImage(PlotCTX *p)
 /* Write block to image file */
 static void blockToImage(const Block *block)
 {
+    PlotCTX *p = block->ctx->array->params;
+
     void *array = block->ctx->array->array;
 
-    size_t arrayLength = block->rows * block->ctx->array->params->width;
-    double pixelSize = (block->ctx->array->params->colour.depth == BIT_DEPTH_ASCII)
+    size_t arrayLength = block->rows * p->width;
+    double pixelSize = (p->colour.depth == BIT_DEPTH_ASCII)
                        ? sizeof(char)
-                       : block->ctx->array->params->colour.depth / 8.0;
+                       : p->colour.depth / 8.0;
     size_t arraySize = arrayLength * pixelSize;
 
-    FILE *image = block->ctx->array->params->file;
+    FILE *image = p->file;
 
     logMessage(INFO, "Writing %zu pixels (%zu bytes; pixel size = %d bits) to image file",
-        arrayLength, arraySize, block->ctx->array->params->colour.depth);
+                     arrayLength, arraySize, p->colour.depth);
 
-    if (block->ctx->array->params->colour.depth != BIT_DEPTH_ASCII)
+    if (p->colour.depth != BIT_DEPTH_ASCII)
+    {
         fwrite(array, sizeof(char), arraySize, image);
+    }
     else
     {
         for (size_t i = 0; i < block->rows; ++i)
         {
-            fwrite(array, sizeof(char), block->ctx->array->params->width, image);
-            putchar('\n');
-            array = (char *) array + block->ctx->array->params->width;
+            const char *LINE_TERMINATOR = "\n";
+
+            fwrite(array, sizeof(char), p->width, image);
+            fwrite(LINE_TERMINATOR, sizeof(*LINE_TERMINATOR), strlen(LINE_TERMINATOR), image);
+
+            array = (char *) array + p->width;
         }
     }
 

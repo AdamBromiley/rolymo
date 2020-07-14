@@ -56,7 +56,7 @@ Output parameters:
                                   If using a 1-bit colour scheme, WIDTH must be a multiple of 8 to allow  for
                                   bit-width pixels
   -s HEIGHT, --height=HEIGHT    The height of the image file in pixels
-  -t                            Output to stdout using ASCII characters as shading
+  -t                            Output to stdout (or, with -o, text file) using ASCII characters as shading
 Plot type:
   -j CONSTANT                   Plot Julia set with specified constant parameter
 Plot parameters:
