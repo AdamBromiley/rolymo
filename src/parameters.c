@@ -52,8 +52,8 @@ const PlotCTX JULIA_PARAMETERS_DEFAULT_EXT =
     .height = 800
 };
 
-/* Default parameters for Julia set plot (arbitrary-precision) */
 #ifdef MP_PREC
+/* Default parameters for Julia set plot (arbitrary-precision) */
 const PlotCTX JULIA_PARAMETERS_DEFAULT_MP =
 {
     .type = PLOT_JULIA,
@@ -91,8 +91,8 @@ const PlotCTX MANDELBROT_PARAMETERS_DEFAULT_EXT =
     .height = 500
 };
 
-/* Default parameters for Mandelbrot set plot (arbitrary-precision) */
 #ifdef MP_PREC
+/* Default parameters for Mandelbrot set plot (arbitrary-precision) */
 const PlotCTX MANDELBROT_PARAMETERS_DEFAULT_MP =
 {
     .type = PLOT_MANDELBROT,
@@ -230,8 +230,8 @@ int getPlotString(char *dest, PlotType plot, size_t n)
 }
 
 
-/* Initialise MP parameters to extended-precision defaults */
 #ifdef MP_PREC
+/* Initialise MP parameters to extended-precision defaults */
 static int initialiseMP(PlotCTX *p)
 {
     long double complex minimum;

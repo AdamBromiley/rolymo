@@ -446,6 +446,7 @@ ParseErr setPrecision(int argc, char **argv, const struct option opts[], const c
         switch (opt)
         {
             case 'X':
+
                 #ifdef MP_PREC
                 x = true;
                 #endif
@@ -1011,8 +1012,8 @@ ParseErr complexArgExt(long double complex *z, char *arg, long double complex mi
 }
 
 
-/* Wrapper for stringToComplexMPC() */
 #ifdef MP_PREC
+/* Wrapper for stringToComplexMPC() */
 ParseErr complexArgMP(mpc_t z, char *arg, mpc_t min, mpc_t max)
 {
     const int BASE = 0;

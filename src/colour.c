@@ -171,8 +171,8 @@ void mapColourExt(void *pixel, unsigned long n, long double complex z, int offse
 }
 
 
-/* Smooth the iteration count then map it to an RGB value (arbitrary-precision) */
 #ifdef MP_PREC
+/* Smooth the iteration count then map it to an RGB value (arbitrary-precision) */
 void mapColourMP(void *pixel, unsigned long n, mpfr_t norm, int offset, unsigned long max, ColourScheme *scheme)
 {
     EscapeStatus status = (n < max) ? ESCAPED : UNESCAPED;
