@@ -30,11 +30,11 @@ const long double complex C_MIN_EXT = -2.0L - 2.0L * I;
 const long double complex C_MAX_EXT = 2.0L + 2.0L * I;
 
 #ifdef MP_PREC
-/* Range of permissible constant values (arbitrary-precision) */
-mpc_t C_MIN_ARB;
-mpc_t C_MAX_ARB;
-static const long double complex C_MIN_ARB_ = -2.0L - 2.0L * I;
-static const long double complex C_MAX_ARB_ = 2.0L + 2.0L * I;
+/* Range of permissible constant values (multiple-precision) */
+mpc_t C_MIN_MP;
+mpc_t C_MAX_MP;
+static const long double complex C_MIN_MP_ = -2.0L - 2.0L * I;
+static const long double complex C_MAX_MP_ = 2.0L + 2.0L * I;
 #endif
 
 /* Range of permissible magnification values */
@@ -56,29 +56,29 @@ const size_t HEIGHT_MIN = 1;
 const size_t HEIGHT_MAX = SIZE_MAX;
 
 #ifdef MP_PREC
-/* Range of permissible precisions (arbitrary-precision) */
+/* Range of permissible precisions (multiple-precision) */
 const mpfr_prec_t MP_BITS_DEFAULT = 128;
 const mpfr_prec_t MP_BITS_MIN = 1;
 const mpfr_prec_t MP_BITS_MAX = 16384;
 
 
-/* Initialise arbitrary-precision argument ranges */
+/* Initialise multiple-precision argument ranges */
 void initialiseArgRangesMP(void)
 {
-    mpc_init2(C_MIN_ARB, mpSignificandSize);
-    mpc_init2(C_MAX_ARB, mpSignificandSize);
+    mpc_init2(C_MIN_MP, mpSignificandSize);
+    mpc_init2(C_MAX_MP, mpSignificandSize);
 
-    mpc_set_ldc(C_MIN_ARB, C_MIN_ARB_, MP_COMPLEX_RND);
-    mpc_set_ldc(C_MAX_ARB, C_MAX_ARB_, MP_COMPLEX_RND);
+    mpc_set_ldc(C_MIN_MP, C_MIN_MP_, MP_COMPLEX_RND);
+    mpc_set_ldc(C_MAX_MP, C_MAX_MP_, MP_COMPLEX_RND);
 
     return;
 }
 
-/* Free arbitrary-precision argument ranges */
+/* Free multiple-precision argument ranges */
 void freeArgRangesMP(void)
 {
-    mpc_clear(C_MIN_ARB);
-    mpc_clear(C_MAX_ARB);
+    mpc_clear(C_MIN_MP);
+    mpc_clear(C_MAX_MP);
 
     return;
 }

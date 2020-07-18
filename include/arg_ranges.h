@@ -22,8 +22,8 @@ extern const long double complex C_MIN_EXT;
 extern const long double complex C_MAX_EXT;
 
 #ifdef MP_PREC
-extern mpc_t C_MIN_ARB;
-extern mpc_t C_MAX_ARB;
+extern mpc_t C_MIN_MP;
+extern mpc_t C_MAX_MP;
 #endif
 
 extern const double MAGNIFICATION_MIN;

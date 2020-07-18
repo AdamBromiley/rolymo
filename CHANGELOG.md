@@ -8,11 +8,11 @@
 
 ## 2020-07-12
 ### Changed
-- `make mp` will build with arbitray-precision floating-point support (as opposed to `make`, without)
+- `make mp` will build with multiple-precision floating-point support (as opposed to `make`, without)
 
 ## 2020-07-10
 ### Added
-- `-A` option will enable arbitrary-precision mode (use of multiple precision MPFR/MPC types)
+- `-A` option will enable multiple-precision mode (use of multiple precision MPFR/MPC types)
 
 ## 2020-07-03
 ### Added

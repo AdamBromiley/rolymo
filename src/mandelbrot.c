@@ -106,7 +106,7 @@ int main(int argc, char **argv)
     const struct option LONG_OPTIONS[] =
     {
         #ifdef MP_PREC
-        {"arbitrary", optional_argument, NULL, 'A'},  /* Use arbitrary precision */
+        {"multiple", optional_argument, NULL, 'A'},  /* Use multiple precision */
         #endif
 
         {"colour", required_argument, NULL, 'c'},     /* Colour scheme of PPM image */
@@ -235,7 +235,7 @@ int main(int argc, char **argv)
                     
                     #ifdef MP_PREC
                     case MUL_PRECISION:
-                        argError = complexArgMP(parameters->c.mpc, optarg, C_MIN_ARB, C_MAX_ARB);
+                        argError = complexArgMP(parameters->c.mpc, optarg, C_MIN_MP, C_MAX_MP);
                         break;
                     #endif
 
@@ -676,7 +676,7 @@ int usage(void)
     printf("Optimisation:\n");
 
     #ifdef MP_PREC
-    printf("  -A [PREC], --arbitrary[=PREC] Enable arbitrary-precision mode\n");
+    printf("  -A [PREC], --multiple[=PREC] Enable multiple-precision mode\n");
     printf("                                  Specify optional number of precision bits (default = %zu bits)\n",
            (size_t) MP_BITS_DEFAULT);
     printf("                                  MPFR floating-points will be used for calculations\n");

@@ -494,7 +494,7 @@ static long double complex mandelbrotExt(unsigned long *n, long double complex c
 
 
 #ifdef MP_PREC
-/* Perform Mandelbrot set function (arbitrary-precision) */
+/* Perform Mandelbrot set function (multiple-precision) */
 static void mandelbrotMP(unsigned long *n, mpc_t z, mpfr_t norm, mpc_t c, unsigned long max)
 {
     mpc_set_d_d(z, 0.0, 0.0, MP_COMPLEX_RND);
@@ -533,7 +533,7 @@ static long double complex juliaExt(unsigned long *n, long double complex z, lon
 
 
 #ifdef MP_PREC
-/* Perform Julia set function (arbitrary-precision) */
+/* Perform Julia set function (multiple-precision) */
 static void juliaMP(unsigned long *n, mpc_t z, mpfr_t norm, mpc_t c, unsigned long max)
 {
     mpc_norm(norm, z, MP_REAL_RND);

@@ -14,7 +14,7 @@ const mpfr_rnd_t MP_REAL_RND = MPFR_RNDZ;
 const mpfr_rnd_t MP_IMAG_RND = MPFR_RNDZ;
 
 
-/* Number of bits for the significand of multi-precision numbers */
+/* Number of bits for the significand of multiple-precision numbers */
 mpfr_prec_t mpSignificandSize = 128;
 #endif
 
@@ -47,7 +47,7 @@ int getPrecisionString(char *dest, PrecisionMode prec, size_t n)
         
         #ifdef MP_PREC
         case MUL_PRECISION:
-            precStr = "ARBITRARY";
+            precStr = "MULTIPLE";
             break;
         #endif
         

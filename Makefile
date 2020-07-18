@@ -53,7 +53,7 @@ RPATHS = $(subst $(SPACE),$(COMMA),$(patsubst %,-rpath=%,$(LDIRS)))
 _LDLIBS = groot percy m
 LDLIBS = $(patsubst %,-l%,$(_LDLIBS))
 
-# Multi-precision libraries to be linked with `-l`
+# multiple-precision libraries to be linked with `-l`
 _LDLIBS_MP = mpc mpfr gmp
 LDLIBS_MP = $(patsubst %,-l%,$(_LDLIBS_MP))
 

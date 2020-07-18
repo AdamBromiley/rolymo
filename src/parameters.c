@@ -53,7 +53,7 @@ const PlotCTX JULIA_PARAMETERS_DEFAULT_EXT =
 };
 
 #ifdef MP_PREC
-/* Default parameters for Julia set plot (arbitrary-precision) */
+/* Default parameters for Julia set plot (multiple-precision) */
 const PlotCTX JULIA_PARAMETERS_DEFAULT_MP =
 {
     .type = PLOT_JULIA,
@@ -92,7 +92,7 @@ const PlotCTX MANDELBROT_PARAMETERS_DEFAULT_EXT =
 };
 
 #ifdef MP_PREC
-/* Default parameters for Mandelbrot set plot (arbitrary-precision) */
+/* Default parameters for Mandelbrot set plot (multiple-precision) */
 const PlotCTX MANDELBROT_PARAMETERS_DEFAULT_MP =
 {
     .type = PLOT_MANDELBROT,

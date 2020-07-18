@@ -9,7 +9,7 @@ The Mandelbrot set is the set of complex numbers `c` for which the function `f(x
 Similarly, Julia sets are the sets of complex numbers `z` for which the function `f(x) = z^2 + c` does not diverge when iterated from `c = constant` (to be specified by the user).
 
 ## Features
-- Arbitrary-precision floating-point support
+- Multiple-precision floating-point support
 - Julia set plotting
 - Output to the NetPBM family of image files - `.pbm`, `.pgm`, and `.ppm`
 - ASCII art output to the terminal
@@ -21,7 +21,7 @@ The following dependencies must be installed to system **if compiling with** `ma
 - The [GNU Multiple Precision Complex Library](http://www.multiprecision.org/mpc/home.html) (MPC)
 
 ## Usage
-From the program's root directory, `make` compiles the `mandelbrot` binary. To enable arbitrary-precision support, the aforementioned GNU multiple-precision arithmetic libraries must be install to system. The package is then built with `make mp`.
+From the program's root directory, `make` compiles the `mandelbrot` binary. To enable multiple-precision support, the aforementioned GNU multiple-precision arithmetic libraries must be install to system. The package is then built with `make mp`.
 
 Run the program with `./mandelbrot`. By default, without any command-line arguments, the program outputs `var/mandelbrot.pnm` - a 550 px by 500 px, 24-bit colour Mandelbrot set plot.
 
@@ -81,7 +81,7 @@ Plot parameters:
       HEIGHT     = 500
 
 Optimisation:
-  -A [PREC], --arbitrary[=PREC] Enable arbitrary-precision mode
+  -A [PREC], --multiple[=PREC] Enable multiple-precision mode
                                   Specify optional number of precision bits (default = 128 bits)
                                   MPFR floating-points will be used for calculations
                                   Precision better than '-X', but will be considerably slower
