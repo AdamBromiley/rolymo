@@ -7,7 +7,9 @@
 
 #ifdef MP_PREC
 #include <mpfr.h>
+#include <mpc.h>
 #endif
+
 
 extern const complex COMPLEX_MIN;
 extern const complex COMPLEX_MAX;
@@ -18,6 +20,11 @@ extern const complex C_MIN;
 extern const complex C_MAX;
 extern const long double complex C_MIN_EXT;
 extern const long double complex C_MAX_EXT;
+
+#ifdef MP_PREC
+extern mpc_t C_MIN_ARB;
+extern mpc_t C_MAX_ARB;
+#endif
 
 extern const double MAGNIFICATION_MIN;
 extern const double MAGNIFICATION_MAX;
@@ -36,6 +43,10 @@ extern const size_t HEIGHT_MAX;
 const mpfr_prec_t MP_BITS_DEFAULT;
 const mpfr_prec_t MP_BITS_MIN;
 const mpfr_prec_t MP_BITS_MAX;
+
+
+void initialiseArgRangesMP(void);
+void freeArgRangesMP(void);
 #endif
 
 
