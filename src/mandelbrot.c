@@ -186,6 +186,10 @@ int main(int argc, char **argv)
         return getoptErrorMessage(OPT_EARG, opt, NULL);
 
     /* Parse options */
+    #ifdef MP_PREC
+    initialiseArgRangesMP();
+    #endif
+
     opterr = 0;
 
     while ((opt = getopt_long(argc, argv, GETOPT_STRING, LONG_OPTIONS, NULL)) != -1)
@@ -230,8 +234,8 @@ int main(int argc, char **argv)
                         break;
                     
                     #ifdef MP_PREC
-                    case MUL_PRECISION: /* TODO: Set MPC min/max */
-                        argError = complexArgMP(parameters->c.mpc, optarg, NULL, NULL);
+                    case MUL_PRECISION:
+                        argError = complexArgMP(parameters->c.mpc, optarg, C_MIN_ARB, C_MAX_ARB);
                         break;
                     #endif
 
@@ -269,7 +273,7 @@ int main(int argc, char **argv)
                         break;
 
                     #ifdef MP_PREC
-                    case MUL_PRECISION: /* TODO: Set MPC min/max */
+                    case MUL_PRECISION:
                         argError = complexArgMP(parameters->minimum.mpc, optarg, NULL, NULL);
                         break;
                     #endif
@@ -291,7 +295,7 @@ int main(int argc, char **argv)
                         break;
                     
                     #ifdef MP_PREC
-                    case MUL_PRECISION: /* TODO: Set MPC min/max */
+                    case MUL_PRECISION:
                         argError = complexArgMP(parameters->maximum.mpc, optarg, NULL, NULL);
                         break;
                     #endif
@@ -344,15 +348,35 @@ int main(int argc, char **argv)
                 break;
             case 'h':
                 freePlotCTX(parameters);
+
+                #ifdef MP_PREC
+                freeArgRangesMP();
+                #endif
+
                 return usage();
             case '?':
                 freePlotCTX(parameters);
+
+                #ifdef MP_PREC
+                freeArgRangesMP();
+                #endif
+
                 return getoptErrorMessage(OPT_EOPT, optopt, argv[optind - 1]);
             case ':':
                 freePlotCTX(parameters);
+
+                #ifdef MP_PREC
+                freeArgRangesMP();
+                #endif
+
                 return getoptErrorMessage(OPT_ENOARG, optopt, NULL);
             default:
                 freePlotCTX(parameters);
+
+                #ifdef MP_PREC
+                freeArgRangesMP();
+                #endif
+
                 return getoptErrorMessage(OPT_ERROR, 0, NULL);
         }
 
@@ -360,12 +384,20 @@ int main(int argc, char **argv)
         {
             freePlotCTX(parameters);
 
+            #ifdef MP_PREC
+            freeArgRangesMP();
+            #endif
+
             if (argError == PARSE_ERANGE)
                 return getoptErrorMessage(OPT_NONE, 0, NULL);
             else
                 return getoptErrorMessage(OPT_EARG, opt, NULL);
         }
     }
+
+    #ifdef MP_PREC
+    freeArgRangesMP();
+    #endif
 
     /* Open log file */
     if (lFlag)
@@ -551,9 +583,8 @@ ParseErr getMagnification(PlotCTX *p, int argc, char **argv, const struct option
                     break;
 
                 #ifdef MP_PREC
-                case MUL_PRECISION: /* TODO: Sort out MPC min/max */
-                    argError = magArgMP(p, optarg, NULL, NULL,
-                                   MAGNIFICATION_MIN_EXT, MAGNIFICATION_MAX_EXT);
+                case MUL_PRECISION:
+                    argError = magArgMP(p, optarg, NULL, NULL, MAGNIFICATION_MIN_EXT, MAGNIFICATION_MAX_EXT);
                     break;
                 #endif
 
@@ -606,8 +637,8 @@ int usage(void)
     printf("  -o FILE                       Output file name (default = \'%s\')\n", OUTPUT_FILEPATH_DEFAULT);
     printf("  -r WIDTH,  --width=WIDTH      The width of the image file in pixels\n");
     printf("                                  If using a 1-bit colour scheme, WIDTH must be a multiple of %u to allow "
-                                              " for\n"
-                                              "                                  bit-width pixels\n",
+                                             "for\n"
+           "                                  bit-width pixels\n",
                                               (unsigned int) CHAR_BIT);
     printf("  -s HEIGHT, --height=HEIGHT    The height of the image file in pixels\n");
     printf("  -t                            Output to stdout (or, with -o, text file) using ASCII characters as "
@@ -790,16 +821,21 @@ void plotParameters(PlotCTX *p, const char *fp)
             break;
         case EXT_PRECISION:
             snprintf(minStr, sizeof(minStr), "%.*Lg + %.*Lgi",
-                FLT_PRINTF_PREC, creall(p->minimum.lc),
-                FLT_PRINTF_PREC, cimagl(p->minimum.lc));
+                     FLT_PRINTF_PREC, creall(p->minimum.lc),
+                     FLT_PRINTF_PREC, cimagl(p->minimum.lc));
             snprintf(maxStr, sizeof(maxStr), "%.*Lg + %.*Lgi",
-                FLT_PRINTF_PREC, creall(p->maximum.lc),
-                FLT_PRINTF_PREC, cimagl(p->maximum.lc));
+                     FLT_PRINTF_PREC, creall(p->maximum.lc),
+                     FLT_PRINTF_PREC, cimagl(p->maximum.lc));
             break;
         
         #ifdef MP_PREC
         case MUL_PRECISION:
-            /* TODO */
+            mpfr_snprintf(minStr, sizeof(minStr), "%.*Rg + %.*Rgi",
+                          FLT_PRINTF_PREC, mpc_realref(p->minimum.mpc),
+                          FLT_PRINTF_PREC, mpc_imagref(p->minimum.mpc));
+            mpfr_snprintf(maxStr, sizeof(maxStr), "%.*Rg + %.*Rgi",
+                          FLT_PRINTF_PREC, mpc_realref(p->maximum.mpc),
+                          FLT_PRINTF_PREC, mpc_imagref(p->maximum.mpc));
             break;
         #endif
 
@@ -829,7 +865,9 @@ void plotParameters(PlotCTX *p, const char *fp)
             
             #ifdef MP_PREC
             case MUL_PRECISION:
-                /* TODO */
+                mpfr_snprintf(cStr, sizeof(cStr), "%.*Rg + %.*Rgi",
+                              FLT_PRINTF_PREC, mpc_realref(p->c.mpc),
+                              FLT_PRINTF_PREC, mpc_imagref(p->c.mpc));
                 break;
             #endif
 
@@ -1023,11 +1061,10 @@ ParseErr complexArgMP(mpc_t z, char *arg, mpc_t min, mpc_t max)
 
     if (argError == PARSE_ERANGE || argError == PARSE_EMIN || argError == PARSE_EMAX)
     {
-        fprintf(stderr, "%s: -%c: Argument out of range", programName, opt);
-        /*
-        fprintf(stderr, "%s: -%c: Argument out of range, it must be between %.*Lg + %.*Lgi and %.*Lg + %.*Lgi\n", 
-            programName, opt, FLT_PRINTF_PREC, creall(min), FLT_PRINTF_PREC, cimagl(min),
-            FLT_PRINTF_PREC, creall(max), FLT_PRINTF_PREC, cimagl(max));*/
+        mpfr_fprintf(stderr, "%s: -%c: Argument out of range, it must be between %.*Rg + %.*Rgi and %.*Rg + %.*Rgi",
+                     programName, opt,
+                     FLT_PRINTF_PREC, mpc_realref(min), FLT_PRINTF_PREC, mpc_imagref(min),
+                     FLT_PRINTF_PREC, mpc_realref(max), FLT_PRINTF_PREC, mpc_imagref(max));
         return PARSE_ERANGE;
     }
     else if (argError != PARSE_SUCCESS)
@@ -1235,10 +1272,10 @@ ParseErr magArgMP(PlotCTX *p, char *arg, mpc_t cMin, mpc_t cMax, long double mMi
     else if (argError == PARSE_ERANGE || argError == PARSE_EMIN || argError == PARSE_EMAX)
     {
         mpc_clear(imageCentre);
-        fprintf(stderr, "%s: -%c: Argument out of range", programName, opt);
-        /*fprintf(stderr, "%s: -%c: Argument out of range, it must be between %.*Lg + %.*Lgi and %.*Lg + %.*Lgi\n", 
-            programName, opt, FLT_PRINTF_PREC, creall(cMin), FLT_PRINTF_PREC, cimagl(cMin),
-            FLT_PRINTF_PREC, creall(cMax), FLT_PRINTF_PREC, cimagl(cMax));*/
+        mpfr_fprintf(stderr, "%s: -%c: Argument out of range, it must be between %.*Rg + %.*Rgi and %.*Rg + %.*Rgi",
+                     programName, opt,
+                     FLT_PRINTF_PREC, mpc_realref(cMin), FLT_PRINTF_PREC, mpc_imagref(cMin),
+                     FLT_PRINTF_PREC, mpc_realref(cMax), FLT_PRINTF_PREC, mpc_imagref(cMax));
         return PARSE_ERANGE;
     }
     else
@@ -1326,15 +1363,14 @@ int validateParameters(PlotCTX *p)
     }
 
     /* 
-     * Minimum addressable data size is CHAR_BIT, therefore the 1-bit image
-     * pixels are calculated in groups of CHAR_BIT size
+     * Minimum addressable data size is CHAR_BIT, therefore bit depths below
+     * CHAR_BIT must have pixels calculated in groups of CHAR_BIT size
      */
-    /* TODO: Make applicable to all depths < CHAR_BIT */
-    if (p->colour.depth == 1 && p->width % CHAR_BIT != 0)
+    if (p->colour.depth < CHAR_BIT && p->width % CHAR_BIT != 0)
     {
         p->width = p->width + CHAR_BIT - (p->width % CHAR_BIT);
-        logMessage(WARNING, "For 1-bit pixel colour schemes, the width must be a multiple of %zu. Width set to %zu",
-            CHAR_BIT, p->width);
+        logMessage(WARNING, "For %u-bit pixel colour schemes, the width must be a multiple of %u. Width set to %zu",
+                   (unsigned int) p->colour.depth, (unsigned int) CHAR_BIT, p->width);
     }
 
     return 0;
