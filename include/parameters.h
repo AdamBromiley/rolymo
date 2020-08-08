@@ -32,7 +32,7 @@ typedef struct PlotCTX
     enum OutputType output;
     FILE *file;
     size_t width, height;
-    struct ColourScheme colour;
+    ColourScheme colour;
 } PlotCTX;
 
 
