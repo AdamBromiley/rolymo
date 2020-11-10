@@ -14,6 +14,12 @@ typedef struct ArrayCTX
     PlotCTX *params;
 } ArrayCTX;
 
+typedef struct RowCTX
+{
+    size_t row;
+    ArrayCTX *array;
+} RowCTX;
+
 typedef struct BlockCTX
 {
     unsigned int count;
@@ -41,14 +47,24 @@ typedef struct Thread
     ThreadCTX *ctx;
 } Thread;
 
+typedef struct SlaveThread
+{
+    pthread_t pid;
+    unsigned int tid;
+    RowCTX *row;
+    ThreadCTX *ctx;
+} SlaveThread;
+
 
 ArrayCTX * createArrayCTX(PlotCTX *p);
 Block * mallocArray(ArrayCTX *array, size_t bytes);
 Thread * createThreads(Block *block, unsigned int n);
+SlaveThread * createSlaveThreads(RowCTX *row, unsigned int n);
 
 void freeArrayCTX(ArrayCTX *ctx);
 void freeBlock(Block *block);
 void freeThreads(Thread *threads);
+void freeSlaveThreads(SlaveThread *threads);
 
 
 #endif

@@ -15,20 +15,23 @@ BDIR = .
 BIN = $(BDIR)/$(_BIN)
 
 # Source code
-_SRC = arg_ranges.c array.c colour.c ext_precision.c function.c image.c \
-	   mandelbrot.c mandelbrot_parameters.c parameters.c
+_SRC = arg_ranges.c array.c colour.c connection_handler.c ext_precision.c \
+	   function.c image.c mandelbrot.c mandelbrot_parameters.c parameters.c \
+	   request_handler.c
 SDIR = src
 SRC = $(patsubst %,$(SDIR)/%,$(_SRC))
 
 # Header files
-_DEPS = arg_ranges.h array.h colour.h ext_precision.h function.h image.h \
-        mandelbrot_parameters.h parameters.h
+_DEPS = arg_ranges.h array.h colour.h connection_handler.h ext_precision.h \
+	    function.h image.h mandelbrot_parameters.h parameters.h \
+	    request_handler.h
 HDIR = include
 DEPS = $(patsubst %,$(HDIR)/%,$(_DEPS))
 
 # Object files
-_OBJS = arg_ranges.o array.o colour.o ext_precision.o function.o image.o \
-        mandelbrot.o mandelbrot_parameters.o parameters.o
+_OBJS = arg_ranges.o array.o colour.o connection_handler.o ext_precision.o \
+	    function.o image.o mandelbrot.o mandelbrot_parameters.o parameters.o \
+	    request_handler.o
 ODIR = obj
 OBJS = $(patsubst %,$(ODIR)/%,$(_OBJS))
 
@@ -70,7 +73,8 @@ SUBMAKE = $(LDIR)/libgroot $(LDIR)/percy
 CC = gcc
 
 # Compiler optimisation options
-COPT = -flto -Ofast -march=native
+#COPT = -flto -Ofast -march=native
+COPT =
 
 # Compiler options
 CFLAGS = $(IDIRS) $(COPT) -g -std=c99 -pedantic \
@@ -84,7 +88,8 @@ CFLAGS = $(IDIRS) $(COPT) -g -std=c99 -pedantic \
 LD = gcc
 
 # Linker optimisation options
-LDOPT = -flto -Ofast
+#LDOPT = -flto -Ofast
+LDOPT =
 
 # Linker options
 LDFLAGS = $(LPATHS) -Wl,$(RPATHS) $(LDLIBS) $(LDOPT) -pthread

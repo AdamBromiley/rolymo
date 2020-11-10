@@ -155,13 +155,16 @@ void freePlotCTX(PlotCTX *p)
         freeMP(p);
     #endif
 
-    if (p->file)
+    if (p)
     {
-        fclose(p->file);
-        p->file = NULL;
-    }
+        if (p->file)
+        {
+            fclose(p->file);
+            p->file = NULL;
+        }
 
-    free(p);
+        free(p);
+    }
 
     return;
 }
@@ -266,9 +269,12 @@ static int initialiseMP(PlotCTX *p)
 /* Free MP parameters */
 static void freeMP(PlotCTX *p)
 {
-    mpc_clear(p->minimum.mpc);
-    mpc_clear(p->maximum.mpc);
-    mpc_clear(p->c.mpc);
+    if (p)
+    {
+        mpc_clear(p->minimum.mpc);
+        mpc_clear(p->maximum.mpc);
+        mpc_clear(p->c.mpc);
+    }
 
     return;
 }

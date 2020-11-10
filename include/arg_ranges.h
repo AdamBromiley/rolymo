@@ -4,6 +4,7 @@
 
 #include <complex.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #ifdef MP_PREC
 #include <mpfr.h>
@@ -38,6 +39,9 @@ extern const size_t WIDTH_MIN;
 extern const size_t WIDTH_MAX;
 extern const size_t HEIGHT_MIN;
 extern const size_t HEIGHT_MAX;
+
+extern const uint16_t PORT_MIN;
+extern const uint16_t PORT_MAX;
 
 #ifdef MP_PREC
 const mpfr_prec_t MP_BITS_DEFAULT;

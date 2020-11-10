@@ -223,6 +223,65 @@ Thread * createThreads(Block *block, unsigned int n)
 }
 
 
+/* Generate a list of threads */
+SlaveThread * createSlaveThreads(RowCTX *row, unsigned int n)
+{
+    SlaveThread *threads;
+    ThreadCTX *ctx;
+
+    logMessage(DEBUG, "Creating thread array");
+
+    ctx = malloc(sizeof(*ctx));
+
+    if (!ctx)
+    {
+        logMessage(ERROR, "Memory allocation failed");
+        return NULL;
+    }
+
+    if (n < 1)
+    {
+        long result = sysconf(_SC_NPROCESSORS_ONLN);
+
+        if (result < 1)
+        {
+            result = 1;
+            logMessage(WARNING, "Could not get number of online processors - limiting to %ld thread(s)",
+                result);
+        }
+        else if (result > UINT_MAX)
+        {
+            result = UINT_MAX;
+        }
+
+        n = (unsigned int) result;
+    }
+    
+    /* Set thread count */
+    ctx->count = n;
+
+    threads = malloc(n * sizeof(*threads));
+    
+    if (!threads)
+    {
+        logMessage(ERROR, "Memory allocation failed");
+        return NULL;
+    }
+    
+    for (unsigned int i = 0; i < n; ++i)
+    {
+        /* Consecutive IDs allow threads to work on different array columns */
+        threads[i].tid = i;
+        threads[i].row = row;
+        threads[i].ctx = ctx;
+    }
+
+    logMessage(DEBUG, "Thread array generated");
+
+    return threads;
+}
+
+
 /* Free ArrayCTX struct */
 void freeArrayCTX(ArrayCTX *ctx)
 {
@@ -263,6 +322,25 @@ void freeBlock(Block *block)
 
 /* Free thread list and nested ThreadCTX struct */
 void freeThreads(Thread *threads)
+{
+    if (threads)
+    {
+        if (threads->ctx)
+        {
+            free(threads->ctx);
+            logMessage(DEBUG, "Thread context freed");
+        }
+
+        free(threads);
+        logMessage(DEBUG, "Thread array freed");
+    }
+
+    return;
+}
+
+
+/* Free thread list and nested ThreadCTX struct */
+void freeSlaveThreads(SlaveThread *threads)
 {
     if (threads)
     {

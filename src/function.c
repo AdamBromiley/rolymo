@@ -37,6 +37,94 @@ static void juliaMP(unsigned long *n, mpc_t z, mpfr_t norm, mpc_t c, unsigned lo
 #endif
 
 
+void * generateFractalRow(void *threadInfo)
+{
+    SlaveThread *t = threadInfo;
+
+    /*
+     * Because the loop may run for millions of iterations, all relevant struct
+     * members are cached before use.
+     */
+
+    unsigned int tCount = t->ctx->count;
+
+    /* Plot parameters */
+    PlotCTX *p = t->row->array->params;
+
+    /* Julia set constant */
+    complex constant = p->c.c;
+
+    /* Maximum iteration count */
+    unsigned long nMax = p->iterations;
+
+    PlotType type = p->type;
+    ColourScheme *colour = &(p->colour);
+    BitDepth colourDepth = colour->depth;
+
+    /* Real value at top-left of plot */
+    double reMin = creal(p->minimum.c);
+    double imMax = cimag(p->maximum.c);
+
+    /* Pixel dimensions */
+    double pxWidth = (p->width > 1) ? (creal(p->maximum.c) - creal(p->minimum.c)) / (p->width - 1) : 0.0;
+    double pxHeight = (p->height > 1) ? (cimag(p->maximum.c) - cimag(p->minimum.c)) / (p->height - 1) : 0.0;
+
+    /* Row array */
+    size_t columns = p->width;
+    size_t nmemb = (colourDepth <= CHAR_BIT || colourDepth == BIT_DEPTH_ASCII)
+                   ? sizeof(char)
+                   : colourDepth / CHAR_BIT;
+
+    char *px = (char *) t->row->array->array + t->tid * nmemb;
+
+    logMessage(INFO, "Thread %u: Generating row plot", t->tid);
+
+    /* Number of bits into current byte (if bit depth < CHAR_BIT) */
+    int bitOffset;
+
+    /* Set complex value to start of the row */
+    complex c = reMin + pxWidth * t->tid + (imMax - t->row->row * pxHeight) * I;
+
+    /* Iterate over the row - offset by thread ID to ensure each thread gets a unique column */
+    for (size_t x = t->tid; x < columns; x += tCount, c += pxWidth * tCount)
+    {
+        complex z;
+        unsigned long n;
+
+        /* Run fractal function on c */
+        switch (type)
+        {
+            case PLOT_JULIA:
+                z = julia(&n, c, constant, nMax);
+                break;
+            case PLOT_MANDELBROT:
+                z = mandelbrot(&n, c, nMax);
+                break;
+            default:
+                pthread_exit(NULL);
+        }
+
+        /* Map iteration count to RGB colour value */
+        mapColour(px, n, z, bitOffset, nMax, colour);
+
+        /* Increment pixel pointer */
+        if (colourDepth >= CHAR_BIT || colourDepth == BIT_DEPTH_ASCII)
+        {
+            px += nmemb * tCount;
+        }
+        else if (++bitOffset == CHAR_BIT)
+        {
+            px += nmemb * tCount;
+            bitOffset = 0;
+        }
+    }
+
+    logMessage(INFO, "Thread %u: Row plot generated - exiting", t->tid);
+    
+    pthread_exit(NULL);
+}
+
+
 void * generateFractal(void *threadInfo)
 {
     Thread *t = threadInfo;

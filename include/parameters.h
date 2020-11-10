@@ -20,6 +20,7 @@ typedef enum PlotType
 
 typedef enum OutputType
 {
+    OUTPUT_NONE,
     OUTPUT_PNM,
     OUTPUT_TERMINAL
 } OutputType;

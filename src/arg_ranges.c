@@ -55,6 +55,9 @@ const size_t WIDTH_MAX = SIZE_MAX;
 const size_t HEIGHT_MIN = 1;
 const size_t HEIGHT_MAX = SIZE_MAX;
 
+const uint16_t PORT_MIN = 1024;
+const uint16_t PORT_MAX = 65534;
+
 #ifdef MP_PREC
 /* Range of permissible precisions (multiple-precision) */
 const mpfr_prec_t MP_BITS_DEFAULT = 128;
