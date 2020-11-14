@@ -18,20 +18,24 @@ typedef enum LANStatus
 } LANStatus;
 
 
-typedef struct LANCTX
+typedef struct NetworkCTX
 {
     LANStatus mode;
     struct sockaddr_in addr;
     int s;
     int n;
     int slaves[1];
-} LANCTX;
+} NetworkCTX;
 
 
-int initialiseNetworkConnection(LANCTX *lan, PlotCTX *p);
+NetworkCTX * createNetworkCTX(void);
+int initialiseNetworkCTX(NetworkCTX *ctx);
+void freeNetworkCTX(NetworkCTX *ctx);
 
-int initialiseMaster(LANCTX *lan);
-int initialiseSlave(PlotCTX *p, LANCTX *lan);
+int initialiseNetworkConnection(NetworkCTX *network, PlotCTX *p);
+
+int initialiseMaster(NetworkCTX *network);
+int initialiseSlave(PlotCTX *p, NetworkCTX *network);
 int initialiseSlaves(int *slaves, int n, PlotCTX *p);
 
 int acceptConnectionReq(int master);

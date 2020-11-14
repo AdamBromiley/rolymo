@@ -27,36 +27,57 @@ const char *MASTER_IP = "127.0.0.1";
 const int CONNECTIONS_MAX = 1;
 
 
-int initialiseNetworkConnection(LANCTX *lan, PlotCTX *p)
+NetworkCTX * createNetworkCTX(void)
+{
+    return malloc(sizeof(NetworkCTX));
+}
+
+
+#ifdef UNUSED
+int initialiseNetworkCTX(NetworkCTX *ctx)
+{
+    return 0;
+}
+#endif
+
+
+void freeNetworkCTX(NetworkCTX *ctx)
+{
+    if (ctx)
+        free(ctx);
+}
+
+
+int initialiseNetworkConnection(NetworkCTX *network, PlotCTX *p)
 {
     const time_t CONNECTION_TIMEOUT = 10;
 
-    lan->n = 1; /* TODO: Make flexible */
+    network->n = 1; /* TODO: Make flexible */
 
-    switch (lan->mode)
+    switch (network->mode)
     {
         case LAN_NONE:
             return 0;
         case LAN_MASTER:
-            lan->s = initialiseMaster(lan);
+            network->s = initialiseMaster(network);
 
-            if (lan->s < 0)
+            if (network->s < 0)
                 return 1;
 
-            for (int i = 0; i < lan->n; ++i)
-                lan->slaves[i] = -1;
+            for (int i = 0; i < network->n; ++i)
+                network->slaves[i] = -1;
 
-            if (acceptConnections(lan->slaves, lan->s, lan->n, CONNECTION_TIMEOUT) < lan-> n)
+            if (acceptConnections(network->slaves, network->s, network->n, CONNECTION_TIMEOUT) < network-> n)
                 return 1;
 
-            if (initialiseSlaves(lan->slaves, lan->n, p))
+            if (initialiseSlaves(network->slaves, network->n, p))
                 return 1;
             
             break;
         case LAN_SLAVE:
-            lan->s = initialiseSlave(p, lan);
+            network->s = initialiseSlave(p, network);
 
-            if (lan->s < 0)
+            if (network->s < 0)
                 return 1;
 
             break;
@@ -69,7 +90,7 @@ int initialiseNetworkConnection(LANCTX *lan, PlotCTX *p)
 
 
 /* Initialise machine as master - listen for slave connection requests */
-int initialiseMaster(LANCTX *lan)
+int initialiseMaster(NetworkCTX *network)
 {
     const int SOCK_OPT = 1;
 
@@ -95,7 +116,7 @@ int initialiseMaster(LANCTX *lan)
 		return -1;
 	}
 
-    if (bind(s, (struct sockaddr *) &lan->addr, (socklen_t) sizeof(lan->addr)))
+    if (bind(s, (struct sockaddr *) &network->addr, (socklen_t) sizeof(network->addr)))
     {
         close(s);
         return -1;
@@ -200,14 +221,14 @@ int initialiseSlaves(int *slaves, int n, PlotCTX *p)
 
 
 /* Initialise machine as slave - connect to a master */
-int initialiseSlave(PlotCTX *p, LANCTX *lan)
+int initialiseSlave(PlotCTX *p, NetworkCTX *network)
 {
     int s = socket(AF_INET, SOCK_STREAM, 0);
 
 	if (s < 0)
 		return -1;
 
-	if (connect(s, (struct sockaddr *) &lan->addr, (socklen_t) sizeof(lan->addr)))
+	if (connect(s, (struct sockaddr *) &network->addr, (socklen_t) sizeof(network->addr)))
 	{
         close(s);
 		return -1;

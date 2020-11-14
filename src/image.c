@@ -223,7 +223,7 @@ int imageOutput(PlotCTX *p, size_t mem, unsigned int threadCount)
 
 
 /* Initialise plot array, run function, then write to file */
-int imageOutputMaster(PlotCTX *p, LANCTX *lan, size_t mem)
+int imageOutputMaster(PlotCTX *p, NetworkCTX *network, size_t mem)
 {
     /* Array blocks */
     ArrayCTX *array;
@@ -272,7 +272,7 @@ int imageOutputMaster(PlotCTX *p, LANCTX *lan, size_t mem)
 
         logMessage(INFO, "Working on block %u (%zu rows)", block->id, block->rows);
 
-        if (listener(lan->slaves, lan->n, block))
+        if (listener(network->slaves, network->n, block))
         {
             freeArrayCTX(array);
             freeBlock(block);
@@ -292,7 +292,7 @@ int imageOutputMaster(PlotCTX *p, LANCTX *lan, size_t mem)
 
 
 /* Initialise plot array, run function, then write to file */
-int imageRowOutput(PlotCTX *p, LANCTX *lan, unsigned int threadCount)
+int imageRowOutput(PlotCTX *p, NetworkCTX *network, unsigned int threadCount)
 {
     /* Pointer to fractal row generation function */
     void * (*genFractalRow)(void *);
@@ -390,7 +390,7 @@ int imageRowOutput(PlotCTX *p, LANCTX *lan, unsigned int threadCount)
 
         ssize_t ret;
         
-        ret = writeSocket("", lan->s, 1);
+        ret = writeSocket("", network->s, 1);
 
         if (ret == 0)
         {
@@ -405,7 +405,7 @@ int imageRowOutput(PlotCTX *p, LANCTX *lan, unsigned int threadCount)
             return 1;
         }
 
-        ret = readSocket(readBuffer, lan->s, sizeof(readBuffer));
+        ret = readSocket(readBuffer, network->s, sizeof(readBuffer));
 
         if (ret == 0)
         {
@@ -465,7 +465,7 @@ int imageRowOutput(PlotCTX *p, LANCTX *lan, unsigned int threadCount)
         sprintf(writeBuffer, "%zu", row.row);
         memcpy(writeBuffer + 6, array->array, rowSize);
 
-        ret = writeSocket(writeBuffer, lan->s, rowSize + 6);
+        ret = writeSocket(writeBuffer, network->s, rowSize + 6);
         memset(writeBuffer, '\0', rowSize + 6);
 
         if (ret == 0)
@@ -481,7 +481,7 @@ int imageRowOutput(PlotCTX *p, LANCTX *lan, unsigned int threadCount)
             return 1;
         }
 
-        ret = readSocket(readBuffer, lan->s, sizeof(readBuffer));
+        ret = readSocket(readBuffer, network->s, sizeof(readBuffer));
         memset(readBuffer, '\0', sizeof(readBuffer));
 
         if (ret == 0)
