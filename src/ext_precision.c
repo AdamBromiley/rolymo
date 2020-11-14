@@ -5,7 +5,6 @@
 
 #ifdef MP_PREC
 #include <mpfr.h>
-#include <mpc.h>
 
 
 /* Rounding characteristic of MPC and MPFR operations (round towards zero) */

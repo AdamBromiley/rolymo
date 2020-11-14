@@ -5,6 +5,7 @@
 #include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -112,15 +113,25 @@ static int initialiseImageOutputParameters(PlotCTX *p);
 static int initialiseTerminalOutputParameters(PlotCTX *p);
 
 
-/* Create plot parameters object and set default plot settings */
-PlotCTX * createPlotCTX(PlotType plot, OutputType output)
+/* Create plot parameters object */
+PlotCTX * createPlotCTX(void)
 {
-    int ret;
-
     PlotCTX *p = malloc(sizeof(PlotCTX));
 
     if (!p)
         return NULL;
+
+    return p;
+}
+
+
+/* Set default plot settings into PlotCTX object */
+int initialisePlotCTX(PlotCTX *p, PlotType plot, OutputType output)
+{
+    int ret;
+
+    if (!p)
+        return 1;
 
     p->type = plot;
 
@@ -133,17 +144,13 @@ PlotCTX * createPlotCTX(PlotType plot, OutputType output)
             ret = initialiseTerminalOutputParameters(p);
             break;
         default:
-            free(p);
-            return NULL;
+            return 1;
     }
 
     if (ret)
-    {
-        free(p);
-        return NULL;
-    }
+        return 1;
 
-    return p;
+    return 0;
 }
 
 
@@ -171,7 +178,7 @@ void freePlotCTX(PlotCTX *p)
 
 
 /* Get output type */
-int getOutputString(char *dest, PlotCTX *p, size_t n)
+int getOutputString(char *dest, const PlotCTX *p, size_t n)
 {
     const char *type;
 

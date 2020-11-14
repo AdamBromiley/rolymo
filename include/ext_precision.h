@@ -7,6 +7,7 @@
 
 #ifdef MP_PREC
 #include <gmp.h>
+#include <mpfr.h>
 #include <mpc.h>
 #endif
 
