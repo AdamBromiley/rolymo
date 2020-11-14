@@ -56,10 +56,11 @@ extern const PlotCTX MANDELBROT_PARAMETERS_DEFAULT_EXT;
 extern const PlotCTX MANDELBROT_PARAMETERS_DEFAULT_MP;
 
 
-PlotCTX * createPlotCTX(PlotType plot, OutputType output);
+PlotCTX * createPlotCTX(void);
+int initialisePlotCTX(PlotCTX *p, PlotType plot, OutputType output);
 void freePlotCTX(PlotCTX *p);
 
-int getOutputString(char *dest, PlotCTX *p, size_t n);
+int getOutputString(char *dest, const PlotCTX *p, size_t n);
 int getPlotString(char *dest, PlotType plot, size_t n);
 
 
