@@ -1,18 +1,12 @@
 #include <complex.h>
-#include <ctype.h>
 #include <float.h>
-#include <getopt.h>
-#include <inttypes.h>
 #include <limits.h>
-#include <math.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include <arpa/inet.h>
 
 #ifdef MP_PREC
 #include <mpfr.h>
@@ -23,17 +17,15 @@
 #include "percy/include/parser.h"
 
 #include "arg_ranges.h"
-#include "array.h"
 #include "connection_handler.h"
 #include "ext_precision.h"
+#include "getopt_error.h"
 #include "image.h"
 #include "mandelbrot_parameters.h"
 #include "parameters.h"
+#include "process_options.h"
+#include "program_ctx.h"
 
-
-#define FILEPATH_LEN_MAX 4096
-#define OUTPUT_FILEPATH_DEFAULT "var/mandelbrot.pnm"
-#define LOG_FILEPATH_DEFAULT "var/mandelbrot.log"
 
 #define LOG_LEVEL_STR_LEN_MAX 32
 #define LOG_TIME_FORMAT_STR_LEN_MAX 32
@@ -43,199 +35,129 @@
 #define PLOT_STR_LEN_MAX 32
 #define COMPLEX_STR_LEN_MAX 32
 #define PRECISION_STR_LEN_MAX 32
-#define IP_ADDR_STR_LEN_MAX ((4 * 3) + 3 + 1)
 
-
-typedef enum GetoptError
-{
-    OPT_NONE,
-    OPT_ERROR,
-    OPT_EOPT,
-    OPT_ENOARG,
-    OPT_EARG,
-    OPT_EMANY,
-    OPT_EARGC_LOW,
-    OPT_EARGC_HIGH
-} OptErr;
-
-typedef struct ProgramCTX
-{
-    char logFilepath[FILEPATH_LEN_MAX];
-    size_t mem;
-    unsigned int threads;
-
-} ProgramCTX;
-
-
-/* Program name - argv[0] */
-static char *programName;
-
-/* Option character for error messages */
-static char opt;
 
 static LogLevel LOG_LEVEL_DEFAULT = INFO;
 
-/* Precision of floating points in output */
-static const int FLT_PRINTF_PREC = 3;
 
+static void initialiseLog(void);
 
-void initialiseLog(void);
+static int usage(void);
+static void plotParameters(const ProgramCTX *ctx, const PlotCTX *p);
+static void programParameters(const ProgramCTX *ctx);
 
-ProgramCTX * initialiseProgramCTX(void);
-void freeProgramCTX(ProgramCTX *ctx);
-
-int processOptions(PlotCTX **p, ProgramCTX **ctx, LANCTX *lan, char *filepath, int argc, char **argv);
-int parseCommonOptions(ProgramCTX *ctx, int argc, char **argv, const struct option opts[], const char *optstr);
-int getLANStatus(LANCTX *lan, int argc, char **argv, const struct option opts[], const char *optstr);
-
-int getStandaloneParameters(PlotCTX *p, char *filepath, size_t n, int argc, char **argv, const struct option opts[],
-                            const char *optstr);
-int getMasterParameters(PlotCTX *p, char *filepath, size_t n, int argc, char **argv, const struct option opts[],
-                        const char *optstr);
-
-int getDiscreteParameters(PlotCTX *p, char *filepath, size_t n, int argc, char **argv, const struct option opts[],
-                          const char *optstr);
-int getContinuousParameters(PlotCTX *p, int argc, char **argv, const struct option opts[], const char *optstr);
-
-int getPrecision(int argc, char **argv, const struct option opts[], const char *optstr);
-int getMagnification(PlotCTX *p, int argc, char **argv, const struct option opts[], const char *optstr);
-
-PlotType getPlotType(int argc, char **argv, const struct option opts[], const char *optstr);
-OutputType getOutputType(int argc, char **argv, const struct option opts[], const char *optstr);
-
-int usage(void);
-void plotParameters(PlotCTX *p, const char *image);
-void programParameters(const char *log);
-
-ParseErr uLongArg(unsigned long *x, char *arg, unsigned long min, unsigned long max);
-ParseErr uIntMaxArg(uintmax_t *x, char *arg, uintmax_t min, uintmax_t max);
-ParseErr floatArg(double *x, char *arg, double min, double max);
-ParseErr floatArgExt(long double *x, char *arg, long double min, long double max);
-ParseErr complexArg(complex *z, char *arg, complex min, complex max);
-ParseErr complexArgExt(long double complex *z, char *arg, long double complex min, long double complex max);
-
-#ifdef MP_PREC
-ParseErr complexArgMP(mpc_t z, char *arg, mpc_t min, mpc_t max);
-#endif
-
-ParseErr magArg(PlotCTX *p, char *arg, complex cMin, complex cMax, double mMin, double mMax);
-ParseErr magArgExt(PlotCTX *p, char *arg, long double complex cMin, long double complex cMax, double mMin, double mMax);
-
-#ifdef MP_PREC
-ParseErr magArgMP(PlotCTX *p, char *arg, mpc_t cMin, mpc_t cMax, long double mMin, long double mMax);
-#endif
-
-int validateIPAddress(char *addr);
-
-int validateParameters(PlotCTX *p);
-
-int getoptErrorMessage(OptErr error, char shortOpt, const char *longOpt);
+static int validateParameters(PlotCTX *p);
 
 
 /* Process command-line options */
 int main(int argc, char **argv)
 {
-    /* Plotting parameters */
-    PlotCTX *parameters;
-    ProgramCTX *ctx;
-    LANCTX lan;
-    char *filepath = malloc(FILEPATH_LEN_MAX);
+    ProgramCTX *ctx = createProgramCTX();
+    PlotCTX *p = createPlotCTX();
+    NetworkCTX *network = createNetworkCTX();
 
-    if (!filepath)
-    {
-        getoptErrorMessage(OPT_ERROR, 0, NULL);
-        return EXIT_FAILURE;
-    }
+    int ret = 0;
 
     programName = argv[0];
 
     /* Setup logging library */
     initialiseLog();
 
-    /* Process argv with getopt */
-    if (processOptions(&parameters, &ctx, &lan, filepath, argc, argv))
+    if (!ctx || !p || !network)
     {
-        free(filepath);
+        freeProgramCTX(ctx);
+        freePlotCTX(p);
+        freeNetworkCTX(network);
+        getoptErrorMessage(OPT_ERROR, NULL);
+        return EXIT_FAILURE;
+    }
+
+    /* Process argv with getopt */
+    ret = processOptions(ctx, p, network, argc, argv);
+
+    if (ret)
+    {
+        if (ret == 1)
+            usage();
+
+        freeProgramCTX(ctx);
+        freePlotCTX(p);
+        freeNetworkCTX(network);
+        closeLog();
+        return (ret == 1) ? EXIT_SUCCESS : EXIT_FAILURE;
+    }
+
+    /* Check and warn against some parameters */
+    if (validateParameters(p))
+    {
+        getoptErrorMessage(OPT_NONE, NULL);
+        freeProgramCTX(ctx);
+        freePlotCTX(p);
+        freeNetworkCTX(network);
+        closeLog();
         return EXIT_FAILURE;
     }
 
     /* Output settings */
-    programParameters(ctx->logFilepath);
+    programParameters(ctx);
 
-    if (initialiseNetworkConnection(&lan, parameters))
+    if (initialiseNetworkConnection(network, p))
     {
-        freePlotCTX(parameters);
+        freePlotCTX(p);
         freeProgramCTX(ctx);
-        free(filepath);
+        closeLog();
         return EXIT_FAILURE;
     }
 
-    /* Open image file and write header (if PNM) */
-    if (parameters->output != OUTPUT_TERMINAL && lan.mode != LAN_SLAVE)
-    {
-        plotParameters(parameters, filepath);
+    plotParameters(ctx, p);
 
-        if (initialiseImage(parameters, filepath))
+    /* Open image file and write header (if PNM) */
+    if (p->output != OUTPUT_TERMINAL && network->mode != LAN_SLAVE)
+    {
+        if (initialiseImage(p, ctx->plotFilepath))
         {
-            freePlotCTX(parameters);
+            freePlotCTX(p);
             freeProgramCTX(ctx);
-            free(filepath);
+            closeLog();
             return EXIT_FAILURE;
         }
     }
-    else
-    {
-        plotParameters(parameters, NULL);
-    }
-
-    free(filepath);
     
     /* Produce plot */
-    switch (lan.mode)
+    switch (network->mode)
     {
         case LAN_NONE:
-            if (imageOutput(parameters, ctx->mem, ctx->threads))
-            {
-                freePlotCTX(parameters);
-                freeProgramCTX(ctx);
-                return EXIT_FAILURE;
-            }
-
+            ret = imageOutput(p, ctx->mem, ctx->threads);
             break;
         case LAN_MASTER:
-            if (imageOutputMaster(parameters, &lan, ctx->mem))
-            {
-                freePlotCTX(parameters);
-                freeProgramCTX(ctx);
-                return EXIT_FAILURE;
-            }
-
+            ret = imageOutputMaster(p, network, ctx->mem);
             break;
         case LAN_SLAVE:
-            if (imageRowOutput(parameters, &lan, ctx->threads))
-            {
-                freePlotCTX(parameters);
-                freeProgramCTX(ctx);
-                return EXIT_FAILURE;
-            }
-
+            ret = imageRowOutput(p, network, ctx->threads);
             break;
         default:
-            freePlotCTX(parameters);
-            freeProgramCTX(ctx);
-            return EXIT_FAILURE;
+            ret = 1;
+            break;
     }
 
     freeProgramCTX(ctx);
 
-    /* Close file */
-    if (closeImage(parameters))
+    if (ret)
     {
-        freePlotCTX(parameters);
+        freePlotCTX(p);
+        closeLog();
         return EXIT_FAILURE;
     }
 
-    freePlotCTX(parameters);
+    /* Close file */
+    if (closeImage(p))
+    {
+        freePlotCTX(p);
+        closeLog();
+        return EXIT_FAILURE;
+    }
+
+    freePlotCTX(p);
 
     /* Close log file */
     if (closeLog())
@@ -245,29 +167,8 @@ int main(int argc, char **argv)
 }
 
 
-ProgramCTX * initialiseProgramCTX(void)
-{
-    ProgramCTX *ctx = malloc(sizeof(ProgramCTX));
-
-    if (!ctx)
-        return NULL;
-
-    strncpy(ctx->logFilepath, LOG_FILEPATH_DEFAULT, sizeof(ctx->logFilepath));
-    ctx->logFilepath[sizeof(ctx->logFilepath) - 1] = '\0';
-
-    return ctx;
-}
-
-
-void freeProgramCTX(ProgramCTX *ctx)
-{
-    if (ctx)
-        free(ctx);
-}
-
-
 /* Initialise logging library */
-void initialiseLog(void)
+static void initialiseLog(void)
 {
     setLogLevel(LOG_LEVEL_DEFAULT);
     setLogVerbosity(true);
@@ -276,708 +177,8 @@ void initialiseLog(void)
 }
 
 
-int processOptions(PlotCTX **p, ProgramCTX **ctx, LANCTX *lan, char *filepath, int argc, char **argv)
-{
-    #ifdef MP_PREC
-    const char *GETOPT_STRING = ":Ac:g:G:i:j:l:m:M:o:r:s:tT:vx:Xz:"; /* TODO: Add double colon after A and k? */
-    #else
-    const char *GETOPT_STRING = ":c:g:Gi:j:l:m:M:o:p:r:s:tT:vx:Xz:"; /* TODO: Add double colon after A and k? */
-    #endif
-
-    const struct option LONG_OPTIONS[] =
-    {
-        #ifdef MP_PREC
-        {"multiple", optional_argument, NULL, 'A'},  /* Use multiple precision */
-        #endif
-
-        {"colour", required_argument, NULL, 'c'},     /* Colour scheme of PPM image */
-        {"slave", required_argument, NULL, 'g'},      /* Initialise as a slave for LAN collaboration */
-        {"master", no_argument, NULL, 'G'},           /* Initialise as a master for LAN collaboration */
-        {"iterations", required_argument, NULL, 'i'}, /* Maximum iteration count of function */
-        {"julia", required_argument, NULL, 'j'},      /* Plot a Julia set and specify constant */
-        {"log", optional_argument, NULL, 'k'},        /* Output log to file (with optional path) */
-        {"log-level", required_argument, NULL, 'l'},  /* Minimum log level to output */
-        {"min", required_argument, NULL, 'm'},        /* Minimum/maximum X and Y coordinates */
-        {"max", required_argument, NULL, 'M'},
-        {"o", required_argument, NULL, 'o'},          /* Output image file name */
-        {"p", required_argument, NULL, 'p'},          /* Port number */
-        {"width", required_argument, NULL, 'r'},      /* X and Y dimensions of plot */
-        {"height", required_argument, NULL, 's'},
-        {"t", no_argument, NULL, 't'},                /* Output plot to stdout */
-        {"threads", required_argument, NULL, 'T'},    /* Specify thread count */
-        {"verbose", no_argument, NULL, 'v'},          /* Output log to stderr */
-        {"centre", required_argument, NULL, 'x'},     /* Centre coordinate of plot */
-        {"extended", no_argument, NULL, 'X'},         /* Use extended precision */
-        {"memory", required_argument, NULL, 'z'},     /* Maximum memory usage in MB */
-        {"help", no_argument, NULL, 'h'},
-        {0, 0, 0, 0}
-    };
-
-    PlotType plot;
-    OutputType output;
-
-    /* Image file path */
-    char tmpfilepath[FILEPATH_LEN_MAX] = OUTPUT_FILEPATH_DEFAULT;
-
-    *ctx = initialiseProgramCTX();
-
-    if (!(*ctx))
-    {
-        getoptErrorMessage(OPT_ERROR, 0, NULL);
-        return 1;
-    }
-
-    switch (parseCommonOptions(*ctx, argc, argv, LONG_OPTIONS, GETOPT_STRING))
-    {
-        case 0:
-            break;
-        case 1:
-            freeProgramCTX(*ctx);
-            return 0;
-        default:
-            freeProgramCTX(*ctx);
-            return 1;
-    }
-
-    if (getLANStatus(lan, argc, argv, LONG_OPTIONS, GETOPT_STRING))
-    {
-        freeProgramCTX(*ctx);
-        return 1;
-    }
-
-    if (getPrecision(argc, argv, LONG_OPTIONS, GETOPT_STRING))
-    {
-        freeProgramCTX(*ctx);
-        return 1;
-    }
-
-    plot = getPlotType(argc, argv, LONG_OPTIONS, GETOPT_STRING);
-    output = getOutputType(argc, argv, LONG_OPTIONS, GETOPT_STRING);
-
-    if (output == OUTPUT_NONE)
-    {
-        freeProgramCTX(*ctx);
-        return 1;
-    }
-
-    *p = createPlotCTX(plot, output);
-
-    if (!(*p))
-    {
-        freeProgramCTX(*ctx);
-        getoptErrorMessage(OPT_ERROR, 0, NULL);
-        return 1;
-    }
-
-    switch (lan->mode)
-    {
-        case LAN_NONE:
-            if (getStandaloneParameters(*p, tmpfilepath, sizeof(tmpfilepath), argc, argv, LONG_OPTIONS, GETOPT_STRING))
-            {
-                freeProgramCTX(*ctx);
-                freePlotCTX(*p);
-                return 1;
-            }
-            break;
-        case LAN_MASTER:
-            if (getMasterParameters(*p, tmpfilepath, sizeof(tmpfilepath), argc, argv, LONG_OPTIONS, GETOPT_STRING))
-            {
-                freeProgramCTX(*ctx);
-                freePlotCTX(*p);
-                return 1;
-            }
-            break;
-        case LAN_SLAVE:
-            break;
-        default:
-            freeProgramCTX(*ctx);
-            freePlotCTX(*p);
-            getoptErrorMessage(OPT_ERROR, 0, NULL);
-            return 1;
-    }
-
-    strncpy(filepath, tmpfilepath, FILEPATH_LEN_MAX);
-    filepath[FILEPATH_LEN_MAX - 1] = '\0';
-
-    /* Check and warn against some parameters */
-    if (validateParameters(*p))
-    {
-        freeProgramCTX(*ctx);
-        freePlotCTX(*p);
-        getoptErrorMessage(OPT_NONE, 0, NULL);
-        return 1;
-    }
-
-    return 0;
-}
-
-
-/* Parse options common to every mode of operation */
-int parseCommonOptions(ProgramCTX *ctx, int argc, char **argv, const struct option opts[], const char *optstr)
-{
-    bool vFlag = false;
-
-    while ((opt = getopt_long(argc, argv, optstr, opts, NULL)) != -1)
-    {
-        char *endptr;
-        unsigned long tempUL;
-        ParseErr argError = PARSE_SUCCESS;
-
-        switch (opt)
-        {
-            case 'k':
-                if (!vFlag)
-                    setLogVerbosity(false);
-
-                if (optarg)
-                {
-                    strncpy(ctx->logFilepath, optarg, sizeof(ctx->logFilepath));
-                    ctx->logFilepath[sizeof(ctx->logFilepath) - 1] = '\0';
-                }
-
-                if (openLog(ctx->logFilepath))
-                {
-                    fprintf(stderr, "%s: -%c: Failed to open log file\n", programName, opt);
-                    argError = PARSE_ERANGE;
-                }
-
-                break;
-            case 'l':
-                argError = uLongArg(&tempUL, optarg, LOG_LEVEL_MIN, LOG_LEVEL_MAX);
-                setLogLevel((LogLevel) tempUL);
-                break;
-            case 'T':
-                argError = uLongArg(&tempUL, optarg, THREAD_COUNT_MIN, THREAD_COUNT_MAX);
-                ctx->threads = (unsigned int) tempUL;
-                break;
-            case 'v':
-                vFlag = true;
-                setLogVerbosity(true);
-                break;
-            case 'z':
-                argError = stringToMemory(&ctx->mem, optarg, MEMORY_MIN, MEMORY_MAX, &endptr, MEM_MB);
-
-                if (argError == PARSE_ERANGE || argError == PARSE_EMIN || argError == PARSE_EMAX)
-                {
-                    fprintf(stderr, "%s: -%c: Argument out of range, it must be between %zu B and %zu B\n",
-                            programName, opt, MEMORY_MIN, MEMORY_MAX);
-                    argError = PARSE_ERANGE;
-                }
-
-                break;
-            case 'h':
-                usage();
-                return 1;
-            case '?':
-                getoptErrorMessage(OPT_EOPT, optopt, argv[optind - 1]);
-                return -1;
-            case ':':
-                getoptErrorMessage(OPT_ENOARG, optopt, NULL);
-                return -1;
-            default:
-                break;
-        }
-
-        if (argError == PARSE_ERANGE) /* Error message already outputted */
-        {
-            getoptErrorMessage(OPT_NONE, 0, NULL);
-            return -1;
-        }
-        else if (argError != PARSE_SUCCESS) /* Error but no error message, yet */
-        {
-            getoptErrorMessage(OPT_EARG, opt, NULL);
-            return -1;
-        }
-    }
-
-    optind = 1;
-
-    return 0;
-}
-
-
-/* Determine if system is a master/slave or stand-alone */
-int getLANStatus(LANCTX *lan, int argc, char **argv, const struct option opts[], const char *optstr)
-{
-    const uint16_t PORT_DEFAULT = 7939;
-
-    char ipAddress[IP_ADDR_STR_LEN_MAX];
-    uint16_t port = PORT_DEFAULT;
-
-    lan->mode = LAN_NONE;
-
-    while ((opt = getopt_long(argc, argv, optstr, opts, NULL)) != -1)
-    {
-        switch (opt)
-        {
-            unsigned long tempUL;
-            ParseErr argError;
-
-            case 'g':
-                if (lan->mode != LAN_NONE)
-                {
-                    fprintf(stderr, "%s: -%c: Option mutually exclusive with -%c\n", programName, opt, 'G');
-                    getoptErrorMessage(OPT_NONE, 0, NULL);
-                    return 1;
-                }
-
-                if (validateIPAddress(optarg))
-                {
-                    getoptErrorMessage(OPT_EARG, opt, NULL);
-                    return 1;
-                }
-
-                strncpy(ipAddress, optarg, sizeof(ipAddress));
-                ipAddress[sizeof(ipAddress) - 1] = '\0';
-
-                if (inet_pton(AF_INET, ipAddress, &lan->addr.sin_addr) != 1)
-                {
-                    getoptErrorMessage(OPT_ERROR, 0, NULL);
-		            return 1;
-                }
-
-                lan->mode = LAN_SLAVE;
-                break;
-            case 'G':
-                if (lan->mode != LAN_NONE)
-                {
-                    fprintf(stderr, "%s: -%c: Option mutually exclusive with -%c\n", programName, opt, 'g');
-                    getoptErrorMessage(OPT_NONE, 0, NULL);
-                    return 1;
-                }
-
-                lan->addr.sin_addr.s_addr = htonl(INADDR_ANY);
-                lan->mode = LAN_MASTER;
-                break;
-            case 'p':
-                argError = uLongArg(&tempUL, optarg, PORT_MIN, PORT_MAX);
-                port = (uint16_t) tempUL;
-    
-                if (argError == PARSE_ERANGE) /* Error message already outputted */
-                {
-                    getoptErrorMessage(OPT_NONE, 0, NULL);
-                    return -1;
-                }
-                else if (argError != PARSE_SUCCESS) /* Error but no error message, yet */
-                {
-                    getoptErrorMessage(OPT_EARG, opt, NULL);
-                    return -1;
-                }
-
-                break;
-            default:
-                break;
-        }
-    }
-
-    optind = 1;
-
-    lan->addr.sin_family = AF_INET;
-    lan->addr.sin_port = htons(port);
-
-    return 0;
-}
-
-
-int getStandaloneParameters(PlotCTX *p, char *filepath, size_t n, int argc, char **argv, const struct option opts[], const char *optstr)
-{
-    if (getContinuousParameters(p, argc, argv, opts, optstr))
-        return 1;
-
-    if (getDiscreteParameters(p, filepath, n, argc, argv, opts, optstr))
-        return 1;
-
-    return 0;
-}
-
-
-/* Set listening port and maximum number of slaves, along with image settings */
-int getMasterParameters(PlotCTX *p, char *filepath, size_t n, int argc, char **argv, const struct option opts[], const char *optstr)
-{
-    getStandaloneParameters(p, filepath, n, argc, argv, opts, optstr);
-
-    return 0;
-}
-
-
-/* Get parameters that are independent of the precision mode */
-int getDiscreteParameters(PlotCTX *p, char *filepath, size_t n, int argc, char **argv, const struct option opts[],
-                          const char *optstr)
-{
-    while ((opt = getopt_long(argc, argv, optstr, opts, NULL)) != -1)
-    {
-        /* Temporary parsing variable for memory safety with uLongArg() */
-        unsigned long tempUL;
-        ParseErr argError = PARSE_SUCCESS;
-
-        switch (opt)
-        {
-            case 'c':
-                /* No enum value is negative or extends beyond ULONG_MAX (defined in colour.h) */
-                argError = uLongArg(&tempUL, optarg, 0UL, ULONG_MAX);
-                p->colour.scheme = tempUL;
-
-                /* Will return 1 if enum value of out range */
-                if (initialiseColourScheme(&p->colour, p->colour.scheme))
-                {
-                    argError = PARSE_ERANGE;
-                    fprintf(stderr, "%s: -%c: Invalid colour scheme\n", programName, opt);
-                }
-    
-                break;
-            case 'i':
-                argError = uLongArg(&p->iterations, optarg, ITERATIONS_MIN, ITERATIONS_MAX);
-                break;
-            case 'o':
-                strncpy(filepath, optarg, n);
-                filepath[n - 1] = '\0';
-                break;
-            case 'r':
-                argError = uIntMaxArg(&p->width, optarg, WIDTH_MIN, WIDTH_MAX);
-                break;
-            case 's':
-                argError = uIntMaxArg(&p->height, optarg, HEIGHT_MIN, HEIGHT_MAX);
-                break;
-            default:
-                break;
-        }
-
-        if (argError == PARSE_ERANGE) /* Error message already outputted */
-        {
-            getoptErrorMessage(OPT_NONE, 0, NULL);
-            return 1;
-        }
-        else if (argError != PARSE_SUCCESS) /* Error but no error message, yet */
-        {
-            getoptErrorMessage(OPT_EARG, opt, NULL);
-            return 1;
-        }
-    }
-
-    optind = 1;
-
-    return 0;
-}
-
-
-/* Get parameters that are dependent on the precision mode */
-int getContinuousParameters(PlotCTX *p, int argc, char **argv, const struct option opts[], const char *optstr)
-{
-    /* Parse options */
-    #ifdef MP_PREC
-    initialiseArgRangesMP();
-    #endif
-
-    if (getMagnification(p, argc, argv, opts, optstr))
-        return 1;
-
-    while ((opt = getopt_long(argc, argv, optstr, opts, NULL)) != -1)
-    {
-        ParseErr argError = PARSE_SUCCESS;
-
-        switch (opt)
-        {
-            case 'j':
-                switch (precision)
-                {
-                    case STD_PRECISION:
-                        argError = complexArg(&(p->c.c), optarg, C_MIN, C_MAX);
-                        break;
-                    case EXT_PRECISION:
-                        argError = complexArgExt(&(p->c.lc), optarg, C_MIN_EXT, C_MAX_EXT);
-                        break;
-                    
-                    #ifdef MP_PREC
-                    case MUL_PRECISION:
-                        argError = complexArgMP(p->c.mpc, optarg, C_MIN_MP, C_MAX_MP);
-                        break;
-                    #endif
-
-                    default:
-                        argError = PARSE_EERR;
-                        break;
-                }
-
-                break;
-            case 'm':
-                switch (precision)
-                {
-                    case STD_PRECISION:
-                        argError = complexArg(&(p->minimum.c), optarg, COMPLEX_MIN, COMPLEX_MAX);
-                        break;
-                    case EXT_PRECISION:
-                        argError = complexArgExt(&(p->minimum.lc), optarg, COMPLEX_MIN_EXT, COMPLEX_MAX_EXT);
-                        break;
-
-                    #ifdef MP_PREC
-                    case MUL_PRECISION:
-                        argError = complexArgMP(p->minimum.mpc, optarg, NULL, NULL);
-                        break;
-                    #endif
-
-                    default:
-                        argError = PARSE_EERR;
-                        break;
-                }
-
-                break;
-            case 'M':
-                switch (precision)
-                {
-                    case STD_PRECISION:
-                        argError = complexArg(&(p->maximum.c), optarg, COMPLEX_MIN, COMPLEX_MAX);
-                        break;
-                    case EXT_PRECISION:
-                        argError = complexArgExt(&(p->maximum.lc), optarg, COMPLEX_MIN_EXT, COMPLEX_MAX_EXT);
-                        break;
-                    
-                    #ifdef MP_PREC
-                    case MUL_PRECISION:
-                        argError = complexArgMP(p->maximum.mpc, optarg, NULL, NULL);
-                        break;
-                    #endif
-
-                    default:
-                        argError = PARSE_EERR;
-                        break;
-                }
-
-                break;
-            default:
-                break;
-            
-            if (argError == PARSE_ERANGE) /* Error message already outputted */
-            {
-                getoptErrorMessage(OPT_NONE, 0, NULL);
-
-                #ifdef MP_PREC
-                freeArgRangesMP();
-                #endif
-
-                return 1;
-            }
-            else if (argError != PARSE_SUCCESS) /* Error but no error message, yet */
-            {
-                getoptErrorMessage(OPT_EARG, opt, NULL);
-
-                #ifdef MP_PREC
-                freeArgRangesMP();
-                #endif
-
-                return 1;
-            }
-        }
-    }
-
-    optind = 1;
-
-    #ifdef MP_PREC
-    freeArgRangesMP();
-    #endif
-
-    return 0;
-}
-
-
-/* Do one getopt pass to set the precision (default is standard precision) */
-int getPrecision(int argc, char **argv, const struct option opts[], const char *optstr)
-{
-    #ifdef MP_PREC
-    bool xFlag = false, aFlag = false;
-    #endif
-
-    precision = STD_PRECISION;
-
-    while ((opt = getopt_long(argc, argv, optstr, opts, NULL)) != -1)
-    {
-        #ifdef MP_PREC
-        ParseErr argError = PARSE_SUCCESS;
-        unsigned long tempUL;
-        #endif
-
-        switch (opt)
-        {
-            case 'X':
-
-                #ifdef MP_PREC
-                if (aFlag)
-                {
-                    fprintf(stderr, "%s: -%c: Option mutually exclusive with -%c\n", programName, opt, 'A');
-                    getoptErrorMessage(OPT_NONE, 0, NULL);
-                    return 1;
-                }
-
-                xFlag = true;
-                #endif
-
-                precision = EXT_PRECISION;
-                break;
-
-            #ifdef MP_PREC
-            case 'A':
-                if (xFlag)
-                {
-                    fprintf(stderr, "%s: -%c: Option mutually exclusive with -%c\n", programName, opt, 'X');
-                    getoptErrorMessage(OPT_NONE, 0, NULL);
-                    return 1;
-                }
-
-                aFlag = true;
-                precision = MUL_PRECISION;
-                mpSignificandSize = MP_BITS_DEFAULT;
-
-                if (optarg)
-                {
-                    argError = uLongArg(&tempUL, optarg, (unsigned long) MP_BITS_MIN, (unsigned long) MP_BITS_MAX);
-
-                    if (argError != PARSE_SUCCESS)
-                    {
-                        break;
-                    }
-                    else if (tempUL < MPFR_PREC_MIN || tempUL > MPFR_PREC_MAX)
-                    {
-                        mpfr_fprintf(stderr, "%s: -%c: Argument out of range, it must be between %Pu and %Pu\n",
-                            programName, opt, MPFR_PREC_MIN, MPFR_PREC_MAX);
-                        argError = PARSE_ERANGE;
-                        break;
-                    }
-
-                    mpSignificandSize = (mpfr_prec_t) tempUL;
-                }
-
-                break;
-            #endif
-
-            default:
-                break;
-        }
-
-        #ifdef MP_PREC
-        if (argError == PARSE_ERANGE) /* Error message already outputted */
-        {
-            getoptErrorMessage(OPT_NONE, 0, NULL);
-            return 1;
-        }
-        else if (argError != PARSE_SUCCESS) /* Error but no error message, yet */
-        {
-            getoptErrorMessage(OPT_EARG, opt, NULL);
-            return 1;
-        }
-        #endif
-    }
-
-    /* Reset the global optind variable */
-    optind = 1;
-
-    return 0;
-}
-
-
-/* Do one getopt pass to get the plot type */
-PlotType getPlotType(int argc, char **argv, const struct option opts[], const char *optstr)
-{
-    PlotType plot = PLOT_MANDELBROT;
-
-    while ((opt = getopt_long(argc, argv, optstr, opts, NULL)) != -1)
-    {
-        if (opt == 'j')
-            plot = PLOT_JULIA;
-    }
-
-    /* Reset the global optind variable */
-    optind = 1;
-
-    return plot;
-}
-
-
-/* Do one getopt pass to get the plot type (default is Mandelbrot) */
-OutputType getOutputType(int argc, char **argv, const struct option opts[], const char *optstr)
-{
-    OutputType output = OUTPUT_PNM;
-    bool oFlag = false, tFlag = false;
-
-    while ((opt = getopt_long(argc, argv, optstr, opts, NULL)) != -1)
-    {
-        if (opt == 'o')
-        {
-            if (tFlag)
-            {
-                fprintf(stderr, "%s: -%c: Option mutually exclusive with -%c\n", programName, opt, 't');
-                getoptErrorMessage(OPT_NONE, 0, NULL);
-                return OUTPUT_NONE;
-            }
-
-            oFlag = true;
-        }
-        else if (opt == 't')
-        {
-            if (oFlag)
-            {
-                fprintf(stderr, "%s: -%c: Option mutually exclusive with -%c\n", programName, opt, 'o');
-                getoptErrorMessage(OPT_NONE, 0, NULL);
-                return OUTPUT_NONE;
-            }
-
-            tFlag = true;
-            output = OUTPUT_TERMINAL;
-        }
-    }
-
-    /* Reset the global optind variable */
-    optind = 1;
-
-    return output;
-}
-
-
-/* Do one getopt pass to set the image centre and magnification amount */
-int getMagnification(PlotCTX *p, int argc, char **argv, const struct option opts[], const char *optstr)
-{
-    while ((opt = getopt_long(argc, argv, optstr, opts, NULL)) != -1)
-    {
-        if (opt == 'x')
-        {
-            ParseErr argError = PARSE_EERR;
-
-            if (precision == STD_PRECISION)
-            {
-                argError = magArg(p, optarg, COMPLEX_MIN, COMPLEX_MAX, MAGNIFICATION_MIN, MAGNIFICATION_MAX);
-            }
-            else if (precision == EXT_PRECISION)
-            {
-                argError = magArgExt(p, optarg, COMPLEX_MIN_EXT, COMPLEX_MAX_EXT, MAGNIFICATION_MIN, MAGNIFICATION_MAX);
-            }
-
-            #ifdef MP_PREC
-            else if (precision == MUL_PRECISION)
-            {
-                argError = magArgMP(p, optarg, NULL, NULL, MAGNIFICATION_MIN_EXT, MAGNIFICATION_MAX_EXT);
-            }
-            #endif
-
-            if (argError == PARSE_ERANGE) /* Error message already outputted */
-            {
-                getoptErrorMessage(OPT_NONE, 0, NULL);
-                return 1;
-            }
-            else if (argError != PARSE_SUCCESS) /* Error but no error message, yet */
-            {
-                getoptErrorMessage(OPT_EARG, opt, NULL);
-                return 1;
-            }
-        }
-    }
-
-    /* Reset the global optind variable */
-    optind = 1;
-
-    return 0;
-}
-
-
 /* `--help` output */
-int usage(void)
+static int usage(void)
 {
     char colourScheme[COLOUR_STR_LEN_MAX];
     char logLevel[LOG_LEVEL_STR_LEN_MAX];
@@ -1005,7 +206,7 @@ int usage(void)
     printf("                                  Black and white schemes are 1-bit\n");
     printf("                                  Greyscale schemes are 8-bit\n");
     printf("                                  Coloured schemes are full 24-bit\n\n");
-    printf("  -o FILE                       Output file name (default = \'%s\')\n", OUTPUT_FILEPATH_DEFAULT);
+    printf("  -o FILE                       Output file name (default = \'%s\')\n", PLOT_FILEPATH_DEFAULT);
     printf("  -r WIDTH,  --width=WIDTH      The width of the image file in pixels\n");
     printf("                                  If using a 1-bit colour scheme, WIDTH must be a multiple of %u to allow "
                                              "for\n"
@@ -1099,7 +300,7 @@ int usage(void)
 }
 
 /* Print program parameters to log */
-void programParameters(const char *log)
+static void programParameters(const ProgramCTX *ctx)
 {
     char level[LOG_LEVEL_STR_LEN_MAX];
     char timeFormat[LOG_TIME_FORMAT_STR_LEN_MAX];
@@ -1123,15 +324,13 @@ void programParameters(const char *log)
                       "    Time format = %s",
                (getLogVerbosity()) ? "VERBOSE" : "QUIET",
                level,
-               (log) ? log : "None",
+               (ctx->logToFile) ? ctx->logFilepath : "-",
                timeFormat);
-
-    return;
 }
 
 
 /* Print plot parameters to log */
-void plotParameters(PlotCTX *p, const char *fp)
+static void plotParameters(const ProgramCTX *ctx, const PlotCTX *p)
 {
     char outputStr[OUTPUT_STR_LEN_MAX];
     char colourStr[COLOUR_STR_LEN_MAX];
@@ -1265,7 +464,7 @@ void plotParameters(PlotCTX *p, const char *fp)
                      "    Dimensions  = %zu px * %zu px\n"
                      "    Colour      = %s %s",
                outputStr,
-               (!fp) ? "-" : fp,
+               (p->output == OUTPUT_PNM) ? ctx->plotFilepath : "-",
                p->width,
                p->height,
                colourStr,
@@ -1284,445 +483,11 @@ void plotParameters(PlotCTX *p, const char *fp)
                cStr,
                p->iterations,
                precisionStr);
-
-    return;
-}
-
-
-/* Wrapper for stringToULong() */
-ParseErr uLongArg(unsigned long *x, char *arg, unsigned long min, unsigned long max)
-{
-    const int BASE = 10;
-
-    char *endptr;
-    ParseErr argError = stringToULong(x, arg, min, max, &endptr, BASE);
-
-    if (argError == PARSE_ERANGE || argError == PARSE_EMIN || argError == PARSE_EMAX)
-    {
-        fprintf(stderr, "%s: -%c: Argument out of range, it must be between %lu and %lu\n", 
-            programName, opt, min, max);
-        return PARSE_ERANGE;
-    }
-    else if (argError != PARSE_SUCCESS)
-    {
-        return PARSE_EERR;
-    }
-
-    return PARSE_SUCCESS;
-}
-
-
-/* Wrapper for stringToUIntMax() */
-ParseErr uIntMaxArg(uintmax_t *x, char *arg, uintmax_t min, uintmax_t max)
-{
-    const int BASE = 10;
-
-    char *endptr;
-    ParseErr argError = stringToUIntMax(x, arg, min, max, &endptr, BASE);
-
-    if (argError == PARSE_ERANGE || argError == PARSE_EMIN || argError == PARSE_EMAX)
-    {
-        fprintf(stderr, "%s: -%c: Argument out of range, it must be between %" PRIuMAX " and %" PRIuMAX "\n", 
-            programName, opt, min, max);
-        return PARSE_ERANGE;
-    }
-    else if (argError != PARSE_SUCCESS)
-    {
-        return PARSE_EERR;
-    }
-
-    return PARSE_SUCCESS;
-}
-
-
-/* Wrapper for stringToDouble() */
-ParseErr floatArg(double *x, char *arg, double min, double max)
-{
-    char *endptr;
-    ParseErr argError = stringToDouble(x, arg, min, max, &endptr);
-
-    if (argError == PARSE_ERANGE || argError == PARSE_EMIN || argError == PARSE_EMAX)
-    {
-        fprintf(stderr, "%s: -%c: Argument out of range, it must be between %.*g and %.*g\n", 
-            programName, opt, FLT_PRINTF_PREC, min, FLT_PRINTF_PREC, max);
-        return PARSE_ERANGE;
-    }
-    else if (argError != PARSE_SUCCESS)
-    {
-        return PARSE_EERR;
-    }
-
-    return PARSE_SUCCESS;
-}
-
-
-/* Wrapper for stringToDoubleL() */
-ParseErr floatArgExt(long double *x, char *arg, long double min, long double max)
-{
-    char *endptr;
-    ParseErr argError = stringToDoubleL(x, arg, min, max, &endptr);
-
-    if (argError == PARSE_ERANGE || argError == PARSE_EMIN || argError == PARSE_EMAX)
-    {
-        fprintf(stderr, "%s: -%c: Argument out of range, it must be between %.*Lg and %.*Lg\n", 
-            programName, opt, FLT_PRINTF_PREC, min, FLT_PRINTF_PREC, max);
-        return PARSE_ERANGE;
-    }
-    else if (argError != PARSE_SUCCESS)
-    {
-        return PARSE_EERR;
-    }
-
-    return PARSE_SUCCESS;
-}
-
-
-/* Wrapper for stringToComplex() */
-ParseErr complexArg(complex *z, char *arg, complex min, complex max)
-{
-    char *endptr;
-    ParseErr argError = stringToComplex(z, arg, min, max, &endptr);
-
-    if (argError == PARSE_ERANGE || argError == PARSE_EMIN || argError == PARSE_EMAX)
-    {
-        fprintf(stderr, "%s: -%c: Argument out of range, it must be between %.*g + %.*gi and %.*g + %.*gi\n", 
-            programName, opt, FLT_PRINTF_PREC, creal(min), FLT_PRINTF_PREC, cimag(min),
-            FLT_PRINTF_PREC, creal(max), FLT_PRINTF_PREC, cimag(max));
-        return PARSE_ERANGE;
-    }
-    else if (argError != PARSE_SUCCESS)
-    {
-        return PARSE_EERR;
-    }
-
-    return PARSE_SUCCESS;
-}
-
-
-/* Wrapper for stringToComplexL() */
-ParseErr complexArgExt(long double complex *z, char *arg, long double complex min, long double complex max)
-{
-    char *endptr;
-    ParseErr argError = stringToComplexL(z, arg, min, max, &endptr);
-
-    if (argError == PARSE_ERANGE || argError == PARSE_EMIN || argError == PARSE_EMAX)
-    {
-        fprintf(stderr, "%s: -%c: Argument out of range, it must be between %.*Lg + %.*Lgi and %.*Lg + %.*Lgi\n", 
-            programName, opt, FLT_PRINTF_PREC, creall(min), FLT_PRINTF_PREC, cimagl(min),
-            FLT_PRINTF_PREC, creall(max), FLT_PRINTF_PREC, cimagl(max));
-        return PARSE_ERANGE;
-    }
-    else if (argError != PARSE_SUCCESS)
-    {
-        return PARSE_EERR;
-    }
-
-    return PARSE_SUCCESS;
-}
-
-
-#ifdef MP_PREC
-/* Wrapper for stringToComplexMPC() */
-ParseErr complexArgMP(mpc_t z, char *arg, mpc_t min, mpc_t max)
-{
-    const int BASE = 0;
-
-    char *endptr;
-    ParseErr argError = stringToComplexMPC(z, arg, min, max, &endptr, BASE, mpSignificandSize, MP_COMPLEX_RND);
-
-    if (argError == PARSE_ERANGE || argError == PARSE_EMIN || argError == PARSE_EMAX)
-    {
-        mpfr_fprintf(stderr, "%s: -%c: Argument out of range, it must be between %.*Rg + %.*Rgi and %.*Rg + %.*Rgi",
-                     programName, opt,
-                     FLT_PRINTF_PREC, mpc_realref(min), FLT_PRINTF_PREC, mpc_imagref(min),
-                     FLT_PRINTF_PREC, mpc_realref(max), FLT_PRINTF_PREC, mpc_imagref(max));
-        return PARSE_ERANGE;
-    }
-    else if (argError != PARSE_SUCCESS)
-    {
-        return PARSE_EERR;
-    }
-
-    return PARSE_SUCCESS;
-}
-#endif
-
-
-ParseErr magArg(PlotCTX *p, char *arg, complex cMin, complex cMax, double mMin, double mMax)
-{
-    complex rangeDefault, imageCentre;
-    double magnification;
-
-    char *endptr;
-    ParseErr argError = stringToComplex(&imageCentre, arg, cMin, cMax, &endptr);
-
-    if (argError == PARSE_SUCCESS)
-    {
-        /* Magnification not explicitly mentioned - default to 1.0 */
-        magnification = 1.0;
-    }
-    else if (argError == PARSE_EEND)
-    {
-        /* Check for comma separator */
-        while (isspace(*endptr))
-            ++endptr;
-
-        if (*endptr != ',')
-            return PARSE_EFORM;
-
-        ++endptr;
-
-        /* Get magnification argument */
-        argError = floatArg(&magnification, endptr, mMin, mMax);
-
-        if (argError == PARSE_ERANGE || argError == PARSE_EMIN || argError == PARSE_EMAX)
-        {
-            fprintf(stderr, "%s: -%c: Magnification out of range, it must be between %.*g and %.*g\n", 
-                programName, opt, FLT_PRINTF_PREC, mMin, FLT_PRINTF_PREC, mMax);
-            return PARSE_ERANGE;
-        }
-        else if (argError != PARSE_SUCCESS)
-        {
-            return PARSE_EERR;
-        }
-    }
-    else if (argError == PARSE_ERANGE || argError == PARSE_EMIN || argError == PARSE_EMAX)
-    {
-        fprintf(stderr, "%s: -%c: Argument out of range, it must be between %.*g + %.*gi and %.*g + %.*gi\n", 
-            programName, opt, FLT_PRINTF_PREC, creal(cMin), FLT_PRINTF_PREC, cimag(cMin),
-            FLT_PRINTF_PREC, creal(cMax), FLT_PRINTF_PREC, cimag(cMax));
-        return PARSE_ERANGE;
-    }
-    else
-    {
-        return PARSE_EFORM;
-    }
-
-    /* Convert centrepoint and magnification to range */
-    switch (p->type)
-    {
-        case PLOT_MANDELBROT:
-            rangeDefault = MANDELBROT_PARAMETERS_DEFAULT.maximum.c - MANDELBROT_PARAMETERS_DEFAULT.minimum.c;
-            break;
-        case PLOT_JULIA:
-            rangeDefault = JULIA_PARAMETERS_DEFAULT.maximum.c - JULIA_PARAMETERS_DEFAULT.minimum.c;
-            break;
-        default:
-            return PARSE_EERR;
-    }
-
-    p->minimum.c = imageCentre - 0.5 * rangeDefault * pow(0.9, magnification - 1.0);
-    p->maximum.c = imageCentre + 0.5 * rangeDefault * pow(0.9, magnification - 1.0);
-
-    return PARSE_SUCCESS;
-}
-
-
-ParseErr magArgExt(PlotCTX *p, char *arg, long double complex cMin, long double complex cMax, double mMin, double mMax)
-{
-    long double complex rangeDefault, imageCentre;
-    double magnification;
-
-    char *endptr;
-    ParseErr argError = stringToComplexL(&imageCentre, arg, cMin, cMax, &endptr);
-
-    if (argError == PARSE_SUCCESS)
-    {
-        /* Magnification not explicitly mentioned - default to 1 */
-        magnification = 1.0;
-    }
-    else if (argError == PARSE_EEND)
-    {
-        /* Check for comma separator */
-        while (isspace(*endptr))
-            ++endptr;
-
-        if (*endptr != ',')
-            return PARSE_EFORM;
-
-        ++endptr;
-
-        /* Get magnification argument */
-        argError = floatArg(&magnification, endptr, mMin, mMax);
-
-        if (argError == PARSE_ERANGE || argError == PARSE_EMIN || argError == PARSE_EMAX)
-        {
-            fprintf(stderr, "%s: -%c: Magnification out of range, it must be between %.*g and %.*g\n", 
-                programName, opt, FLT_PRINTF_PREC, mMin, FLT_PRINTF_PREC, mMax);
-            return PARSE_ERANGE;
-        }
-        else if (argError != PARSE_SUCCESS)
-        {
-            return PARSE_EERR;
-        }
-    }
-    else if (argError == PARSE_ERANGE || argError == PARSE_EMIN || argError == PARSE_EMAX)
-    {
-        fprintf(stderr, "%s: -%c: Argument out of range, it must be between %.*Lg + %.*Lgi and %.*Lg + %.*Lgi\n", 
-            programName, opt, FLT_PRINTF_PREC, creall(cMin), FLT_PRINTF_PREC, cimagl(cMin),
-            FLT_PRINTF_PREC, creall(cMax), FLT_PRINTF_PREC, cimagl(cMax));
-        return PARSE_ERANGE;
-    }
-    else
-    {
-        return PARSE_EFORM;
-    }
-
-    /* Convert centrepoint and magnification to range */
-    switch (p->type)
-    {
-        case PLOT_MANDELBROT:
-            rangeDefault = MANDELBROT_PARAMETERS_DEFAULT_EXT.maximum.lc - MANDELBROT_PARAMETERS_DEFAULT_EXT.minimum.lc;
-            break;
-        case PLOT_JULIA:
-            rangeDefault = JULIA_PARAMETERS_DEFAULT_EXT.maximum.lc - JULIA_PARAMETERS_DEFAULT_EXT.minimum.lc;
-            break;
-        default:
-            return PARSE_EERR;
-    }
-
-    p->minimum.lc = imageCentre - 0.5L * rangeDefault * powl(0.9L, magnification - 1.0L);
-    p->maximum.lc = imageCentre + 0.5L * rangeDefault * powl(0.9L, magnification - 1.0L);
-
-    return PARSE_SUCCESS;
-}
-
-
-#ifdef MP_PREC
-ParseErr magArgMP(PlotCTX *p, char *arg, mpc_t cMin, mpc_t cMax, long double mMin, long double mMax)
-{
-    const int BASE = 0;
-
-    mpc_t rangeDefault, imageCentre;
-    long double magnification;
-
-    mpfr_t tmp;
-
-    char *endptr;
-    ParseErr argError;
-    
-    mpc_init2(imageCentre, mpSignificandSize);
-    argError = stringToComplexMPC(imageCentre, arg, cMin, cMax, &endptr, BASE, mpSignificandSize, MP_COMPLEX_RND);
-
-    if (argError == PARSE_SUCCESS)
-    {
-        /* Magnification not explicitly mentioned - default to 1 */
-        magnification = 1.0L;
-    }
-    else if (argError == PARSE_EEND)
-    {
-        /* Check for comma separator */
-        while (isspace(*endptr))
-            ++endptr;
-
-        if (*endptr != ',')
-        {
-            mpc_clear(imageCentre);
-            return PARSE_EFORM;
-        }
-
-        ++endptr;
-
-        /* Get magnification argument */
-        argError = floatArgExt(&magnification, endptr, mMin, mMax);
-
-        if (argError == PARSE_ERANGE || argError == PARSE_EMIN || argError == PARSE_EMAX)
-        {
-            mpc_clear(imageCentre);
-            fprintf(stderr, "%s: -%c: Magnification out of range, it must be between %.*Lg and %.*Lg\n", 
-                programName, opt, FLT_PRINTF_PREC, mMin, FLT_PRINTF_PREC, mMax);
-            return PARSE_ERANGE;
-        }
-        else if (argError != PARSE_SUCCESS)
-        {
-            mpc_clear(imageCentre);
-            return PARSE_EERR;
-        }
-    }
-    else if (argError == PARSE_ERANGE || argError == PARSE_EMIN || argError == PARSE_EMAX)
-    {
-        mpc_clear(imageCentre);
-        mpfr_fprintf(stderr, "%s: -%c: Argument out of range, it must be between %.*Rg + %.*Rgi and %.*Rg + %.*Rgi",
-                     programName, opt,
-                     FLT_PRINTF_PREC, mpc_realref(cMin), FLT_PRINTF_PREC, mpc_imagref(cMin),
-                     FLT_PRINTF_PREC, mpc_realref(cMax), FLT_PRINTF_PREC, mpc_imagref(cMax));
-        return PARSE_ERANGE;
-    }
-    else
-    {
-        mpc_clear(imageCentre);
-        return PARSE_EFORM;
-    }
-
-    mpc_init2(rangeDefault, mpSignificandSize);
-
-    /* Convert centrepoint and magnification to range */
-    switch (p->type)
-    {
-        case PLOT_MANDELBROT:
-            mpc_set_ldc(rangeDefault,
-                MANDELBROT_PARAMETERS_DEFAULT_EXT.maximum.lc - MANDELBROT_PARAMETERS_DEFAULT_EXT.minimum.lc,
-                MP_COMPLEX_RND);
-            /*mpc_sub(rangeDefault, MANDELBROT_PARAMETERS_DEFAULT_EXT.maximum.mpc,
-                MANDELBROT_PARAMETERS_DEFAULT_MP.minimum.mpc, MP_COMPLEX_RND);*/
-            break;
-        case PLOT_JULIA:
-            mpc_sub(rangeDefault, JULIA_PARAMETERS_DEFAULT_MP.maximum.mpc,
-                JULIA_PARAMETERS_DEFAULT_MP.minimum.mpc, MP_COMPLEX_RND);
-            break;
-        default:
-            mpc_clear(imageCentre);
-            mpc_clear(rangeDefault);
-            return PARSE_EERR;
-    }
-
-    mpfr_init2(tmp, mpSignificandSize);
-    mpfr_set_ld(tmp, 0.5L * powl(0.9L, magnification - 1.0L), MP_REAL_RND);
-
-    mpc_mul_fr(rangeDefault, rangeDefault, tmp, MP_COMPLEX_RND);
-
-    mpfr_clear(tmp);
-
-    mpc_sub(p->minimum.mpc, imageCentre, rangeDefault, MP_COMPLEX_RND);
-    mpc_add(p->maximum.mpc, imageCentre, rangeDefault, MP_COMPLEX_RND);
-
-    mpc_clear(imageCentre);
-    mpc_clear(rangeDefault);
-
-    return PARSE_SUCCESS;
-}
-#endif
-
-
-/* Check if dotted quad IP address is valid */
-int validateIPAddress(char *addr)
-{
-    const unsigned long IP_ADDR_BYTE_MIN = 0;
-    const unsigned long IP_ADDR_BYTE_MAX = 255;
-    const char IP_ADDR_BYTE_SEPARATOR = '.';
-
-    char *nptr = addr;
-
-    for (int i = 0; i < 4; ++i)
-    {
-        unsigned long x;
-        char *endptr;
-        
-        ParseErr err = stringToULong(&x, nptr, IP_ADDR_BYTE_MIN, IP_ADDR_BYTE_MAX, &endptr, BASE_DEC);
-
-        if ((i < 3 && (err != PARSE_EEND || *endptr != IP_ADDR_BYTE_SEPARATOR))
-            || (i == 3 && err != PARSE_SUCCESS))
-            return 1;
-
-        nptr = endptr + 1;
-    }
-
-    return 0;
 }
 
 
 /* Check user-supplied parameters */
-int validateParameters(PlotCTX *p)
+static int validateParameters(PlotCTX *p)
 {
     /* Check colour scheme */
     if (p->output != OUTPUT_TERMINAL && p->colour.depth == BIT_DEPTH_ASCII)
@@ -1771,45 +536,4 @@ int validateParameters(PlotCTX *p)
     }
 
     return 0;
-}
-
-
-/* Convert custom getopt error code to message */
-int getoptErrorMessage(OptErr error, char shortOpt, const char *longOpt)
-{
-    switch (error)
-    {
-        case OPT_NONE:
-            break;
-        case OPT_ERROR:
-            fprintf(stderr, "%s: Unknown error when reading command-line options\n", programName);
-            break;
-        case OPT_EOPT:
-            if (shortOpt == '\0' && longOpt != NULL)
-                fprintf(stderr, "%s: Invalid option: \'%s\'\n", programName, longOpt);
-            else if (shortOpt != '\0')
-                fprintf(stderr, "%s: Invalid option: \'-%c\'\n", programName, shortOpt);
-            break;
-        case OPT_ENOARG:
-            fprintf(stderr, "%s: -%c: Option argument required\n", programName, shortOpt);
-            break;
-        case OPT_EARG:
-            fprintf(stderr, "%s: -%c: Failed to parse argument\n", programName, shortOpt);
-            break;
-        case OPT_EMANY:
-            fprintf(stderr, "%s: -%c: Option can only appear once\n", programName, shortOpt);
-            break;
-        case OPT_EARGC_LOW:
-            fprintf(stderr, "%s: Too few arguments supplied\n", programName);
-            break;
-        case OPT_EARGC_HIGH:
-            fprintf(stderr, "%s: Too many arguments supplied\n", programName);
-            break;
-        default:
-            break;
-    }
-
-    fprintf(stderr, "Try \'%s --help\' for more information\n", programName);
-    
-    return EXIT_FAILURE;
 }
