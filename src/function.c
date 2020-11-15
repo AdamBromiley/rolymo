@@ -77,7 +77,7 @@ void * generateFractalRow(void *threadInfo)
 
     char *px = (char *) t->row->array->array + t->tid * nmemb;
 
-    logMessage(INFO, "Thread %u: Generating row plot", t->tid);
+    logMessage(DEBUG, "Thread %u: Generating row plot", t->tid);
 
     /* Number of bits into current byte (if bit depth < CHAR_BIT) */
     int bitOffset;
@@ -119,7 +119,7 @@ void * generateFractalRow(void *threadInfo)
         }
     }
 
-    logMessage(INFO, "Thread %u: Row plot generated - exiting", t->tid);
+    logMessage(DEBUG, "Thread %u: Row plot generated - exiting", t->tid);
     
     pthread_exit(NULL);
 }
