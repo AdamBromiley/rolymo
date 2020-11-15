@@ -22,7 +22,38 @@
 
 #ifdef MP_PREC
 #include <mpfr.h>
+
+
+static const char *GETOPT_STRING = ":A::c:g:G:i:j:l:m:M:o:p:r:s:tT:vx:Xz:"; /* TODO: make -A require argument */
+#else
+static const char *GETOPT_STRING = ":c:g:G:i:j:l:m:M:o:p:r:s:tT:vx:Xz:";
 #endif
+
+static const struct option LONG_OPTIONS[] =
+{
+    #ifdef MP_PREC
+    {"multiple", optional_argument, NULL, 'A'},  /* Use multiple precision */
+    #endif
+
+    {"colour", required_argument, NULL, 'c'},     /* Colour scheme of PPM image */
+    {"slave", required_argument, NULL, 'g'},      /* Initialise as a slave for distributed computation */
+    {"master", required_argument, NULL, 'G'},     /* Initialise as a master for distributed computation */
+    {"iterations", required_argument, NULL, 'i'}, /* Maximum iteration count of function */
+    {"julia", required_argument, NULL, 'j'},      /* Plot a Julia set with specified constant */
+    {"log", optional_argument, NULL, 'k'},        /* Output log to file (with optional path) */
+    {"log-level", required_argument, NULL, 'l'},  /* Minimum log level to output */
+    {"min", required_argument, NULL, 'm'},        /* Range of complex numbers to plot */
+    {"max", required_argument, NULL, 'M'},
+    {"width", required_argument, NULL, 'r'},      /* Width and height of image */
+    {"height", required_argument, NULL, 's'},
+    {"threads", required_argument, NULL, 'T'},    /* Specify thread count */
+    {"centre", required_argument, NULL, 'x'},     /* Centre coordinate and magnification of plot */
+    {"extended", no_argument, NULL, 'X'},         /* Use extended precision */
+    {"memory", required_argument, NULL, 'z'},     /* Maximum memory usage in MB */
+    {"help", no_argument, NULL, 'h'},             /* Display help message and exit */
+    {0, 0, 0, 0}
+};
+
 
 
 static int validateOptions(int argc, char **argv);
@@ -89,38 +120,7 @@ int processOptions(ProgramCTX *ctx, PlotCTX *p, NetworkCTX *network, int argc, c
 /* Scan argv for invalid command-line options */
 static int validateOptions(int argc, char **argv)
 {
-    #ifdef MP_PREC
-    const char *GETOPT_STRING = ":A::c:g:Gi:j:l:m:M:o:r:s:tT:vx:Xz:"; /* TODO: Add double colon after A and k? */
-    #else
-    const char *GETOPT_STRING = ":c:g:Gi:j:l:m:M:o:r:s:tT:vx:Xz:"; /* TODO: Add double colon after A and k? */
-    #endif
-
-    const struct option LONG_OPTIONS[] =
-    {
-        #ifdef MP_PREC
-        {"multiple", optional_argument, NULL, 'A'},  /* Use multiple precision */
-        #endif
-
-        {"colour", required_argument, NULL, 'c'},     /* Colour scheme of PPM image */
-        {"slave", required_argument, NULL, 'g'},      /* Initialise as a slave for distributed computation */
-        {"master", no_argument, NULL, 'G'},           /* Initialise as a master for distributed computation */
-        {"iterations", required_argument, NULL, 'i'}, /* Maximum iteration count of function */
-        {"julia", required_argument, NULL, 'j'},      /* Plot a Julia set with specified constant */
-        {"log", optional_argument, NULL, 'k'},        /* Output log to file (with optional path) */
-        {"log-level", required_argument, NULL, 'l'},  /* Minimum log level to output */
-        {"min", required_argument, NULL, 'm'},        /* Range of complex numbers to plot */
-        {"max", required_argument, NULL, 'M'},
-        {"width", required_argument, NULL, 'r'},      /* Width and height of image */
-        {"height", required_argument, NULL, 's'},
-        {"threads", required_argument, NULL, 'T'},    /* Specify thread count */
-        {"centre", required_argument, NULL, 'x'},     /* Centre coordinate and magnification of plot */
-        {"extended", no_argument, NULL, 'X'},         /* Use extended precision */
-        {"memory", required_argument, NULL, 'z'},     /* Maximum memory usage in MB */
-        {"help", no_argument, NULL, 'h'},             /* Display help message and exit */
-        {0, 0, 0, 0}
-    };
-
-    optind = 1;
+    optind = 0;
     while ((opt = getopt_long(argc, argv, GETOPT_STRING, LONG_OPTIONS, NULL)) != -1)
     {
         if (opt == '?')
@@ -146,29 +146,18 @@ static int validateOptions(int argc, char **argv)
 /* Parse options common to every mode of operation */
 static int parseGlobalOptions(ProgramCTX *ctx, int argc, char **argv)
 {
-    const char *GETOPT_STRING = ":l:T:vz:";
-
-    const struct option LONG_OPTIONS[] =
-    {
-        {"log", optional_argument, NULL, 'k'},       /* Output log to file (with optional path) */
-        {"log-level", required_argument, NULL, 'l'}, /* Minimum log level to output */
-        {"threads", required_argument, NULL, 'T'},   /* Specify thread count */
-        {"memory", required_argument, NULL, 'z'},    /* Maximum memory usage in MB */
-        {"help", no_argument, NULL, 'h'},            /* Display help message and exit */
-        {0, 0, 0, 0}
-    };
-
     bool vFlag = false;
 
-    optind = 1;
+    optind = 0;
     while ((opt = getopt_long(argc, argv, GETOPT_STRING, LONG_OPTIONS, NULL)) != -1)
     {
-        char *endptr;
-        unsigned long tempUL;
         ParseErr argError = PARSE_SUCCESS;
+        unsigned long tempUL = 0;
 
         switch (opt)
         {
+            char *endptr;
+
             case 'k': /* Output log to file (with optional path) */
                 if (!vFlag)
                     setLogVerbosity(false);
@@ -240,30 +229,23 @@ static int parseGlobalOptions(ProgramCTX *ctx, int argc, char **argv)
 /* Determine role in distributed network (if any) */
 static int parseNetworkOptions(NetworkCTX *network, int argc, char **argv)
 {
-    const char *GETOPT_STRING = ":g:Gp:";
-
-    const struct option LONG_OPTIONS[] =
-    {
-        {"slave", required_argument, NULL, 'g'}, /* Initialise as a slave for distributed computation */
-        {"master", no_argument, NULL, 'G'},      /* Initialise as a master for distributed computation */
-        {0, 0, 0, 0}
-    };
-
     const uint16_t PORT_DEFAULT = 7939;
+
+    int numberOfSlaves;
 
     char ipAddress[IP_ADDR_STR_LEN_MAX];
     uint16_t port = PORT_DEFAULT;
 
     network->mode = LAN_NONE;
 
-    optind = 1;
+    optind = 0;
     while ((opt = getopt_long(argc, argv, GETOPT_STRING, LONG_OPTIONS, NULL)) != -1)
     {
+        ParseErr argError = PARSE_SUCCESS;
+        unsigned long tempUL = 0;
+
         switch (opt)
         {
-            unsigned long tempUL;
-            ParseErr argError;
-
             case 'g': /* Initialise as a slave for distributed computation */
                 if (network->mode != LAN_NONE)
                 {
@@ -297,32 +279,41 @@ static int parseNetworkOptions(NetworkCTX *network, int argc, char **argv)
                     return -1;
                 }
 
+                argError = uLongArg(&tempUL, optarg, (unsigned int) SLAVES_MIN, (unsigned int) SLAVES_MAX);                    
+                numberOfSlaves = (int) tempUL;
+
                 network->addr.sin_addr.s_addr = htonl(INADDR_ANY);
                 network->mode = LAN_MASTER;
                 break;
             case 'p': /* Port number */
                 argError = uLongArg(&tempUL, optarg, PORT_MIN, PORT_MAX);
                 port = (uint16_t) tempUL;
-    
-                if (argError == PARSE_ERANGE) /* Error message already outputted */
-                {
-                    getoptErrorMessage(OPT_NONE, NULL);
-                    return -1;
-                }
-                else if (argError != PARSE_SUCCESS) /* Error but no error message, yet */
-                {
-                    getoptErrorMessage(OPT_EARG, NULL);
-                    return -1;
-                }
-
                 break;
             default:
                 break;
+        }
+
+        if (argError == PARSE_ERANGE) /* Error message already outputted */
+        {
+            getoptErrorMessage(OPT_NONE, NULL);
+            return -1;
+        }
+        else if (argError != PARSE_SUCCESS) /* Error but no error message, yet */
+        {
+            getoptErrorMessage(OPT_EARG, NULL);
+            return -1;
         }
     }
 
     network->addr.sin_family = AF_INET;
     network->addr.sin_port = htons(port);
+
+    if (network->mode == LAN_MASTER)
+        initialiseNetworkCTX(network, numberOfSlaves);
+    else
+        initialiseNetworkCTX(network, 0);
+
+    printf("Exp slaves: %d\n", network->n);
 
     return 0;
 }
@@ -331,23 +322,12 @@ static int parseNetworkOptions(NetworkCTX *network, int argc, char **argv)
 /* Get image parameters that are independent of the precision mode */
 static int parseDiscreteOptions(ProgramCTX *ctx, PlotCTX *p, int argc, char **argv)
 {
-    const char *GETOPT_STRING = ":c:i:o:r:s:";
-
-    const struct option LONG_OPTIONS[] =
-    {
-        {"colour", required_argument, NULL, 'c'},     /* Colour scheme of PPM image */
-        {"iterations", required_argument, NULL, 'i'}, /* Maximum iteration count of function */
-        {"width", required_argument, NULL, 'r'},      /* Width and height of image */
-        {"height", required_argument, NULL, 's'},
-        {0, 0, 0, 0}
-    };
-
-    optind = 1;
+    optind = 0;
     while ((opt = getopt_long(argc, argv, GETOPT_STRING, LONG_OPTIONS, NULL)) != -1)
     {
-        /* Temporary parsing variable for memory safety with uLongArg() */
-        unsigned long tempUL;
         ParseErr argError = PARSE_SUCCESS;
+        unsigned long tempUL = 0;
+        uintmax_t tempUIntMax = 0;
 
         switch (opt)
         {
@@ -372,10 +352,12 @@ static int parseDiscreteOptions(ProgramCTX *ctx, PlotCTX *p, int argc, char **ar
                 ctx->plotFilepath[sizeof(ctx->plotFilepath) - 1] = '\0';
                 break;
             case 'r': /* Width of image */
-                argError = uIntMaxArg(&p->width, optarg, WIDTH_MIN, WIDTH_MAX);
+                argError = uIntMaxArg(&tempUIntMax, optarg, WIDTH_MIN, WIDTH_MAX);
+                p->width = (size_t) tempUIntMax;
                 break;
             case 's': /* Height of image */
-                argError = uIntMaxArg(&p->height, optarg, HEIGHT_MIN, HEIGHT_MAX);
+                argError = uIntMaxArg(&tempUIntMax, optarg, HEIGHT_MIN, HEIGHT_MAX);
+                p->height = (size_t) tempUIntMax;
                 break;
             default:
                 break;
@@ -400,16 +382,6 @@ static int parseDiscreteOptions(ProgramCTX *ctx, PlotCTX *p, int argc, char **ar
 /* Get image parameters that are dependent on the precision mode */
 static int parseContinuousOptions(PlotCTX *p, int argc, char **argv)
 {
-    const char *GETOPT_STRING = ":j:m:M:";
-
-    const struct option LONG_OPTIONS[] =
-    {
-        {"julia", required_argument, NULL, 'j'}, /* Plot a Julia set and specify constant */
-        {"min", required_argument, NULL, 'm'},   /* Range of complex numbers to plot */
-        {"max", required_argument, NULL, 'M'},
-        {0, 0, 0, 0}
-    };
-
     #ifdef MP_PREC
     initialiseArgRangesMP();
     #endif
@@ -417,7 +389,7 @@ static int parseContinuousOptions(PlotCTX *p, int argc, char **argv)
     if (parseMagnification(p, argc, argv))
         return -1;
 
-    optind = 1;
+    optind = 0;
     while ((opt = getopt_long(argc, argv, GETOPT_STRING, LONG_OPTIONS, NULL)) != -1)
     {
         ParseErr argError = PARSE_SUCCESS;
@@ -528,33 +500,17 @@ static int parseContinuousOptions(PlotCTX *p, int argc, char **argv)
 static int parsePrecisionMode(int argc, char **argv)
 {
     #ifdef MP_PREC
-    const char *GETOPT_STRING = ":A::X";
-    #else
-    const char *GETOPT_STRING = ":X";
-    #endif
-
-    const struct option LONG_OPTIONS[] =
-    {
-        #ifdef MP_PREC
-        {"multiple", optional_argument, NULL, 'A'}, /* Use multiple precision */
-        #endif
-        
-        {"extended", no_argument, NULL, 'X'},       /* Use extended precision */
-        {0, 0, 0, 0}
-    };
-
-    #ifdef MP_PREC
     bool xFlag = false, aFlag = false;
     #endif
 
     precision = STD_PRECISION;
 
-    optind = 1;
+    optind = 0;
     while ((opt = getopt_long(argc, argv, GETOPT_STRING, LONG_OPTIONS, NULL)) != -1)
     {
         #ifdef MP_PREC
         ParseErr argError = PARSE_SUCCESS;
-        unsigned long tempUL;
+        unsigned long tempUL = 0;
         #endif
 
         switch (opt)
@@ -599,7 +555,7 @@ static int parsePrecisionMode(int argc, char **argv)
                     else if (tempUL < MPFR_PREC_MIN || tempUL > MPFR_PREC_MAX)
                     {
                         mpfr_fprintf(stderr, "%s: -%c: Argument out of range, it must be between %Pu and %Pu\n",
-                            programName, opt, MPFR_PREC_MIN, MPFR_PREC_MAX);
+                                     programName, opt, MPFR_PREC_MIN, MPFR_PREC_MAX);
                         argError = PARSE_ERANGE;
                         break;
                     }
@@ -635,17 +591,9 @@ static int parsePrecisionMode(int argc, char **argv)
 /* Do one getopt pass to get the plot type */
 static PlotType parsePlotType(int argc, char **argv)
 {
-    const char *GETOPT_STRING = ":j:";
-
-    const struct option LONG_OPTIONS[] =
-    {
-        {"julia", required_argument, NULL, 'j'}, /* Plot a Julia set with specified constant */
-        {0, 0, 0, 0}
-    };
-
     PlotType plot = PLOT_MANDELBROT;
 
-    optind = 1;
+    optind = 0;
     while ((opt = getopt_long(argc, argv, GETOPT_STRING, LONG_OPTIONS, NULL)) != -1)
     {
         /* Plot a Julia set with specified constant */
@@ -660,17 +608,10 @@ static PlotType parsePlotType(int argc, char **argv)
 /* Do one getopt pass to get the plot type (default is Mandelbrot) */
 static OutputType parseOutputType(int argc, char **argv)
 {
-    const char *GETOPT_STRING = ":o:t";
-
-    const struct option LONG_OPTIONS[] =
-    {
-        {0, 0, 0, 0}
-    };
-
     OutputType output = OUTPUT_PNM;
     bool oFlag = false, tFlag = false;
 
-    optind = 1;
+    optind = 0;
     while ((opt = getopt_long(argc, argv, GETOPT_STRING, LONG_OPTIONS, NULL)) != -1)
     {
         if (opt == 'o') /* Output image filename */
@@ -705,15 +646,7 @@ static OutputType parseOutputType(int argc, char **argv)
 /* Do one getopt pass to set the image centre and magnification amount */
 static int parseMagnification(PlotCTX *p, int argc, char **argv)
 {
-    const char *GETOPT_STRING = ":x:";
-
-    const struct option LONG_OPTIONS[] =
-    {
-        {"centre", required_argument, NULL, 'x'}, /* Centre coordinate and magnification of plot */
-        {0, 0, 0, 0}
-    };
-
-    optind = 1;
+    optind = 0;
     while ((opt = getopt_long(argc, argv, GETOPT_STRING, LONG_OPTIONS, NULL)) != -1)
     {
         if (opt == 'x') /* Centre coordinate and magnification of plot */
