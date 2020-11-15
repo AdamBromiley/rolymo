@@ -1,11 +1,7 @@
 #include "connection_handler.h"
 
-#include <errno.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
+#include "array.h"
+#include "request_handler.h"
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -15,16 +11,19 @@
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <sys/types.h>
+#include <unistd.h>
 
-#include "array.h"
-#include "request_handler.h"
+#include <errno.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 
 #define READ_BUFFER_SIZE 32768
 
 
-const char *MASTER_IP = "127.0.0.1";
-const int CONNECTIONS_MAX = 1;
+static int getHighestFD(int *fd, int n);
 
 
 NetworkCTX * createNetworkCTX(void)
@@ -33,18 +32,31 @@ NetworkCTX * createNetworkCTX(void)
 }
 
 
-#ifdef UNUSED
-int initialiseNetworkCTX(NetworkCTX *ctx)
+int initialiseNetworkCTX(NetworkCTX *ctx, int n)
 {
+    if (!ctx || ctx->slaves)
+        return 1;
+
+    ctx->n = (n < 0) ? 0 : n;
+    ctx->slaves = malloc((size_t) ctx->n * sizeof(*(ctx->slaves)));
+
+    if (!ctx->slaves)
+        return 1;
+
+    for (int i = 0; i < ctx->n; ++i)
+        ctx->slaves[i] = -1;
+
     return 0;
 }
-#endif
 
 
 void freeNetworkCTX(NetworkCTX *ctx)
 {
     if (ctx)
+    {
+        free(ctx->slaves);
         free(ctx);
+    }
 }
 
 
@@ -52,32 +64,23 @@ int initialiseNetworkConnection(NetworkCTX *network, PlotCTX *p)
 {
     const time_t CONNECTION_TIMEOUT = 10;
 
-    network->n = 1; /* TODO: Make flexible */
-
     switch (network->mode)
     {
         case LAN_NONE:
             return 0;
         case LAN_MASTER:
-            network->s = initialiseMaster(network);
-
-            if (network->s < 0)
+            if (initialiseMaster(network))
                 return 1;
 
-            for (int i = 0; i < network->n; ++i)
-                network->slaves[i] = -1;
-
-            if (acceptConnections(network->slaves, network->s, network->n, CONNECTION_TIMEOUT) < network-> n)
+            if (acceptConnections(network, CONNECTION_TIMEOUT) < network->n)
                 return 1;
 
-            if (initialiseSlaves(network->slaves, network->n, p))
+            if (initialiseSlaves(network, p))
                 return 1;
             
             break;
         case LAN_SLAVE:
-            network->s = initialiseSlave(p, network);
-
-            if (network->s < 0)
+            if (initialiseSlave(network, p))
                 return 1;
 
             break;
@@ -94,55 +97,54 @@ int initialiseMaster(NetworkCTX *network)
 {
     const int SOCK_OPT = 1;
 
-    int s = socket(AF_INET, SOCK_STREAM, 0);
+    network->s = socket(AF_INET, SOCK_STREAM, 0);
 
-    if (s < 0)
-        return -1;
+    if (network->s < 0)
+        return 1;
 
     /* 
      * SOL_SOCKET = set option at socket API level
      * SO_REUSEADDR = Allow reuse of local address
      */
-	if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const void *) &SOCK_OPT, (socklen_t) sizeof(SOCK_OPT)))
+	if (setsockopt(network->s, SOL_SOCKET, SO_REUSEADDR, (const void *) &SOCK_OPT, (socklen_t) sizeof(SOCK_OPT)))
 	{
-		close(s);
-		return -1;
+		close(network->s);
+		return 1;
 	}
 
     /* Set socket to be nonblocking */
-	if (ioctl(s, FIONBIO, (const void *) &SOCK_OPT) < 0)
+	if (ioctl(network->s, FIONBIO, (const void *) &SOCK_OPT) < 0)
 	{
-		close(s);
-		return -1;
+		close(network->s);
+		return 1;
 	}
 
-    if (bind(s, (struct sockaddr *) &network->addr, (socklen_t) sizeof(network->addr)))
+    if (bind(network->s, (struct sockaddr *) &network->addr, (socklen_t) sizeof(network->addr)))
     {
-        close(s);
-        return -1;
+        close(network->s);
+        return 1;
     }
     
-    if (listen(s, CONNECTIONS_MAX))
+    if (listen(network->s, network->n))
     {
-        close(s);
-        return -1;
+        close(network->s);
+        return 1;
     }
 
-    return s;
+    return 0;
 }
 
 
 /* Accept `n` connection requests on `s` with a specified timeout in seconds */
-int acceptConnections(int *slaves, int s, int n, time_t timeout)
+int acceptConnections(NetworkCTX *network, time_t timeout)
 {
     int i;
-
     fd_set set;
 
     FD_ZERO(&set);
-    FD_SET(s, &set);
+    FD_SET(network->s, &set);
 
-    for (i = 0; i < n; ++i)
+    for (i = 0; i < network->n; ++i)
     {
         int slave;
 
@@ -152,17 +154,17 @@ int acceptConnections(int *slaves, int s, int n, time_t timeout)
             .tv_usec = 0
         };
 
-        int activeFD = select(s + 1, &set, NULL, NULL, &t);
+        int activeFD = select(network->s + 1, &set, NULL, NULL, &t);
 
         if (activeFD == -1)
             return -1;
         else if (activeFD == 0)
             return i;
         
-        slave = acceptConnectionReq(s);
+        slave = acceptConnectionReq(network);
 
         if (slave >= 0)
-            slaves[i] = slave;
+            network->slaves[i] = slave;
         else if (slave == -2)
             break;
         else
@@ -173,14 +175,14 @@ int acceptConnections(int *slaves, int s, int n, time_t timeout)
 }
 
 
-int acceptConnectionReq(int master)
+int acceptConnectionReq(NetworkCTX *network)
 {
-    int slave;
+    int s;
 
     errno = 0;
-    slave = accept(master, NULL, NULL);
+    s = accept(network->s, NULL, NULL);
 
-	if (slave < 0)
+	if (s < 0)
 	{
 		/* If all requests have been accepted */
 		if (errno == EWOULDBLOCK)
@@ -189,26 +191,26 @@ int acceptConnectionReq(int master)
             return -1;
 	}
 
-    return slave;
+    return s;
 }
 
 
 /* Prepare slave machines */
-int initialiseSlaves(int *slaves, int n, PlotCTX *p)
+int initialiseSlaves(NetworkCTX *network, PlotCTX *p)
 {
-    for (int i = 0; i < n; ++i)
+    for (int i = 0; i < network->n; ++i)
     {
         int ret;
 
-        if (slaves[i] == -1)
+        if (network->slaves[i] == -1)
             continue;
 
-        ret = sendParameters(slaves[i], p);
+        ret = sendParameters(network->slaves[i], p);
 
         if (ret == -2)
         {
-            close(slaves[i]);
-            slaves[i] = -1;
+            close(network->slaves[i]);
+            network->slaves[i] = -1;
         }
         else if (ret != 0)
         {
@@ -221,43 +223,44 @@ int initialiseSlaves(int *slaves, int n, PlotCTX *p)
 
 
 /* Initialise machine as slave - connect to a master */
-int initialiseSlave(PlotCTX *p, NetworkCTX *network)
+int initialiseSlave(NetworkCTX *network, PlotCTX *p)
 {
-    int s = socket(AF_INET, SOCK_STREAM, 0);
+    network->s = socket(AF_INET, SOCK_STREAM, 0);
 
-	if (s < 0)
-		return -1;
+	if (network->s < 0)
+		return 1;
 
-	if (connect(s, (struct sockaddr *) &network->addr, (socklen_t) sizeof(network->addr)))
+	if (connect(network->s, (struct sockaddr *) &network->addr, (socklen_t) sizeof(network->addr)))
 	{
-        close(s);
-		return -1;
+        close(network->s);
+		return 1;
 	}
 
-    if (readParameters(s, p))
+    if (readParameters(network->s, p))
     {
-        close(s);
-        return -1;
+        close(network->s);
+        return 1;
     }
 
-	return s;
+	return 0;
 }
 
 
 /* Listener */
-int listener(int *slaves, int n, Block *block)
+int listener(NetworkCTX *network, Block *block)
 {
-    size_t rows = block->rows;
-    size_t wroteRows = 0;
-
     /* Sets of socket file descriptors */
     fd_set set, setTemp;
 
-    /* Highest file descriptor in fd_set */
-    int highestFD = -1;
+    /* Stores the highest file descriptor in fd_set */
+    int highestFD = getHighestFD(network->slaves, network->n);
 
     /* Lists of socket file descriptors */
-    int *slavesTemp = malloc((size_t) n * sizeof(int));
+    int *slavesTemp = malloc((size_t) network->n * sizeof(int));
+
+    size_t rows = block->rows;
+    size_t allocatedRows = 0;
+    size_t wroteRows = 0;
 
     if (!slavesTemp)
         return 1;
@@ -265,15 +268,12 @@ int listener(int *slaves, int n, Block *block)
     /* Clear set */
     FD_ZERO(&set);
 
-    for (int i = 0; i < n; ++i)
+    for (int i = 0; i < network->n; ++i)
     {
-        if (slaves[i] == -1)
+        if (network->slaves[i] == -1)
             continue;
         
-        FD_SET(slaves[i], &set);
-
-        if (slaves[i] > highestFD)
-            highestFD = slaves[i];
+        FD_SET(network->slaves[i], &set);
     }
 
     while (1)
@@ -285,7 +285,7 @@ int listener(int *slaves, int n, Block *block)
 
         /* Initialise working set and array */
         memcpy(&setTemp, &set, sizeof(set));
-        memcpy(slavesTemp, slaves, (size_t) n * sizeof(*slaves));
+        memcpy(slavesTemp, network->slaves, (size_t) network->n * sizeof(*(network->slaves)));
 
         /* 
          * Wait for a socket to become active. On return, the set is modified to
@@ -297,7 +297,7 @@ int listener(int *slaves, int n, Block *block)
         if (activeSockCount <= 0)
             return 1;
 
-        for (int i = 0; i < n && activeSockCount > 0; ++i)
+        for (int i = 0; i < network->n && activeSockCount > 0; ++i)
         {
             char sendBuffer[10];
 
@@ -315,35 +315,27 @@ int listener(int *slaves, int n, Block *block)
             /* Read request into buffer */
             readBytes = readSocket(request, activeSock, sizeof(request));
 
-            if (readBytes <= 0)
+            /* Client issued shutdown */
+            if (readBytes == 0)
             {
-                puts("<=0");
-                /* Client issued shutdown */
-                if (readBytes == 0)
-                {
-                    /* Close socket */
-                    close(activeSock);
-                    FD_CLR(activeSock, &set);
-                    slaves[i] = -1;
+                /* Close socket */
+                close(activeSock);
+                FD_CLR(activeSock, &set);
+                network->slaves[i] = -1;
 
-                    /* Recalculate highest FD in set (if needed) */
-                    if (activeSock == highestFD)
-                    {
-                        highestFD = -1;
-
-                        for (int j = 0; j < n; j++)
-                        {
-                            if (slaves[j] > highestFD)
-                                highestFD = slaves[j];
-                        }
-                    }
-                }
+                /* Recalculate highest FD in set (if needed) */
+                if (activeSock == highestFD)
+                    highestFD = getHighestFD(network->slaves, network->n);
+            }
+            else if (readBytes < 0)
+            {
+                continue;
             }
             else if (readBytes == 1)
             {
-                if (rows != 0)
+                if (allocatedRows < rows)
                 {
-                    snprintf(sendBuffer, sizeof(sendBuffer), "%zu", rows--);
+                    snprintf(sendBuffer, sizeof(sendBuffer), "%zu", allocatedRows++);
                     writeSocket(sendBuffer, activeSock, strlen(sendBuffer));
                     memset(sendBuffer, '\0', sizeof(sendBuffer));
                 }
@@ -352,19 +344,11 @@ int listener(int *slaves, int n, Block *block)
                     /* Close socket */
                     close(activeSock);
                     FD_CLR(activeSock, &set);
-                    slaves[i] = -1;
+                    network->slaves[i] = -1;
 
                     /* Recalculate highest FD in set (if needed) */
                     if (activeSock == highestFD)
-                    {
-                        highestFD = -1;
-
-                        for (int j = 0; j < n; j++)
-                        {
-                            if (slaves[j] > highestFD)
-                                highestFD = slaves[j];
-                        }
-                    }
+                        highestFD = getHighestFD(network->slaves, network->n);
                 }
             }
             else
@@ -374,6 +358,7 @@ int listener(int *slaves, int n, Block *block)
                 size_t rowSize = (block->ctx->array->params->colour.depth == BIT_DEPTH_ASCII)
                                     ? block->ctx->array->params->width * sizeof(char)
                                     : block->ctx->array->params->width * block->ctx->array->params->colour.depth / 8;
+
                 memcpy(a + ((size_t) rowNum * rowSize), request + 6, rowSize);
                 ++wroteRows;
 
@@ -384,4 +369,19 @@ int listener(int *slaves, int n, Block *block)
             }
         }
     }
+}
+
+
+/* Calculate the highest FD in set */
+static int getHighestFD(int *fd, int n)
+{
+    int highestFD = -1;
+
+    for (int i = 0; i < n; ++i)
+    {
+        if (fd[i] > highestFD)
+            highestFD = fd[i];
+    }
+
+    return highestFD;
 }

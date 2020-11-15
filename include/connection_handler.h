@@ -24,24 +24,24 @@ typedef struct NetworkCTX
     struct sockaddr_in addr;
     int s;
     int n;
-    int slaves[1];
+    int *slaves;
 } NetworkCTX;
 
 
 NetworkCTX * createNetworkCTX(void);
-int initialiseNetworkCTX(NetworkCTX *ctx);
+int initialiseNetworkCTX(NetworkCTX *ctx, int n);
 void freeNetworkCTX(NetworkCTX *ctx);
 
 int initialiseNetworkConnection(NetworkCTX *network, PlotCTX *p);
 
 int initialiseMaster(NetworkCTX *network);
-int initialiseSlave(PlotCTX *p, NetworkCTX *network);
-int initialiseSlaves(int *slaves, int n, PlotCTX *p);
+int initialiseSlave(NetworkCTX *network, PlotCTX *p);
+int initialiseSlaves(NetworkCTX *network, PlotCTX *p);
 
-int acceptConnectionReq(int master);
-int acceptConnections(int *slaves, int s, int n, time_t timeout);
+int acceptConnectionReq(NetworkCTX *network);
+int acceptConnections(NetworkCTX *network, time_t timeout);
 
-int listener(int *slaves, int n, Block *block);
+int listener(NetworkCTX *network, Block *block);
 
 
 #endif
