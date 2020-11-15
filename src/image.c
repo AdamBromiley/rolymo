@@ -272,7 +272,7 @@ int imageOutputMaster(PlotCTX *p, NetworkCTX *network, size_t mem)
 
         logMessage(INFO, "Working on block %u (%zu rows)", block->id, block->rows);
 
-        if (listener(network->slaves, network->n, block))
+        if (listener(network, block))
         {
             freeArrayCTX(array);
             freeBlock(block);
@@ -388,17 +388,18 @@ int imageRowOutput(PlotCTX *p, NetworkCTX *network, unsigned int threadCount)
         char readBuffer[10];
         char *endptr;
 
-        ssize_t ret;
-        
-        ret = writeSocket("", network->s, 1);
+        uintmax_t tempUIntMax = 0;
+
+        ssize_t ret = writeSocket("", network->s, 1);
 
         if (ret == 0)
         {
             break;
         }
-        else if (ret < 0 || (size_t) ret != 1)
+        else if (ret < 0 || ret != 1)
         {
             logMessage(ERROR, "Could not write to socket connection");
+            close(network->s);
             free(writeBuffer);
             freeArrayCTX(array);
             freeSlaveThreads(threads);
@@ -420,7 +421,9 @@ int imageRowOutput(PlotCTX *p, NetworkCTX *network, unsigned int threadCount)
             return 1;
         }
 
-        stringToUIntMax(&row.row, readBuffer, 0, p->height, &endptr, BASE_DEC);
+        stringToUIntMax(&tempUIntMax, readBuffer, 0, p->height, &endptr, BASE_DEC);
+        row.row = (size_t) tempUIntMax;
+
         memset(readBuffer, '\0', sizeof(readBuffer));
 
         logMessage(INFO, "Working on row %zu", row.row);
@@ -429,7 +432,7 @@ int imageRowOutput(PlotCTX *p, NetworkCTX *network, unsigned int threadCount)
         for (unsigned int i = 0; i < threads->ctx->count; ++i)
         {
             thread = &(threads[i]);
-            logMessage(INFO, "Spawning thread %u", thread->tid);
+            logMessage(DEBUG, "Spawning thread %u", thread->tid);
     
             if (pthread_create(&(thread->pid), NULL, genFractalRow, thread))
             {
@@ -441,7 +444,7 @@ int imageRowOutput(PlotCTX *p, NetworkCTX *network, unsigned int threadCount)
             }
         }
 
-        logMessage(INFO, "All threads successfully created");
+        logMessage(DEBUG, "All threads successfully created");
         
         /* Wait for threads to exit */
         for (unsigned int i = 0; i < threads->ctx->count; ++i)
@@ -457,10 +460,10 @@ int imageRowOutput(PlotCTX *p, NetworkCTX *network, unsigned int threadCount)
                 return 1;
             }
                 
-            logMessage(INFO, "Thread %u joined", thread->tid);
+            logMessage(DEBUG, "Thread %u joined", thread->tid);
         }
 
-        logMessage(INFO, "All threads successfully destroyed");
+        logMessage(DEBUG, "All threads successfully destroyed");
 
         sprintf(writeBuffer, "%zu", row.row);
         memcpy(writeBuffer + 6, array->array, rowSize);
@@ -499,7 +502,6 @@ int imageRowOutput(PlotCTX *p, NetworkCTX *network, unsigned int threadCount)
     }
 
     logMessage(DEBUG, "Freeing memory");
-
     free(writeBuffer);
     freeArrayCTX(array);
     freeSlaveThreads(threads);
