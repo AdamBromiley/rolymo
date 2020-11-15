@@ -150,7 +150,7 @@ int main(int argc, char **argv)
     }
 
     /* Close file */
-    if (closeImage(p))
+    if (p->output != OUTPUT_TERMINAL && network->mode != LAN_SLAVE && closeImage(p))
     {
         freePlotCTX(p);
         closeLog();
