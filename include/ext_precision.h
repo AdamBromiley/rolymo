@@ -46,6 +46,9 @@ typedef union ExtComplex
 } ExtComplex;
 
 
+extern const PrecisionMode PREC_MODE_MIN;
+extern const PrecisionMode PREC_MODE_MAX;
+
 #ifdef MP_PREC
 extern const mpc_rnd_t MP_COMPLEX_RND;
 extern const mpfr_rnd_t MP_REAL_RND;
