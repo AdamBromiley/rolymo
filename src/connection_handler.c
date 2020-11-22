@@ -20,9 +20,6 @@
 #include <string.h>
 
 
-#define READ_BUFFER_SIZE 32768
-
-
 static int getHighestFD(int *fd, int n);
 
 
