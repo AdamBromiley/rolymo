@@ -106,7 +106,6 @@ const PlotCTX MANDELBROT_PARAMETERS_DEFAULT_MP =
 
 
 static int initialiseMP(PlotCTX *p);
-static void freeMP(PlotCTX *p);
 #endif
 
 static int initialiseImageOutputParameters(PlotCTX *p);
@@ -157,11 +156,6 @@ int initialisePlotCTX(PlotCTX *p, PlotType plot, OutputType output)
 /* Free the PlotCTX from memory */
 void freePlotCTX(PlotCTX *p)
 {
-    #ifdef MP_PREC
-    if (precision == MUL_PRECISION)
-        freeMP(p);
-    #endif
-
     if (p)
     {
         if (p->file)
@@ -175,6 +169,29 @@ void freePlotCTX(PlotCTX *p)
 
     return;
 }
+
+
+#ifdef MP_PREC
+/* Allocate memory for MP parameters */
+void createMP(PlotCTX *p)
+{
+    mpc_init2(p->minimum.mpc, mpSignificandSize);
+    mpc_init2(p->maximum.mpc, mpSignificandSize);
+    mpc_init2(p->c.mpc, mpSignificandSize);
+}
+
+
+/* Free MP parameters */
+void freeMP(PlotCTX *p)
+{
+    if (p && precision == MUL_PRECISION)
+    {
+        mpc_clear(p->minimum.mpc);
+        mpc_clear(p->maximum.mpc);
+        mpc_clear(p->c.mpc);
+    }
+}
+#endif
 
 
 /* Get output type */
@@ -240,54 +257,6 @@ int getPlotString(char *dest, PlotType plot, size_t n)
 }
 
 
-#ifdef MP_PREC
-/* Initialise MP parameters to extended-precision defaults */
-static int initialiseMP(PlotCTX *p)
-{
-    long double complex minimum;
-    long double complex maximum;
-
-    /* Initialise MP parameters */
-    mpc_init2(p->minimum.mpc, mpSignificandSize);
-    mpc_init2(p->maximum.mpc, mpSignificandSize);
-    mpc_init2(p->c.mpc, mpSignificandSize);
-
-    switch (p->type)
-    {
-        case PLOT_JULIA:
-            minimum = JULIA_PARAMETERS_DEFAULT_EXT.minimum.lc;
-            maximum = JULIA_PARAMETERS_DEFAULT_EXT.maximum.lc;
-            break;
-        case PLOT_MANDELBROT:
-            minimum = MANDELBROT_PARAMETERS_DEFAULT_EXT.minimum.lc;
-            maximum = MANDELBROT_PARAMETERS_DEFAULT_EXT.maximum.lc;
-            break;
-        default:
-            return 1;
-    }
-
-    mpc_set_ldc(p->minimum.mpc, minimum, MP_COMPLEX_RND);
-    mpc_set_ldc(p->maximum.mpc, maximum, MP_COMPLEX_RND);
-
-    return 0;
-}
-
-
-/* Free MP parameters */
-static void freeMP(PlotCTX *p)
-{
-    if (p)
-    {
-        mpc_clear(p->minimum.mpc);
-        mpc_clear(p->maximum.mpc);
-        mpc_clear(p->c.mpc);
-    }
-
-    return;
-}
-#endif
-
-
 static int initialiseImageOutputParameters(PlotCTX *p)
 {
     switch (p->type)
@@ -343,13 +312,7 @@ static int initialiseImageOutputParameters(PlotCTX *p)
     p->output = OUTPUT_PNM;
     
     if (initialiseColourScheme(&(p->colour), COLOUR_SCHEME_DEFAULT))
-    {
-        #ifdef MP_PREC
-        freeMP(p);
-        #endif
-
         return 1;
-    }
 
     return 0;
 }
@@ -417,13 +380,36 @@ static int initialiseTerminalOutputParameters(PlotCTX *p)
     p->file = stdout;
     
     if (initialiseColourScheme(&(p->colour), TERMINAL_COLOUR_SCHEME_DEFAULT))
-    {
-        #ifdef MP_PREC
-        freeMP(p);
-        #endif
-        
         return 1;
-    }
 
     return 0;
 }
+
+
+#ifdef MP_PREC
+/* Initialise MP parameters to extended-precision defaults */
+static int initialiseMP(PlotCTX *p)
+{
+    long double complex minimum;
+    long double complex maximum;
+
+    switch (p->type)
+    {
+        case PLOT_JULIA:
+            minimum = JULIA_PARAMETERS_DEFAULT_EXT.minimum.lc;
+            maximum = JULIA_PARAMETERS_DEFAULT_EXT.maximum.lc;
+            break;
+        case PLOT_MANDELBROT:
+            minimum = MANDELBROT_PARAMETERS_DEFAULT_EXT.minimum.lc;
+            maximum = MANDELBROT_PARAMETERS_DEFAULT_EXT.maximum.lc;
+            break;
+        default:
+            return 1;
+    }
+
+    mpc_set_ldc(p->minimum.mpc, minimum, MP_COMPLEX_RND);
+    mpc_set_ldc(p->maximum.mpc, maximum, MP_COMPLEX_RND);
+
+    return 0;
+}
+#endif

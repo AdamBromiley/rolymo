@@ -80,19 +80,28 @@ int main(int argc, char **argv)
         if (ret == 1)
             usage();
 
-        freeProgramCTX(ctx);
+        #ifdef MP_PREC
+        freeMP(p);
+        #endif
+
         freePlotCTX(p);
+        freeProgramCTX(ctx);
         freeNetworkCTX(network);
         closeLog();
         return (ret == 1) ? EXIT_SUCCESS : EXIT_FAILURE;
     }
 
     /* Check and warn against some parameters */
-    if (validateParameters(p))
+    if (network->mode != LAN_SLAVE && validateParameters(p))
     {
         getoptErrorMessage(OPT_NONE, NULL);
-        freeProgramCTX(ctx);
+        
+        #ifdef MP_PREC
+        freeMP(p);
+        #endif
+
         freePlotCTX(p);
+        freeProgramCTX(ctx);
         freeNetworkCTX(network);
         closeLog();
         return EXIT_FAILURE;
@@ -103,6 +112,10 @@ int main(int argc, char **argv)
 
     if (initialiseNetworkConnection(network, p))
     {
+        #ifdef MP_PREC
+        freeMP(p);
+        #endif
+
         freePlotCTX(p);
         freeProgramCTX(ctx);
         closeLog();
@@ -115,7 +128,11 @@ int main(int argc, char **argv)
     if (p->output != OUTPUT_TERMINAL && network->mode != LAN_SLAVE)
     {
         if (initialiseImage(p, ctx->plotFilepath))
-        {
+        { 
+            #ifdef MP_PREC
+            freeMP(p);
+            #endif
+
             freePlotCTX(p);
             freeProgramCTX(ctx);
             closeLog();
@@ -144,6 +161,10 @@ int main(int argc, char **argv)
 
     if (ret)
     {
+        #ifdef MP_PREC
+        freeMP(p);
+        #endif
+
         freePlotCTX(p);
         closeLog();
         return EXIT_FAILURE;
@@ -152,10 +173,18 @@ int main(int argc, char **argv)
     /* Close file */
     if (p->output != OUTPUT_TERMINAL && network->mode != LAN_SLAVE && closeImage(p))
     {
+        #ifdef MP_PREC
+        freeMP(p);
+        #endif
+
         freePlotCTX(p);
         closeLog();
         return EXIT_FAILURE;
     }
+
+    #ifdef MP_PREC
+    freeMP(p);
+    #endif
 
     freePlotCTX(p);
 

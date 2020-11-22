@@ -60,6 +60,11 @@ PlotCTX * createPlotCTX(void);
 int initialisePlotCTX(PlotCTX *p, PlotType plot, OutputType output);
 void freePlotCTX(PlotCTX *p);
 
+#ifdef MP_PREC
+void createMP(PlotCTX *p);
+void freeMP(PlotCTX *p);
+#endif
+
 int getOutputString(char *dest, const PlotCTX *p, size_t n);
 int getPlotString(char *dest, PlotType plot, size_t n);
 

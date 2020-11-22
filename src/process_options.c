@@ -92,25 +92,45 @@ int processOptions(ProgramCTX *ctx, PlotCTX *p, NetworkCTX *network, int argc, c
     if (parseNetworkOptions(network, argc, argv))
         return -1;
 
+    if (network->mode == LAN_SLAVE)
+        return 0;
+
     if (parsePrecisionMode(argc, argv))
         return -1;
+
+    #ifdef MP_PREC
+    if (precision == MUL_PRECISION)
+        createMP(p);
+    #endif
 
     plot = parsePlotType(argc, argv);
     output = parseOutputType(argc, argv);
 
     if (output == OUTPUT_NONE)
+    {
+        #ifdef MP_PREC
+        freeMP(p);
+        #endif
+
         return -1;
+    }
 
     if (initialisePlotCTX(p, plot, output))
-        return -1;
-
-    if (network->mode == LAN_NONE || network->mode == LAN_MASTER)
     {
-        if (parseContinuousOptions(p, argc, argv))
-            return -1;
+        #ifdef MP_PREC
+        freeMP(p);
+        #endif
+    
+        return -1;
+    }
 
-        if (parseDiscreteOptions(ctx, p, argc, argv))
-            return -1;
+    if (parseContinuousOptions(p, argc, argv) || parseDiscreteOptions(ctx, p, argc, argv))
+    {
+        #ifdef MP_PREC
+        freeMP(p);
+        #endif
+
+        return -1;
     }
 
     return 0;
