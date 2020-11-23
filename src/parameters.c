@@ -273,7 +273,9 @@ static int initialiseImageOutputParameters(PlotCTX *p)
                 
                 #ifdef MP_PREC
                 case MUL_PRECISION:
-                    *p = JULIA_PARAMETERS_DEFAULT_MP;
+                    p->iterations = JULIA_PARAMETERS_DEFAULT_MP.iterations;
+                    p->width = JULIA_PARAMETERS_DEFAULT_MP.width;
+                    p->height = JULIA_PARAMETERS_DEFAULT_MP.height;
                     initialiseMP(p);
                     break;
                 #endif
@@ -295,7 +297,9 @@ static int initialiseImageOutputParameters(PlotCTX *p)
                 
                 #ifdef MP_PREC
                 case MUL_PRECISION:
-                    *p = MANDELBROT_PARAMETERS_DEFAULT_MP;
+                    p->iterations = MANDELBROT_PARAMETERS_DEFAULT_MP.iterations;
+                    p->width = MANDELBROT_PARAMETERS_DEFAULT_MP.width;
+                    p->height = MANDELBROT_PARAMETERS_DEFAULT_MP.height;
                     initialiseMP(p);
                     break;
                 #endif
@@ -334,7 +338,7 @@ static int initialiseTerminalOutputParameters(PlotCTX *p)
 
                 #ifdef MP_PREC
                 case MUL_PRECISION:
-                    *p = JULIA_PARAMETERS_DEFAULT_MP;
+                    p->iterations = JULIA_PARAMETERS_DEFAULT_MP.iterations;
                     initialiseMP(p);
                     break;
                 #endif
@@ -359,7 +363,7 @@ static int initialiseTerminalOutputParameters(PlotCTX *p)
                 
                 #ifdef MP_PREC
                 case MUL_PRECISION:
-                    *p = MANDELBROT_PARAMETERS_DEFAULT_MP;
+                    p->iterations = MANDELBROT_PARAMETERS_DEFAULT_MP.iterations;
                     initialiseMP(p);
                     break;
                 #endif
