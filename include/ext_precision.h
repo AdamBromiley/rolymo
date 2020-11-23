@@ -6,7 +6,6 @@
 #include <stddef.h>
 
 #ifdef MP_PREC
-#include <gmp.h>
 #include <mpfr.h>
 #include <mpc.h>
 #endif
@@ -22,17 +21,6 @@ typedef enum PrecisionMode
     #endif
 
 } PrecisionMode;
-
-typedef union ExtDouble
-{
-    double d;
-    long double ld;
-
-    #ifdef MP_PREC
-    mpf_t mpd;
-    #endif
-
-} ExtDouble;
 
 typedef union ExtComplex
 {
