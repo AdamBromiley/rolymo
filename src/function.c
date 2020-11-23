@@ -281,9 +281,6 @@ void * generateFractalRowMP(void *threadInfo)
         mpfr_sub(pxHeight, mpc_imagref(p->maximum.mpc), mpc_imagref(p->minimum.mpc), MP_IMAG_RND);
         mpfr_div(pxHeight, pxHeight, height, MP_IMAG_RND);
 
-        /* Rather than calculate row im-value as rowOffset - y * pxHeight, just subtract pxHeight * tCount each time */
-        mpfr_mul_ui(pxHeight, pxHeight, (unsigned long) tCount, MP_IMAG_RND);
-
         mpfr_clear(height);
     }
     else
@@ -682,9 +679,6 @@ void * generateFractalMP(void *threadInfo)
         mpfr_sub(pxHeight, mpc_imagref(p->maximum.mpc), mpc_imagref(p->minimum.mpc), MP_IMAG_RND);
         mpfr_div(pxHeight, pxHeight, height, MP_IMAG_RND);
 
-        /* Rather than calculate row im-value as rowOffset - y * pxHeight, just subtract pxHeight * tCount each time */
-        mpfr_mul_ui(pxHeight, pxHeight, (unsigned long) tCount, MP_IMAG_RND);
-
         mpfr_clear(height);
     }
     else
@@ -707,6 +701,9 @@ void * generateFractalMP(void *threadInfo)
     mpc_t z, c;
     mpc_init2(z, mpSignificandSize);
     mpc_init2(c, mpSignificandSize);
+
+    /* Rather than calculate row im-value as rowOffset - y * pxHeight, just subtract pxHeight * tCount each time */
+    mpfr_mul_ui(pxHeight, pxHeight, (unsigned long) tCount, MP_IMAG_RND);
 
     mpfr_t norm;
     mpfr_init2(norm, mpSignificandSize);
