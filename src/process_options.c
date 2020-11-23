@@ -333,8 +333,6 @@ static int parseNetworkOptions(NetworkCTX *network, int argc, char **argv)
     else
         initialiseNetworkCTX(network, 0);
 
-    printf("Exp slaves: %d\n", network->n);
-
     return 0;
 }
 
