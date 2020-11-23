@@ -24,7 +24,7 @@
 #include <mpfr.h>
 
 
-static const char *GETOPT_STRING = ":A::c:g:G:i:j:l:m:M:o:p:r:s:tT:vx:Xz:"; /* TODO: make -A require argument */
+static const char *GETOPT_STRING = ":A:c:g:G:i:j:l:m:M:o:p:r:s:tT:vx:Xz:";
 #else
 static const char *GETOPT_STRING = ":c:g:G:i:j:l:m:M:o:p:r:s:tT:vx:Xz:";
 #endif
@@ -32,7 +32,7 @@ static const char *GETOPT_STRING = ":c:g:G:i:j:l:m:M:o:p:r:s:tT:vx:Xz:";
 static const struct option LONG_OPTIONS[] =
 {
     #ifdef MP_PREC
-    {"multiple", optional_argument, NULL, 'A'},  /* Use multiple precision */
+    {"multiple", required_argument, NULL, 'A'},  /* Use multiple precision */
     #endif
 
     {"colour", required_argument, NULL, 'c'},     /* Colour scheme of PPM image */
@@ -541,7 +541,7 @@ static int parsePrecisionMode(int argc, char **argv)
                 if (aFlag)
                 {
                     fprintf(stderr, "%s: -%c: Option mutually exclusive with -%c\n", programName, opt, 'A');
-                    getoptErrorMessage(OPT_NONE, 0, NULL);
+                    getoptErrorMessage(OPT_NONE, NULL);
                     return -1;
                 }
 
@@ -556,32 +556,28 @@ static int parsePrecisionMode(int argc, char **argv)
                 if (xFlag)
                 {
                     fprintf(stderr, "%s: -%c: Option mutually exclusive with -%c\n", programName, opt, 'X');
-                    getoptErrorMessage(OPT_NONE, 0, NULL);
+                    getoptErrorMessage(OPT_NONE, NULL);
                     return -1;
                 }
 
                 aFlag = true;
                 precision = MUL_PRECISION;
-                mpSignificandSize = MP_BITS_DEFAULT;
 
-                if (optarg)
+                argError = uLongArg(&tempUL, optarg, (unsigned long) MP_BITS_MIN, (unsigned long) MP_BITS_MAX);
+
+                if (argError != PARSE_SUCCESS)
                 {
-                    argError = uLongArg(&tempUL, optarg, (unsigned long) MP_BITS_MIN, (unsigned long) MP_BITS_MAX);
-
-                    if (argError != PARSE_SUCCESS)
-                    {
-                        break;
-                    }
-                    else if (tempUL < MPFR_PREC_MIN || tempUL > MPFR_PREC_MAX)
-                    {
-                        mpfr_fprintf(stderr, "%s: -%c: Argument out of range, it must be between %Pu and %Pu\n",
-                                     programName, opt, MPFR_PREC_MIN, MPFR_PREC_MAX);
-                        argError = PARSE_ERANGE;
-                        break;
-                    }
-
-                    mpSignificandSize = (mpfr_prec_t) tempUL;
+                    break;
                 }
+                if (tempUL < MPFR_PREC_MIN || tempUL > MPFR_PREC_MAX)
+                {
+                    mpfr_fprintf(stderr, "%s: -%c: Argument out of range, it must be between %Pu and %Pu\n",
+                                 programName, opt, MPFR_PREC_MIN, MPFR_PREC_MAX);
+                    argError = PARSE_ERANGE;
+                    break;
+                }
+
+                mpSignificandSize = (mpfr_prec_t) tempUL;
 
                 break;
             #endif
@@ -593,12 +589,12 @@ static int parsePrecisionMode(int argc, char **argv)
         #ifdef MP_PREC
         if (argError == PARSE_ERANGE) /* Error message already outputted */
         {
-            getoptErrorMessage(OPT_NONE, 0, NULL);
+            getoptErrorMessage(OPT_NONE, NULL);
             return -1;
         }
         else if (argError != PARSE_SUCCESS) /* Error but no error message, yet */
         {
-            getoptErrorMessage(OPT_EARG, opt, NULL);
+            getoptErrorMessage(OPT_EARG, NULL);
             return -1;
         }
         #endif

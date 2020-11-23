@@ -138,12 +138,12 @@ int deserialisePrecision(PrecisionMode *prec, mpfr_prec_t *bits, char *src)
 
     *prec = tempUL;
 
-    ret = stringToULong(&tempUL, endptr, MP_BITS_MIN, MP_BITS_MAX, &endptr, BASE_DEC);
+    ret = stringToULong(&tempUL, endptr, (unsigned long) MP_BITS_MIN, (unsigned long) MP_BITS_MAX, &endptr, BASE_DEC);
 
     if (tempUL < MPFR_PREC_MIN || tempUL > MPFR_PREC_MAX || ret != PARSE_SUCCESS)
         return 1;
 
-    *bits = tempUL;
+    *bits = (mpfr_prec_t) tempUL;
 
     return 0;
 }
