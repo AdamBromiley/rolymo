@@ -125,6 +125,265 @@ void * generateFractalRow(void *threadInfo)
 }
 
 
+void * generateFractalRowExt(void *threadInfo)
+{
+    SlaveThread *t = threadInfo;
+
+    /*
+     * Because the loop may run for millions of iterations, all relevant struct
+     * members are cached before use.
+     */
+
+    unsigned int tCount = t->ctx->count;
+
+    /* Plot parameters */
+    PlotCTX *p = t->row->array->params;
+
+    /* Julia set constant */
+    long double complex constant = p->c.lc;
+
+    /* Maximum iteration count */
+    unsigned long nMax = p->iterations;
+
+    PlotType type = p->type;
+    ColourScheme *colour = &(p->colour);
+    BitDepth colourDepth = colour->depth;
+
+    /* Real value at top-left of plot */
+    long double reMin = creall(p->minimum.lc);
+    long double imMax = cimagl(p->maximum.lc);
+
+    /* Pixel dimensions */
+    long double pxWidth = (p->width > 1) ? (creall(p->maximum.lc) - creall(p->minimum.lc)) / (p->width - 1) : 0.0L;
+    long double pxHeight = (p->height > 1) ? (cimagl(p->maximum.lc) - cimagl(p->minimum.lc)) / (p->height - 1) : 0.0L;
+
+    /* Row array */
+    size_t columns = p->width;
+    size_t nmemb = (colourDepth <= CHAR_BIT || colourDepth == BIT_DEPTH_ASCII)
+                   ? sizeof(char)
+                   : colourDepth / CHAR_BIT;
+
+    char *px = (char *) t->row->array->array + t->tid * nmemb;
+
+    logMessage(DEBUG, "Thread %u: Generating row plot", t->tid);
+
+    /* Number of bits into current byte (if bit depth < CHAR_BIT) */
+    int bitOffset;
+
+    /* Set complex value to start of the row */
+    long double complex c = reMin + pxWidth * t->tid + (imMax - t->row->row * pxHeight) * I;
+
+    /* Iterate over the row - offset by thread ID to ensure each thread gets a unique column */
+    for (size_t x = t->tid; x < columns; x += tCount, c += pxWidth * tCount)
+    {
+        long double complex z;
+        unsigned long n;
+
+        /* Run fractal function on c */
+        switch (type)
+        {
+            case PLOT_JULIA:
+                z = juliaExt(&n, c, constant, nMax);
+                break;
+            case PLOT_MANDELBROT:
+                z = mandelbrotExt(&n, c, nMax);
+                break;
+            default:
+                pthread_exit(NULL);
+        }
+
+        /* Map iteration count to RGB colour value */
+        mapColourExt(px, n, z, bitOffset, nMax, colour);
+
+        /* Increment pixel pointer */
+        if (colourDepth >= CHAR_BIT || colourDepth == BIT_DEPTH_ASCII)
+        {
+            px += nmemb * tCount;
+        }
+        else if (++bitOffset == CHAR_BIT)
+        {
+            px += nmemb * tCount;
+            bitOffset = 0;
+        }
+    }
+
+    logMessage(DEBUG, "Thread %u: Row plot generated - exiting", t->tid);
+    
+    pthread_exit(NULL);
+}
+
+
+#ifdef MP_PREC
+void * generateFractalRowMP(void *threadInfo)
+{
+    SlaveThread *t = threadInfo;
+
+    /*
+     * Because the loop may run for millions of iterations, all relevant struct
+     * members are cached before use.
+     */
+
+    unsigned int tCount = t->ctx->count;
+
+    /* Plot parameters */
+    PlotCTX *p = t->row->array->params;
+
+    /* Julia set constant */
+    mpc_t constant;
+    mpc_init2(constant, mpSignificandSize);
+    mpc_set(constant, p->c.mpc, MP_COMPLEX_RND);
+
+    /* Maximum iteration count */
+    unsigned long nMax = p->iterations;
+
+    PlotType type = p->type;
+    ColourScheme *colour = &(p->colour);
+    BitDepth colourDepth = colour->depth;
+
+    /* Values at top-left of plot */
+    mpfr_t reMin, imMax;
+    mpfr_init2(reMin, mpSignificandSize);
+    mpfr_init2(imMax, mpSignificandSize);
+
+    mpfr_set(reMin, mpc_realref(p->minimum.mpc), MP_REAL_RND);
+    mpfr_set(imMax, mpc_imagref(p->maximum.mpc), MP_IMAG_RND);
+
+    /* Width value */
+    mpfr_t pxWidth;
+    mpfr_init2(pxWidth, mpSignificandSize);
+
+    if (p->width > 1)
+    {
+        mpfr_t width;
+        mpfr_init2(width, mpSignificandSize);
+
+        mpfr_set_uj(width, (uintmax_t) (p->width - 1), MP_REAL_RND);
+        mpfr_sub(pxWidth, mpc_realref(p->maximum.mpc), mpc_realref(p->minimum.mpc), MP_REAL_RND);
+        mpfr_div(pxWidth, pxWidth, width, MP_REAL_RND);
+
+        mpfr_clear(width);
+    }
+    else
+    {
+        mpfr_set_d(pxWidth, 0.0, MP_REAL_RND);
+    }
+
+    /* Height value */
+    mpfr_t pxHeight;
+    mpfr_init2(pxHeight, mpSignificandSize);
+
+    if (p->height > 1)
+    {
+        mpfr_t height;
+        mpfr_init2(height, mpSignificandSize);
+
+        mpfr_set_uj(height, (uintmax_t) (p->height - 1), MP_IMAG_RND);
+        mpfr_sub(pxHeight, mpc_imagref(p->maximum.mpc), mpc_imagref(p->minimum.mpc), MP_IMAG_RND);
+        mpfr_div(pxHeight, pxHeight, height, MP_IMAG_RND);
+
+        /* Rather than calculate row im-value as rowOffset - y * pxHeight, just subtract pxHeight * tCount each time */
+        mpfr_mul_ui(pxHeight, pxHeight, (unsigned long) tCount, MP_IMAG_RND);
+
+        mpfr_clear(height);
+    }
+    else
+    {
+        mpfr_set_d(pxHeight, 0.0, MP_IMAG_RND);
+    }
+
+    /* Row array */
+    size_t columns = p->width;
+    size_t nmemb = (colourDepth <= CHAR_BIT || colourDepth == BIT_DEPTH_ASCII)
+                   ? sizeof(char)
+                   : colourDepth / CHAR_BIT;
+
+    char *px = (char *) t->row->array->array + t->tid * nmemb;
+
+    /* Real offset into the row */
+    mpfr_t real;
+    mpfr_init2(real, mpSignificandSize);
+
+    mpfr_mul_ui(real, pxWidth, t->tid, MP_REAL_RND);
+    mpfr_add(real, reMin, real, MP_REAL_RND);
+
+    /* Imaginary value of the row */
+    mpfr_t imag;
+    mpfr_init2(imag, mpSignificandSize);
+    mpfr_set_uj(imag, (uintmax_t) t->row->row, MP_IMAG_RND);
+
+    mpfr_mul(imag, imag, pxHeight, MP_IMAG_RND);
+    mpfr_sub(imag, imMax, imag, MP_IMAG_RND);
+
+    mpc_t c;
+    mpc_init2(c, mpSignificandSize);
+    mpc_set_fr_fr(c, real, imag, MP_COMPLEX_RND);
+
+    mpfr_t increment;
+    mpfr_init2(increment, mpSignificandSize);
+
+    mpfr_mul_ui(increment, pxWidth, tCount, MP_REAL_RND);
+
+    logMessage(DEBUG, "Thread %u: Generating row plot", t->tid);
+
+    /* Number of bits into current byte (if bit depth < CHAR_BIT) */
+    int bitOffset;
+
+    /* Calculation variables */
+    mpc_t z;
+    mpc_init2(z, mpSignificandSize);
+
+    mpfr_t norm;
+    mpfr_init2(norm, mpSignificandSize);
+
+    /* Iterate over the row - offset by thread ID to ensure each thread gets a unique column */
+    for (size_t x = t->tid; x < columns; x += tCount, mpc_add_fr(c, c, increment, MP_REAL_RND))
+    {
+        unsigned long n;
+
+        /* Run fractal function on c */
+        switch (type)
+        {
+            case PLOT_JULIA:
+                juliaMP(&n, c, norm, constant, nMax);
+                break;
+            case PLOT_MANDELBROT:
+                mandelbrotMP(&n, z, norm, c, nMax);
+                break;
+            default:
+                mpfr_clears(reMin, imMax, pxWidth, pxHeight, real, imag, increment, norm, NULL);
+                mpc_clear(constant);
+                mpc_clear(z);
+                mpc_clear(c);
+                pthread_exit(NULL);
+        }
+
+        /* Map iteration count to RGB colour value */
+        mapColourMP(px, n, norm, bitOffset, nMax, colour);
+
+        /* Increment pixel pointer */
+        if (colourDepth >= CHAR_BIT || colourDepth == BIT_DEPTH_ASCII)
+        {
+            px += nmemb * tCount;
+        }
+        else if (++bitOffset == CHAR_BIT)
+        {
+            px += nmemb * tCount;
+            bitOffset = 0;
+        }
+    }
+
+    mpfr_clears(reMin, imMax, pxWidth, pxHeight, real, imag, increment, norm, NULL);
+    mpc_clear(constant);
+    mpc_clear(z);
+    mpc_clear(c);
+
+    logMessage(DEBUG, "Thread %u: Row plot generated - exiting", t->tid);
+    
+    pthread_exit(NULL);
+}
+#endif
+
+
 void * generateFractal(void *threadInfo)
 {
     Thread *t = threadInfo;
@@ -387,6 +646,7 @@ void * generateFractalMP(void *threadInfo)
     size_t nmemb = (colourDepth <= CHAR_BIT || colourDepth == BIT_DEPTH_ASCII)
                    ? sizeof(char)
                    : colourDepth / CHAR_BIT;
+
     size_t rowSize = columns * nmemb;
 
     /* Width value */

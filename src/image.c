@@ -316,12 +316,12 @@ int imageRowOutput(PlotCTX *p, NetworkCTX *network, unsigned int threadCount)
             genFractalRow = generateFractalRow;
             break;
         case EXT_PRECISION:
-            genFractalRow = generateFractalRow;
+            genFractalRow = generateFractalRowExt;
             break;
         
         #ifdef MP_PREC
         case MUL_PRECISION:
-            genFractalRow = generateFractalRow;
+            genFractalRow = generateFractalRowMP;
             break;
         #endif
         
