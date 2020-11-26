@@ -1,5 +1,3 @@
-#include "colour.h"
-
 #include <complex.h>
 #include <limits.h>
 #include <math.h>
@@ -7,12 +5,17 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "colour.h"
+
+#ifdef MP_PREC
+#include "ext_precision.h"
+#endif
+
+#include "mandelbrot_parameters.h"
+
 #ifdef MP_PREC
 #include <mpfr.h>
 #endif
-
-#include "ext_precision.h"
-#include "mandelbrot_parameters.h"
 
 
 #define OUTPUT_TERMINAL_CHARSET_ " .:-=+*#%@"
@@ -105,7 +108,7 @@ int initialiseColourScheme(ColourScheme *scheme, ColourSchemeType colour)
 
 
 /* Smooth the iteration count then map it to an RGB value */
-void mapColour(void *pixel, unsigned long n, complex z, int offset, unsigned long max, ColourScheme *scheme)
+void mapColour(void *pixel, unsigned long n, complex z, int offset, unsigned long max, const ColourScheme *scheme)
 {
     EscapeStatus status = (n < max) ? ESCAPED : UNESCAPED;
     double nSmooth = 0.0;
@@ -139,7 +142,7 @@ void mapColour(void *pixel, unsigned long n, complex z, int offset, unsigned lon
 
 /* Smooth the iteration count then map it to an RGB value (extended-precision) */
 void mapColourExt(void *pixel, unsigned long n, long double complex z, int offset, unsigned long max,
-                     ColourScheme *scheme)
+                  const ColourScheme *scheme)
 {
     EscapeStatus status = (n < max) ? ESCAPED : UNESCAPED;
     double nSmooth = 0.0;
@@ -173,7 +176,7 @@ void mapColourExt(void *pixel, unsigned long n, long double complex z, int offse
 
 #ifdef MP_PREC
 /* Smooth the iteration count then map it to an RGB value (multiple-precision) */
-void mapColourMP(void *pixel, unsigned long n, mpfr_t norm, int offset, unsigned long max, ColourScheme *scheme)
+void mapColourMP(void *pixel, unsigned long n, mpfr_t norm, int offset, unsigned long max, const ColourScheme *scheme)
 {
     EscapeStatus status = (n < max) ? ESCAPED : UNESCAPED;
     double nSmooth = 0.0;
@@ -269,13 +272,10 @@ static void hsvToRGB(RGB *rgb, HSV *hsv)
     if (hsv->s < 0.0)
         hsv->s = 0.0;
 
-    if (hsv->v < 0.0)
-        hsv->v = 0.0;
-
     /* If value = 0, the colour is black */
-    if (hsv->v == 0.0)
+    if (hsv->v <= 0.0)
     {
-        rgb->r = rgb->g = rgb->b = 0.0;
+        hsv->v = rgb->r = rgb->g = rgb->b = 0.0;
         return;
     }
 
@@ -326,8 +326,6 @@ static void hsvToRGB(RGB *rgb, HSV *hsv)
             rgb->b = (uint8_t) p;
             break;
     }
-    
-    return;
 }
 
 

@@ -71,12 +71,13 @@ extern const ColourSchemeType COLOUR_SCHEME_MAX;
 
 
 int initialiseColourScheme(ColourScheme *scheme, ColourSchemeType colour);
-void mapColour(void *pixel, unsigned long n, complex z, int offset, unsigned long max, ColourScheme *scheme);
+
+void mapColour(void *pixel, unsigned long n, complex z, int offset, unsigned long max, const ColourScheme *scheme);
 void mapColourExt(void *pixel, unsigned long n, long double complex z, int offset, unsigned long max,
-                     ColourScheme *scheme);
+                  const ColourScheme *scheme);
 
 #ifdef MP_PREC
-void mapColourMP(void *pixel, unsigned long n, mpfr_t norm, int offset, unsigned long max, ColourScheme *scheme);
+void mapColourMP(void *pixel, unsigned long n, mpfr_t norm, int offset, unsigned long max, const ColourScheme *scheme);
 #endif
 
 int getColourString(char *dest, ColourSchemeType colour, size_t n);
