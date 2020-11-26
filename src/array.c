@@ -1,11 +1,12 @@
-#include "array.h"
-
 #include <limits.h>
 #include <stddef.h>
 #include <stdlib.h>
+
 #include <unistd.h>
 
 #include "libgroot/include/log.h"
+
+#include "array.h"
 
 #include "parameters.h"
 
@@ -13,9 +14,7 @@
 /* Create array metadata structure */
 ArrayCTX * createArrayCTX(PlotCTX *p)
 {
-    ArrayCTX *ctx;
-
-    ctx = malloc(sizeof(*ctx));
+    ArrayCTX *ctx = malloc(sizeof(*ctx));
 
     if (!ctx)
         return NULL;
@@ -288,16 +287,11 @@ void freeArrayCTX(ArrayCTX *ctx)
     if (ctx)
     {
         if (ctx->array)
-        {
             free(ctx->array);
-            logMessage(DEBUG, "Image array freed");
-        }
         
         free(ctx);
         logMessage(DEBUG, "Array context freed");
     }
-
-    return;
 }
 
 
@@ -307,16 +301,11 @@ void freeBlock(Block *block)
     if (block)
     {
         if (block->ctx)
-        {
             free(block->ctx);
-            logMessage(DEBUG, "Block context freed");
-        }
 
         free(block);
         logMessage(DEBUG, "Block structure freed");
     }
-
-    return;
 }
 
 
@@ -326,16 +315,11 @@ void freeThreads(Thread *threads)
     if (threads)
     {
         if (threads->ctx)
-        {
             free(threads->ctx);
-            logMessage(DEBUG, "Thread context freed");
-        }
 
         free(threads);
         logMessage(DEBUG, "Thread array freed");
     }
-
-    return;
 }
 
 
@@ -345,14 +329,9 @@ void freeSlaveThreads(SlaveThread *threads)
     if (threads)
     {
         if (threads->ctx)
-        {
             free(threads->ctx);
-            logMessage(DEBUG, "Thread context freed");
-        }
 
         free(threads);
-        logMessage(DEBUG, "Thread array freed");
+        logMessage(DEBUG, "Slave thread array freed");
     }
-
-    return;
 }
