@@ -1,5 +1,3 @@
-#include "request_handler.h"
-
 #include <complex.h>
 #include <errno.h>
 #include <float.h>
@@ -9,20 +7,22 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <sys/types.h>
 #include <sys/socket.h>
-
-#ifdef MP_PREC
-#include <mpfr.h>
-#include <mpc.h>
-#endif
+#include <sys/types.h>
 
 #include "percy/include/parser.h"
+
+#include "request_handler.h"
 
 #include "arg_ranges.h"
 #include "colour.h"
 #include "ext_precision.h"
 #include "parameters.h"
+
+#ifdef MP_PREC
+#include <mpfr.h>
+#include <mpc.h>
+#endif
 
 
 #ifdef DBL_DECIMAL_DIG
@@ -343,17 +343,19 @@ int deserialisePlotCTXMP(PlotCTX *p, char *src)
 #endif
 
 
-int readParameters(int s, PlotCTX *p)
+int readParameters(PlotCTX **p, int s)
 {
     ssize_t bytes;
     char buffer[READ_BUFFER_SIZE];
+
+    PrecisionMode precision;
 
     memset(buffer, '\0', sizeof(buffer));
     
     bytes = readSocket(buffer, s, sizeof(buffer));
 
     if (bytes <= 0)
-        return bytes;
+        return (bytes == 0) ? -2 : -1;
 
     #ifndef MP_PREC
     if (deserialisePrecision(&precision, buffer))
@@ -361,10 +363,12 @@ int readParameters(int s, PlotCTX *p)
     #else
     if (deserialisePrecision(&precision, &mpSignificandSize, buffer))
         return -1;
-
-    if (precision == MUL_PRECISION)
-        createMP(p);
     #endif
+
+    *p = createPlotCTX(precision);
+
+    if (!*p)
+        return -1;
     
     memset(buffer, '\0', sizeof(buffer));
 
@@ -372,38 +376,39 @@ int readParameters(int s, PlotCTX *p)
 
     if (bytes <= 0)
     {
-        #ifdef MP_PREC
-        freeMP(p);
-        #endif
-
-        return bytes;
+        freePlotCTX(*p);
+        return (bytes == 0) ? -2 : -1;
     }
 
-    switch(precision)
+    switch((*p)->precision)
     {
         case STD_PRECISION:
-            if (deserialisePlotCTX(p, buffer))
+            if (deserialisePlotCTX(*p, buffer))
+            {
+                freePlotCTX(*p);
                 return -1;
+            }
             break;
         case EXT_PRECISION:
-            if (deserialisePlotCTXExt(p, buffer))
+            if (deserialisePlotCTXExt(*p, buffer))
+            {
+                freePlotCTX(*p);
                 return -1;
+            }
             break;
 
         #ifdef MP_PREC
         case MUL_PRECISION:
-            if (deserialisePlotCTXMP(p, buffer))
+            if (deserialisePlotCTXMP(*p, buffer))
             {
-                #ifdef MP_PREC
-                freeMP(p);
-                #endif
-
+                freePlotCTX(*p);
                 return -1;
             }
             break;
         #endif
 
         default:
+            freePlotCTX(*p);
             return -1;
     }
 
@@ -420,9 +425,9 @@ int sendParameters(int s, const PlotCTX *p)
     memset(buffer, '\0', sizeof(buffer));
 
     #ifndef MP_PREC
-    ret = serialisePrecision(buffer, sizeof(buffer), precision);
+    ret = serialisePrecision(buffer, sizeof(buffer), p->precision);
     #else
-    ret = serialisePrecision(buffer, sizeof(buffer), precision, mpSignificandSize);
+    ret = serialisePrecision(buffer, sizeof(buffer), p->precision, mpSignificandSize);
     #endif
 
     /* If truncated or error */
@@ -438,7 +443,7 @@ int sendParameters(int s, const PlotCTX *p)
 
     memset(buffer, '\0', sizeof(buffer));
 
-    switch(precision)
+    switch(p->precision)
     {
         case STD_PRECISION:
             ret = serialisePlotCTX(buffer, sizeof(buffer), p);

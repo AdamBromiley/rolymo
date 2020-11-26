@@ -6,12 +6,12 @@
 
 #include <sys/types.h>
 
+#include "ext_precision.h"
+#include "parameters.h"
+
 #ifdef MP_PREC
 #include <mpfr.h>
 #endif
-
-#include "ext_precision.h"
-#include "parameters.h"
 
 
 #define READ_BUFFER_SIZE 32768
@@ -47,7 +47,7 @@ int deserialisePlotCTXExt(PlotCTX *p, char *src);
 int deserialisePlotCTXMP(PlotCTX *p, char *src);
 #endif
 
-int readParameters(int s, PlotCTX *p);
+int readParameters(PlotCTX **p, int s);
 int sendParameters(int s, const PlotCTX *p);
 
 

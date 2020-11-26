@@ -28,20 +28,19 @@ typedef struct NetworkCTX
 } NetworkCTX;
 
 
-NetworkCTX * createNetworkCTX(void);
-int initialiseNetworkCTX(NetworkCTX *ctx, int n);
+NetworkCTX * createNetworkCTX(int n);
 void freeNetworkCTX(NetworkCTX *ctx);
 
-int initialiseNetworkConnection(NetworkCTX *network, PlotCTX *p);
+int initialiseNetworkConnection(NetworkCTX *network, PlotCTX **p);
 
 int initialiseMaster(NetworkCTX *network);
-int initialiseSlave(NetworkCTX *network, PlotCTX *p);
+int initialiseSlave(NetworkCTX *network, PlotCTX **p);
 int initialiseSlaves(NetworkCTX *network, PlotCTX *p);
 
 int acceptConnectionReq(NetworkCTX *network);
 int acceptConnections(NetworkCTX *network, time_t timeout);
 
-int listener(NetworkCTX *network, Block *block);
+int listener(NetworkCTX *network, const Block *block);
 
 
 #endif
