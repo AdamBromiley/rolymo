@@ -1,5 +1,3 @@
-#include "parameters.h"
-
 #include <complex.h>
 #include <float.h>
 #include <limits.h>
@@ -9,12 +7,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef MP_PREC
-#include <mpc.h>
-#endif
+#include "parameters.h"
 
 #include "colour.h"
 #include "ext_precision.h"
+
+#ifdef MP_PREC
+#include <mpc.h>
+#endif
 
 
 /* Default terminal output dimensions */
@@ -105,7 +105,9 @@ const PlotCTX MANDELBROT_PARAMETERS_DEFAULT_MP =
 };
 
 
+static void createMP(PlotCTX *p);
 static int initialiseMP(PlotCTX *p);
+static void freeMP(PlotCTX *p);
 #endif
 
 static int initialiseImageOutputParameters(PlotCTX *p);
@@ -113,12 +115,19 @@ static int initialiseTerminalOutputParameters(PlotCTX *p);
 
 
 /* Create plot parameters object */
-PlotCTX * createPlotCTX(void)
+PlotCTX * createPlotCTX(PrecisionMode precision)
 {
     PlotCTX *p = malloc(sizeof(PlotCTX));
 
     if (!p)
         return NULL;
+
+    p->precision = precision;
+
+    #ifdef MP_PREC
+    if (p->precision == MUL_PRECISION)
+        createMP(p);
+    #endif
 
     return p;
 }
@@ -158,6 +167,11 @@ void freePlotCTX(PlotCTX *p)
 {
     if (p)
     {
+        #ifdef MP_PREC
+        if (p->precision == MUL_PRECISION)
+            freeMP(p);
+        #endif
+
         if (p->file)
         {
             fclose(p->file);
@@ -173,18 +187,21 @@ void freePlotCTX(PlotCTX *p)
 
 #ifdef MP_PREC
 /* Allocate memory for MP parameters */
-void createMP(PlotCTX *p)
+static void createMP(PlotCTX *p)
 {
-    mpc_init2(p->minimum.mpc, mpSignificandSize);
-    mpc_init2(p->maximum.mpc, mpSignificandSize);
-    mpc_init2(p->c.mpc, mpSignificandSize);
+    if (p && p->precision == MUL_PRECISION)
+    {
+        mpc_init2(p->minimum.mpc, mpSignificandSize);
+        mpc_init2(p->maximum.mpc, mpSignificandSize);
+        mpc_init2(p->c.mpc, mpSignificandSize);
+    }
 }
 
 
 /* Free MP parameters */
-void freeMP(PlotCTX *p)
+static void freeMP(PlotCTX *p)
 {
-    if (p && precision == MUL_PRECISION)
+    if (p && p->precision == MUL_PRECISION)
     {
         mpc_clear(p->minimum.mpc);
         mpc_clear(p->maximum.mpc);
@@ -259,10 +276,13 @@ int getPlotString(char *dest, PlotType plot, size_t n)
 
 static int initialiseImageOutputParameters(PlotCTX *p)
 {
+    strncpy(p->plotFilepath, PLOT_FILEPATH_DEFAULT, sizeof(p->plotFilepath));
+    p->plotFilepath[sizeof(p->plotFilepath) - 1] = '\0';
+
     switch (p->type)
     {
         case PLOT_JULIA:
-            switch (precision)
+            switch (p->precision)
             {
                 case STD_PRECISION:
                     *p = JULIA_PARAMETERS_DEFAULT;
@@ -286,7 +306,7 @@ static int initialiseImageOutputParameters(PlotCTX *p)
 
             break;
         case PLOT_MANDELBROT:
-            switch (precision)
+            switch (p->precision)
             {
                 case STD_PRECISION:
                     *p = MANDELBROT_PARAMETERS_DEFAULT;
@@ -327,7 +347,7 @@ static int initialiseTerminalOutputParameters(PlotCTX *p)
     switch(p->type)
     {
         case PLOT_JULIA:
-            switch (precision)
+            switch (p->precision)
             {
                 case STD_PRECISION:
                     *p = JULIA_PARAMETERS_DEFAULT;
@@ -352,7 +372,7 @@ static int initialiseTerminalOutputParameters(PlotCTX *p)
             
             break;
         case PLOT_MANDELBROT:
-            switch (precision)
+            switch (p->precision)
             {
                 case STD_PRECISION:
                     *p = MANDELBROT_PARAMETERS_DEFAULT;

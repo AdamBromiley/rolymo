@@ -11,6 +11,10 @@
 #include "ext_precision.h"
 
 
+#define PLOT_FILEPATH_LEN_MAX 4096
+#define PLOT_FILEPATH_DEFAULT "var/mandelbrot.pnm"
+
+
 typedef enum PlotType
 {
     PLOT_NONE,
@@ -27,10 +31,12 @@ typedef enum OutputType
 
 typedef struct PlotCTX
 {
+    PrecisionMode precision;
     PlotType type;
     ExtComplex minimum, maximum, c;
     unsigned long iterations;
     enum OutputType output;
+    char plotFilepath[PLOT_FILEPATH_LEN_MAX];
     FILE *file;
     size_t width, height;
     ColourScheme colour;
@@ -56,14 +62,9 @@ extern const PlotCTX MANDELBROT_PARAMETERS_DEFAULT_EXT;
 extern const PlotCTX MANDELBROT_PARAMETERS_DEFAULT_MP;
 
 
-PlotCTX * createPlotCTX(void);
+PlotCTX * createPlotCTX(PrecisionMode precision);
 int initialisePlotCTX(PlotCTX *p, PlotType plot, OutputType output);
 void freePlotCTX(PlotCTX *p);
-
-#ifdef MP_PREC
-void createMP(PlotCTX *p);
-void freeMP(PlotCTX *p);
-#endif
 
 int getOutputString(char *dest, const PlotCTX *p, size_t n);
 int getPlotString(char *dest, PlotType plot, size_t n);

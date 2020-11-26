@@ -46,8 +46,6 @@ extern const mpfr_rnd_t MP_IMAG_RND;
 extern mpfr_prec_t mpSignificandSize;
 #endif
 
-extern PrecisionMode precision;
-
 
 int getPrecisionString(char *dest, PrecisionMode prec, size_t n);
 

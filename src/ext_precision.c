@@ -1,7 +1,7 @@
-#include "ext_precision.h"
-
 #include <stddef.h>
 #include <string.h>
+
+#include "ext_precision.h"
 
 #ifdef MP_PREC
 #include <mpfr.h>
@@ -26,8 +26,7 @@ mpfr_prec_t mpSignificandSize = 128;
 #endif
 
 
-/*
- * Default mode of operation is with the standard `double` and `double complex`
+/* Default mode of operation is with the standard `double` and `double complex`
  * types.
  * 
  * Extended-precision mode enables the use of `long double` and
@@ -36,7 +35,6 @@ mpfr_prec_t mpSignificandSize = 128;
  * Arbitrary precision mode makes use of the GMP library for floating-points
  * (`mpfr_t`), and the MPC library for complex types (`mpc_t`).
  */
-PrecisionMode precision = STD_PRECISION;
 
 
 int getPrecisionString(char *dest, PrecisionMode prec, size_t n)
