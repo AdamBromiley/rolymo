@@ -2,8 +2,9 @@
 #define ARRAY_H
 
 
-#include <pthread.h>
 #include <stddef.h>
+
+#include <pthread.h>
 
 #include "parameters.h"
 

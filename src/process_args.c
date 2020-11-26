@@ -1,14 +1,14 @@
-#include "process_args.h"
-
-#include "getopt_error.h"
-#include "parameters.h"
-
-#include "percy/include/parser.h"
-
 #include <complex.h>
 #include <ctype.h>
 #include <math.h>
 #include <stdint.h>
+
+#include "percy/include/parser.h"
+
+#include "process_args.h"
+
+#include "getopt_error.h"
+#include "parameters.h"
 
 #ifdef MP_PREC
 #include <mpfr.h>

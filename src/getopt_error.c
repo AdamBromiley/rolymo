@@ -3,12 +3,12 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#include "getopt_error.h"
+
 #ifdef MP_PREC
 #include <mpfr.h>
 #include <mpc.h>
 #endif
-
-#include "getopt_error.h"
 
 
 /* Precision of floating points in output */

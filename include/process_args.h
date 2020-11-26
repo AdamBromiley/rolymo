@@ -2,12 +2,12 @@
 #define PROCESS_ARGS_H
 
 
-#include "parameters.h"
+#include <complex.h>
+#include <stdint.h>
 
 #include "percy/include/parser.h"
 
-#include <complex.h>
-#include <stdint.h>
+#include "parameters.h"
 
 #ifdef MP_PREC
 #include <mpc.h>

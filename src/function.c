@@ -1,22 +1,23 @@
-#include "function.h"
-
 #include <complex.h>
 #include <limits.h>
-#include <pthread.h>
 #include <stddef.h>
 #include <stdint.h>
 
-#ifdef MP_PREC
-#include <mpfr.h>
-#include <mpc.h>
-#endif
+#include <pthread.h>
 
 #include "libgroot/include/log.h"
+
+#include "function.h"
 
 #include "array.h"
 #include "colour.h"
 #include "mandelbrot_parameters.h"
 #include "parameters.h"
+
+#ifdef MP_PREC
+#include <mpfr.h>
+#include <mpc.h>
+#endif
 
 
 static double dotProduct(complex z);
