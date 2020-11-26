@@ -1,3 +1,16 @@
+#include <limits.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <string.h>
+
+#include <arpa/inet.h>
+#include <getopt.h>
+#include <netinet/in.h>
+
+#include "libgroot/include/log.h"
+#include "percy/include/parser.h"
+
 #include "process_options.h"
 
 #include "arg_ranges.h"
@@ -8,22 +21,12 @@
 #include "process_args.h"
 #include "program_ctx.h"
 
-#include "libgroot/include/log.h"
-#include "percy/include/parser.h"
-
-#include <arpa/inet.h>
-#include <getopt.h>
-
-#include <limits.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <string.h>
-
 #ifdef MP_PREC
 #include <mpfr.h>
+#endif
 
 
+#ifdef MP_PREC
 static const char *GETOPT_STRING = ":A:c:g:G:i:j:l:m:M:o:p:r:s:tT:vx:Xz:";
 #else
 static const char *GETOPT_STRING = ":c:g:G:i:j:l:m:M:o:p:r:s:tT:vx:Xz:";
@@ -55,90 +58,18 @@ static const struct option LONG_OPTIONS[] =
 };
 
 
-
-static int validateOptions(int argc, char **argv);
-
+static int parsePrecisionMode(PrecisionMode *precision, int argc, char **argv);
 static int parseGlobalOptions(ProgramCTX *ctx, int argc, char **argv);
-static int parseNetworkOptions(NetworkCTX *network, int argc, char **argv);
-static int parseDiscreteOptions(ProgramCTX *ctx, PlotCTX *p, int argc, char **argv);
+static NetworkCTX * parseNetworkOptions(int argc, char **argv);
+static int parseDiscreteOptions(PlotCTX *p, int argc, char **argv);
 static int parseContinuousOptions(PlotCTX *p, int argc, char **argv);
-static int parsePrecisionMode(int argc, char **argv);
 static PlotType parsePlotType(int argc, char **argv);
 static OutputType parseOutputType(int argc, char **argv);
 static int parseMagnification(PlotCTX *p, int argc, char **argv);
 
 
-int processOptions(ProgramCTX *ctx, PlotCTX *p, NetworkCTX *network, int argc, char **argv)
-{
-    PlotType plot;
-    OutputType output;
-
-    if (initialiseProgramCTX(ctx))
-        return -1;
-
-    if (validateOptions(argc, argv))
-        return -1;
-
-    switch (parseGlobalOptions(ctx, argc, argv))
-    {
-        case 0:
-            break;
-        case 1:
-            return 1;
-        default:
-            return -1;
-    }
-
-    if (parseNetworkOptions(network, argc, argv))
-        return -1;
-
-    if (network->mode == LAN_SLAVE)
-        return 0;
-
-    if (parsePrecisionMode(argc, argv))
-        return -1;
-
-    #ifdef MP_PREC
-    if (precision == MUL_PRECISION)
-        createMP(p);
-    #endif
-
-    plot = parsePlotType(argc, argv);
-    output = parseOutputType(argc, argv);
-
-    if (output == OUTPUT_NONE)
-    {
-        #ifdef MP_PREC
-        freeMP(p);
-        #endif
-
-        return -1;
-    }
-
-    if (initialisePlotCTX(p, plot, output))
-    {
-        #ifdef MP_PREC
-        freeMP(p);
-        #endif
-    
-        return -1;
-    }
-
-    if (parseContinuousOptions(p, argc, argv) || parseDiscreteOptions(ctx, p, argc, argv))
-    {
-        #ifdef MP_PREC
-        freeMP(p);
-        #endif
-
-        return -1;
-    }
-
-    return 0;
-}
-
-
 /* Scan argv for invalid command-line options */
-static int validateOptions(int argc, char **argv)
+int validateOptions(int argc, char **argv)
 {
     optind = 0;
     while ((opt = getopt_long(argc, argv, GETOPT_STRING, LONG_OPTIONS, NULL)) != -1)
@@ -157,6 +88,150 @@ static int validateOptions(int argc, char **argv)
             getoptErrorMessage(OPT_ENOARG, NULL);
             return -1;
         }
+    }
+
+    return 0;
+}
+
+
+int processProgramOptions(ProgramCTX *ctx, NetworkCTX **network, int argc, char **argv)
+{
+    if (!ctx || !network)
+        return -1;
+
+    if (initialiseProgramCTX(ctx))
+        return -1;
+
+    switch (parseGlobalOptions(ctx, argc, argv))
+    {
+        case 0:
+            break;
+        case 1:
+            return 1;
+        default:
+            return -1;
+    }
+
+    *network = parseNetworkOptions(argc, argv);
+
+    if (!(*network))
+        return -1;
+
+    return 0;
+}
+
+
+PlotCTX * processPlotOptions(int argc, char **argv)
+{
+    PlotCTX *p;
+    PrecisionMode precision;
+
+    PlotType plot = parsePlotType(argc, argv);
+    OutputType output = parseOutputType(argc, argv);
+
+    if (output == OUTPUT_NONE)
+        return NULL;
+
+    if (parsePrecisionMode(&precision, argc, argv))
+        return NULL;
+
+    p = createPlotCTX(precision);
+
+    if (initialisePlotCTX(p, plot, output))
+        return NULL;
+
+    if (parseContinuousOptions(p, argc, argv) || parseDiscreteOptions(p, argc, argv))
+        return NULL;
+
+    return p;
+}
+
+
+/* Do one getopt pass to set the precision (default is standard precision) */
+static int parsePrecisionMode(PrecisionMode *precision, int argc, char **argv)
+{
+    #ifdef MP_PREC
+    bool xFlag = false, aFlag = false;
+    #endif
+
+    if (!precision)
+        return -1;
+
+    *precision = STD_PRECISION;
+
+    optind = 0;
+    while ((opt = getopt_long(argc, argv, GETOPT_STRING, LONG_OPTIONS, NULL)) != -1)
+    {
+        #ifdef MP_PREC
+        ParseErr argError = PARSE_SUCCESS;
+        unsigned long tempUL = 0;
+        #endif
+
+        switch (opt)
+        {
+            case 'X':
+
+                #ifdef MP_PREC
+                if (aFlag)
+                {
+                    fprintf(stderr, "%s: -%c: Option mutually exclusive with -%c\n", programName, opt, 'A');
+                    getoptErrorMessage(OPT_NONE, NULL);
+                    return -1;
+                }
+
+                xFlag = true;
+                #endif
+
+                *precision = EXT_PRECISION;
+                break;
+
+            #ifdef MP_PREC
+            case 'A':
+                if (xFlag)
+                {
+                    fprintf(stderr, "%s: -%c: Option mutually exclusive with -%c\n", programName, opt, 'X');
+                    getoptErrorMessage(OPT_NONE, NULL);
+                    return -1;
+                }
+
+                aFlag = true;
+                *precision = MUL_PRECISION;
+
+                argError = uLongArg(&tempUL, optarg, (unsigned long) MP_BITS_MIN, (unsigned long) MP_BITS_MAX);
+
+                if (argError != PARSE_SUCCESS)
+                {
+                    break;
+                }
+                if (tempUL < MPFR_PREC_MIN || tempUL > MPFR_PREC_MAX)
+                {
+                    mpfr_fprintf(stderr, "%s: -%c: Argument out of range, it must be between %Pu and %Pu\n",
+                                 programName, opt, MPFR_PREC_MIN, MPFR_PREC_MAX);
+                    argError = PARSE_ERANGE;
+                    break;
+                }
+
+                mpSignificandSize = (mpfr_prec_t) tempUL;
+
+                break;
+            #endif
+
+            default:
+                break;
+        }
+
+        #ifdef MP_PREC
+        if (argError == PARSE_ERANGE) /* Error message already outputted */
+        {
+            getoptErrorMessage(OPT_NONE, NULL);
+            return -1;
+        }
+        else if (argError != PARSE_SUCCESS) /* Error but no error message, yet */
+        {
+            getoptErrorMessage(OPT_EARG, NULL);
+            return -1;
+        }
+        #endif
     }
 
     return 0;
@@ -246,17 +321,22 @@ static int parseGlobalOptions(ProgramCTX *ctx, int argc, char **argv)
 }
 
 
-/* Determine role in distributed network (if any) */
-static int parseNetworkOptions(NetworkCTX *network, int argc, char **argv)
+/* Determine role in distributed network (if any) and allocate network object */
+static NetworkCTX * parseNetworkOptions(int argc, char **argv)
 {
     const uint16_t PORT_DEFAULT = 7939;
 
     int numberOfSlaves;
-
     char ipAddress[IP_ADDR_STR_LEN_MAX];
-    uint16_t port = PORT_DEFAULT;
 
-    network->mode = LAN_NONE;
+    NetworkCTX *network = NULL;
+    LANStatus mode = LAN_NONE;
+
+    struct sockaddr_in addr =
+    {
+        .sin_family = AF_INET,
+        .sin_port = PORT_DEFAULT,
+    };
 
     optind = 0;
     while ((opt = getopt_long(argc, argv, GETOPT_STRING, LONG_OPTIONS, NULL)) != -1)
@@ -267,47 +347,47 @@ static int parseNetworkOptions(NetworkCTX *network, int argc, char **argv)
         switch (opt)
         {
             case 'g': /* Initialise as a slave for distributed computation */
-                if (network->mode != LAN_NONE)
+                if (mode != LAN_NONE)
                 {
                     fprintf(stderr, "%s: -%c: Option mutually exclusive with -%c\n", programName, opt, 'G');
                     getoptErrorMessage(OPT_NONE, NULL);
-                    return -1;
+                    return NULL;
                 }
 
                 if (validateIPAddress(optarg))
                 {
                     getoptErrorMessage(OPT_EARG, NULL);
-                    return -1;
+                    return NULL;
                 }
 
                 strncpy(ipAddress, optarg, sizeof(ipAddress));
                 ipAddress[sizeof(ipAddress) - 1] = '\0';
 
-                if (inet_pton(AF_INET, ipAddress, &network->addr.sin_addr) != 1)
+                if (inet_pton(AF_INET, ipAddress, &addr.sin_addr) != 1)
                 {
                     getoptErrorMessage(OPT_ERROR, NULL);
-		            return -1;
+		            return NULL;
                 }
 
-                network->mode = LAN_SLAVE;
+                mode = LAN_SLAVE;
                 break;
             case 'G': /* Initialise as a master for distributed computation */
-                if (network->mode != LAN_NONE)
+                if (mode != LAN_NONE)
                 {
                     fprintf(stderr, "%s: -%c: Option mutually exclusive with -%c\n", programName, opt, 'g');
                     getoptErrorMessage(OPT_NONE, NULL);
-                    return -1;
+                    return NULL;
                 }
 
                 argError = uLongArg(&tempUL, optarg, (unsigned int) SLAVES_MIN, (unsigned int) SLAVES_MAX);                    
                 numberOfSlaves = (int) tempUL;
 
-                network->addr.sin_addr.s_addr = htonl(INADDR_ANY);
-                network->mode = LAN_MASTER;
+                addr.sin_addr.s_addr = htonl(INADDR_ANY);
+                mode = LAN_MASTER;
                 break;
             case 'p': /* Port number */
                 argError = uLongArg(&tempUL, optarg, PORT_MIN, PORT_MAX);
-                port = (uint16_t) tempUL;
+                addr.sin_port = htons((uint16_t) tempUL);
                 break;
             default:
                 break;
@@ -316,29 +396,32 @@ static int parseNetworkOptions(NetworkCTX *network, int argc, char **argv)
         if (argError == PARSE_ERANGE) /* Error message already outputted */
         {
             getoptErrorMessage(OPT_NONE, NULL);
-            return -1;
+            return NULL;
         }
         else if (argError != PARSE_SUCCESS) /* Error but no error message, yet */
         {
             getoptErrorMessage(OPT_EARG, NULL);
-            return -1;
+            return NULL;
         }
     }
 
-    network->addr.sin_family = AF_INET;
-    network->addr.sin_port = htons(port);
-
-    if (network->mode == LAN_MASTER)
-        initialiseNetworkCTX(network, numberOfSlaves);
+    if (mode == LAN_MASTER)
+        network = createNetworkCTX(numberOfSlaves);
     else
-        initialiseNetworkCTX(network, 0);
+        network = createNetworkCTX(0);
 
-    return 0;
+    if (!network)
+        return NULL;
+
+    network->mode = mode;
+    network->addr = addr;
+
+    return network;
 }
 
 
 /* Get image parameters that are independent of the precision mode */
-static int parseDiscreteOptions(ProgramCTX *ctx, PlotCTX *p, int argc, char **argv)
+static int parseDiscreteOptions(PlotCTX *p, int argc, char **argv)
 {
     optind = 0;
     while ((opt = getopt_long(argc, argv, GETOPT_STRING, LONG_OPTIONS, NULL)) != -1)
@@ -366,8 +449,8 @@ static int parseDiscreteOptions(ProgramCTX *ctx, PlotCTX *p, int argc, char **ar
                 argError = uLongArg(&p->iterations, optarg, ITERATIONS_MIN, ITERATIONS_MAX);
                 break;
             case 'o': /* Output image filename */
-                strncpy(ctx->plotFilepath, optarg, sizeof(ctx->plotFilepath));
-                ctx->plotFilepath[sizeof(ctx->plotFilepath) - 1] = '\0';
+                strncpy(p->plotFilepath, optarg, sizeof(p->plotFilepath));
+                p->plotFilepath[sizeof(p->plotFilepath) - 1] = '\0';
                 break;
             case 'r': /* Width of image */
                 argError = uIntMaxArg(&tempUIntMax, optarg, WIDTH_MIN, WIDTH_MAX);
@@ -415,7 +498,7 @@ static int parseContinuousOptions(PlotCTX *p, int argc, char **argv)
         switch (opt)
         {
             case 'j':
-                switch (precision)
+                switch (p->precision)
                 {
                     case STD_PRECISION:
                         argError = complexArg(&(p->c.c), optarg, C_MIN, C_MAX);
@@ -437,7 +520,7 @@ static int parseContinuousOptions(PlotCTX *p, int argc, char **argv)
 
                 break;
             case 'm':
-                switch (precision)
+                switch (p->precision)
                 {
                     case STD_PRECISION:
                         argError = complexArg(&(p->minimum.c), optarg, COMPLEX_MIN, COMPLEX_MAX);
@@ -459,7 +542,7 @@ static int parseContinuousOptions(PlotCTX *p, int argc, char **argv)
 
                 break;
             case 'M':
-                switch (precision)
+                switch (p->precision)
                 {
                     case STD_PRECISION:
                         argError = complexArg(&(p->maximum.c), optarg, COMPLEX_MIN, COMPLEX_MAX);
@@ -509,94 +592,6 @@ static int parseContinuousOptions(PlotCTX *p, int argc, char **argv)
     #ifdef MP_PREC
     freeArgRangesMP();
     #endif
-
-    return 0;
-}
-
-
-/* Do one getopt pass to set the precision (default is standard precision) */
-static int parsePrecisionMode(int argc, char **argv)
-{
-    #ifdef MP_PREC
-    bool xFlag = false, aFlag = false;
-    #endif
-
-    precision = STD_PRECISION;
-
-    optind = 0;
-    while ((opt = getopt_long(argc, argv, GETOPT_STRING, LONG_OPTIONS, NULL)) != -1)
-    {
-        #ifdef MP_PREC
-        ParseErr argError = PARSE_SUCCESS;
-        unsigned long tempUL = 0;
-        #endif
-
-        switch (opt)
-        {
-            case 'X':
-
-                #ifdef MP_PREC
-                if (aFlag)
-                {
-                    fprintf(stderr, "%s: -%c: Option mutually exclusive with -%c\n", programName, opt, 'A');
-                    getoptErrorMessage(OPT_NONE, NULL);
-                    return -1;
-                }
-
-                xFlag = true;
-                #endif
-
-                precision = EXT_PRECISION;
-                break;
-
-            #ifdef MP_PREC
-            case 'A':
-                if (xFlag)
-                {
-                    fprintf(stderr, "%s: -%c: Option mutually exclusive with -%c\n", programName, opt, 'X');
-                    getoptErrorMessage(OPT_NONE, NULL);
-                    return -1;
-                }
-
-                aFlag = true;
-                precision = MUL_PRECISION;
-
-                argError = uLongArg(&tempUL, optarg, (unsigned long) MP_BITS_MIN, (unsigned long) MP_BITS_MAX);
-
-                if (argError != PARSE_SUCCESS)
-                {
-                    break;
-                }
-                if (tempUL < MPFR_PREC_MIN || tempUL > MPFR_PREC_MAX)
-                {
-                    mpfr_fprintf(stderr, "%s: -%c: Argument out of range, it must be between %Pu and %Pu\n",
-                                 programName, opt, MPFR_PREC_MIN, MPFR_PREC_MAX);
-                    argError = PARSE_ERANGE;
-                    break;
-                }
-
-                mpSignificandSize = (mpfr_prec_t) tempUL;
-
-                break;
-            #endif
-
-            default:
-                break;
-        }
-
-        #ifdef MP_PREC
-        if (argError == PARSE_ERANGE) /* Error message already outputted */
-        {
-            getoptErrorMessage(OPT_NONE, NULL);
-            return -1;
-        }
-        else if (argError != PARSE_SUCCESS) /* Error but no error message, yet */
-        {
-            getoptErrorMessage(OPT_EARG, NULL);
-            return -1;
-        }
-        #endif
-    }
 
     return 0;
 }
@@ -667,17 +662,17 @@ static int parseMagnification(PlotCTX *p, int argc, char **argv)
         {
             ParseErr argError = PARSE_EERR;
 
-            if (precision == STD_PRECISION)
+            if (p->precision == STD_PRECISION)
             {
                 argError = magArg(p, optarg, COMPLEX_MIN, COMPLEX_MAX, MAGNIFICATION_MIN, MAGNIFICATION_MAX);
             }
-            else if (precision == EXT_PRECISION)
+            else if (p->precision == EXT_PRECISION)
             {
                 argError = magArgExt(p, optarg, COMPLEX_MIN_EXT, COMPLEX_MAX_EXT, MAGNIFICATION_MIN, MAGNIFICATION_MAX);
             }
 
             #ifdef MP_PREC
-            else if (precision == MUL_PRECISION)
+            else if (p->precision == MUL_PRECISION)
             {
                 argError = magArgMP(p, optarg, NULL, NULL, MAGNIFICATION_MIN_EXT, MAGNIFICATION_MAX_EXT);
             }

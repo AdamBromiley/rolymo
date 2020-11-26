@@ -2,12 +2,16 @@
 #define PROCESS_OPTIONS_H
 
 
-#include "program_ctx.h"
+#include "ext_precision.h"
 #include "parameters.h"
+#include "program_ctx.h"
 #include "connection_handler.h"
 
 
-int processOptions(ProgramCTX *ctx, PlotCTX *p, NetworkCTX *network, int argc, char **argv);
+int validateOptions(int argc, char **argv);
+
+int processProgramOptions(ProgramCTX *ctx, NetworkCTX **network, int argc, char **argv);
+PlotCTX * processPlotOptions(int argc, char **argv);
 
 
 #endif

@@ -8,11 +8,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef MP_PREC
-#include <mpfr.h>
-#include <mpc.h>
-#endif
-
 #include "libgroot/include/log.h"
 #include "percy/include/parser.h"
 
@@ -25,6 +20,11 @@
 #include "parameters.h"
 #include "process_options.h"
 #include "program_ctx.h"
+
+#ifdef MP_PREC
+#include <mpfr.h>
+#include <mpc.h>
+#endif
 
 
 #define LOG_LEVEL_STR_LEN_MAX 32
@@ -43,96 +43,84 @@ static LogLevel LOG_LEVEL_DEFAULT = INFO;
 static void initialiseLog(void);
 
 static int usage(void);
-static void plotParameters(const ProgramCTX *ctx, const PlotCTX *p);
+
 static void programParameters(const ProgramCTX *ctx);
 
-static int validateParameters(PlotCTX *p);
+static int validatePlotParameters(PlotCTX *p);
+static void plotParameters(const PlotCTX *p);
 
 
-/* Process command-line options */
 int main(int argc, char **argv)
 {
-    ProgramCTX *ctx = createProgramCTX();
-    PlotCTX *p = createPlotCTX();
-    NetworkCTX *network = createNetworkCTX();
-
-    int ret = 0;
+    int ret;
+    
+    PlotCTX *p = NULL;
+    ProgramCTX *ctx = NULL;
+    NetworkCTX *network = NULL;
 
     programName = argv[0];
 
     /* Setup logging library */
     initialiseLog();
 
-    if (!ctx || !p || !network)
+    /* Ensure all command-line arguments are valid options */
+    if (validateOptions(argc, argv))
     {
-        freeProgramCTX(ctx);
-        freePlotCTX(p);
-        freeNetworkCTX(network);
-        getoptErrorMessage(OPT_ERROR, NULL);
+        closeLog();
         return EXIT_FAILURE;
     }
 
-    /* Process argv with getopt */
-    ret = processOptions(ctx, p, network, argc, argv);
+    /* The next call will fail on CTX creation failure (if NULL) */
+    ctx = createProgramCTX();
+    ret = processProgramOptions(ctx, &network, argc, argv);
 
     if (ret)
     {
         if (ret == 1)
             usage();
 
-        #ifdef MP_PREC
-        freeMP(p);
-        #endif
-
-        freePlotCTX(p);
         freeProgramCTX(ctx);
         freeNetworkCTX(network);
         closeLog();
         return (ret == 1) ? EXIT_SUCCESS : EXIT_FAILURE;
     }
 
-    /* Check and warn against some parameters */
-    if (network->mode != LAN_SLAVE && validateParameters(p))
-    {
-        getoptErrorMessage(OPT_NONE, NULL);
-        
-        #ifdef MP_PREC
-        freeMP(p);
-        #endif
-
-        freePlotCTX(p);
-        freeProgramCTX(ctx);
-        freeNetworkCTX(network);
-        closeLog();
-        return EXIT_FAILURE;
-    }
-
     /* Output settings */
     programParameters(ctx);
 
-    if (initialiseNetworkConnection(network, p))
+    if (network->mode != LAN_SLAVE)
     {
-        #ifdef MP_PREC
-        freeMP(p);
-        #endif
+        /* Will allocate memory of p. Requires freePlotCTX(p) later */
+        p = processPlotOptions(argc, argv);
 
+        if (validatePlotParameters(p))
+        {
+            getoptErrorMessage(OPT_NONE, NULL);
+            freeProgramCTX(ctx);
+            freeNetworkCTX(network);
+            freePlotCTX(p);
+            closeLog();
+            return EXIT_FAILURE;
+        }
+    }
+
+    /* Will allocate memory of p. Requires freePlotCTX(p) later */
+    if (initialiseNetworkConnection(network, &p))
+    {
         freePlotCTX(p);
         freeProgramCTX(ctx);
+        freePlotCTX(p);
         closeLog();
         return EXIT_FAILURE;
     }
 
-    plotParameters(ctx, p);
+    plotParameters(p);
 
     /* Open image file and write header (if PNM) */
     if (p->output != OUTPUT_TERMINAL && network->mode != LAN_SLAVE)
     {
-        if (initialiseImage(p, ctx->plotFilepath))
+        if (initialiseImage(p))
         { 
-            #ifdef MP_PREC
-            freeMP(p);
-            #endif
-
             freePlotCTX(p);
             freeProgramCTX(ctx);
             closeLog();
@@ -144,13 +132,13 @@ int main(int argc, char **argv)
     switch (network->mode)
     {
         case LAN_NONE:
-            ret = imageOutput(p, ctx->mem, ctx->threads);
+            ret = imageOutput(p, ctx);
             break;
         case LAN_MASTER:
-            ret = imageOutputMaster(p, network, ctx->mem);
+            ret = imageOutputMaster(p, network, ctx);
             break;
         case LAN_SLAVE:
-            ret = imageRowOutput(p, network, ctx->threads);
+            ret = imageRowOutput(p, network, ctx);
             break;
         default:
             ret = 1;
@@ -161,10 +149,6 @@ int main(int argc, char **argv)
 
     if (ret)
     {
-        #ifdef MP_PREC
-        freeMP(p);
-        #endif
-
         freePlotCTX(p);
         closeLog();
         return EXIT_FAILURE;
@@ -173,18 +157,10 @@ int main(int argc, char **argv)
     /* Close file */
     if (p->output != OUTPUT_TERMINAL && network->mode != LAN_SLAVE && closeImage(p))
     {
-        #ifdef MP_PREC
-        freeMP(p);
-        #endif
-
         freePlotCTX(p);
         closeLog();
         return EXIT_FAILURE;
     }
-
-    #ifdef MP_PREC
-    freeMP(p);
-    #endif
 
     freePlotCTX(p);
 
@@ -238,14 +214,16 @@ static int usage(void)
     printf("  -o FILE                       Output file name (default = \'%s\')\n", PLOT_FILEPATH_DEFAULT);
     printf("  -r WIDTH,  --width=WIDTH      The width of the image file in pixels\n");
     printf("                                  If using a 1-bit colour scheme, WIDTH must be a multiple of %u to allow "
-                                             "for\n"
-           "                                  bit-width pixels\n",
-                                              (unsigned int) CHAR_BIT);
+           "for\n                                  bit-width pixels\n", (unsigned int) CHAR_BIT);
     printf("  -s HEIGHT, --height=HEIGHT    The height of the image file in pixels\n");
     printf("  -t                            Output to stdout (or, with -o, text file) using ASCII characters as "
-                                           "shading\n");
+           "shading\n");
+    printf("Distributed computing setup:\n");
+    printf("  -g ADDR,   --slave=ADDR       Have computer work for a master at the respective IP address\n");
+    printf("  -G COUNT,  --master=COUNT     Setup computer as a network master, expecting COUNT slaves to connect\n");
+    printf("  -p PORT                       Communicate over the given port (default = 7939)\n"); /* TODO: Remove hard-coded port num default */
     printf("Plot type:\n");
-    printf("  -j CONSTANT                   Plot Julia set with specified constant parameter\n");
+    printf("  -j CONST,  --julia=CONST      Plot Julia set with specified constant parameter\n");
     printf("Plot parameters:\n");
     printf("  -m MIN,    --min=MIN          Minimum value to plot\n");
     printf("  -M MAX,    --max=MAX          Maximum value to plot\n");
@@ -277,11 +255,11 @@ static int usage(void)
     printf("Optimisation:\n");
 
     #ifdef MP_PREC
-    printf("  -A [PREC], --multiple[=PREC] Enable multiple-precision mode\n");
-    printf("                                  Specify optional number of precision bits (default = %zu bits)\n",
+    printf("  -A PREC, --multiple=PREC      Enable multiple-precision mode, specifying number of bits to use for the"
+           "significand of\n                                the floating point (default = %zu bits)\n",
            (size_t) MP_BITS_DEFAULT);
     printf("                                  MPFR floating-points will be used for calculations\n");
-    printf("                                  Precision better than \'-X\', but will be considerably slower\n");
+    printf("                                  The precision is better than \'-X\', but will be considerably slower\n");
     #endif
 
     printf("  -T COUNT,  --threads=COUNT    Use COUNT number of processing threads (default = processor count)\n");
@@ -346,20 +324,21 @@ static void programParameters(const ProgramCTX *ctx)
         timeFormat[sizeof(timeFormat) - 1] = '\0';
     }
 
-    logMessage(DEBUG, "Program settings:\n"
-                      "    Verbosity   = %s\n"
-                      "    Log level   = %s\n"
-                      "    Log file    = %s\n"
-                      "    Time format = %s",
+    logMessage(DEBUG, 
+               "Program settings:\n"
+               "    Verbosity   = %s\n"
+               "    Log level   = %s\n"
+               "    Log file    = %s\n"
+               "    Time format = %s",
                (getLogVerbosity()) ? "VERBOSE" : "QUIET",
                level,
-               (ctx->logToFile) ? ctx->logFilepath : "-",
+               (ctx && ctx->logToFile) ? ctx->logFilepath : "-",
                timeFormat);
 }
 
 
 /* Print plot parameters to log */
-static void plotParameters(const ProgramCTX *ctx, const PlotCTX *p)
+static void plotParameters(const PlotCTX *p)
 {
     char outputStr[OUTPUT_STR_LEN_MAX];
     char colourStr[COLOUR_STR_LEN_MAX];
@@ -369,6 +348,9 @@ static void plotParameters(const ProgramCTX *ctx, const PlotCTX *p)
     char maxStr[COMPLEX_STR_LEN_MAX];
     char cStr[COMPLEX_STR_LEN_MAX];
     char precisionStr[PRECISION_STR_LEN_MAX];
+
+    if (!p)
+        return;
 
     /* Get output type string from output type and bit depth enums */
     if (getOutputString(outputStr, p, sizeof(outputStr)))
@@ -408,7 +390,7 @@ static void plotParameters(const ProgramCTX *ctx, const PlotCTX *p)
     }
 
     /* Construct range strings */
-    switch (precision)
+    switch (p->precision)
     {
         case STD_PRECISION:
             snprintf(minStr, sizeof(minStr), "%.*g + %.*gi",
@@ -443,13 +425,13 @@ static void plotParameters(const ProgramCTX *ctx, const PlotCTX *p)
             minStr[sizeof(minStr) - 1] = '\0';
             strncpy(maxStr, "Invalid precision mode", sizeof(maxStr));
             maxStr[sizeof(maxStr) - 1] = '\0';
-            return;
+            break;
     }
 
     /* Only display constant value if a Julia set plot */
     if (p->type == PLOT_JULIA)
     {
-        switch (precision)
+        switch (p->precision)
         {
             case STD_PRECISION:
                 snprintf(cStr, sizeof(cStr), "%.*g + %.*gi",
@@ -473,6 +455,7 @@ static void plotParameters(const ProgramCTX *ctx, const PlotCTX *p)
             default:
                 strncpy(cStr, "Invalid precision mode", sizeof(cStr));
                 cStr[sizeof(cStr) - 1] = '\0';
+                break;
         }
     }
     else
@@ -481,31 +464,34 @@ static void plotParameters(const ProgramCTX *ctx, const PlotCTX *p)
         cStr[sizeof(cStr) - 1] = '\0';
     }
 
-    if (getPrecisionString(precisionStr, precision, sizeof(precisionStr)))
+    /* Get precision mode as string */
+    if (getPrecisionString(precisionStr, p->precision, sizeof(precisionStr)))
     {
         strncpy(precisionStr, "Invalid precision mode", sizeof(precisionStr));
         precisionStr[sizeof(precisionStr) - 1] = '\0';
     }
 
-    logMessage(INFO, "Image settings:\n"
-                     "    Output      = %s\n"
-                     "    Output file = %s\n"
-                     "    Dimensions  = %zu px * %zu px\n"
-                     "    Colour      = %s %s",
+    logMessage(INFO,
+               "Image settings:\n"
+               "    Output      = %s\n"
+               "    Output file = %s\n"
+               "    Dimensions  = %zu px * %zu px\n"
+               "    Colour      = %s %s",
                outputStr,
-               (p->output == OUTPUT_PNM) ? ctx->plotFilepath : "-",
+               (p->output == OUTPUT_PNM) ? p->plotFilepath : "-",
                p->width,
                p->height,
                colourStr,
                depthStr);
 
-    logMessage(INFO, "Plot parameters:\n"
-                     "    Plot        = %s\n"
-                     "    Minimum     = %s\n"
-                     "    Maximum     = %s\n"
-                     "    Constant    = %s\n"
-                     "    Iterations  = %lu\n"
-                     "    Precision   = %s",
+    logMessage(INFO,
+               "Plot parameters:\n"
+               "    Plot        = %s\n"
+               "    Minimum     = %s\n"
+               "    Maximum     = %s\n"
+               "    Constant    = %s\n"
+               "    Iterations  = %lu\n"
+               "    Precision   = %s",
                typeStr,
                minStr,
                maxStr,
@@ -516,8 +502,11 @@ static void plotParameters(const ProgramCTX *ctx, const PlotCTX *p)
 
 
 /* Check user-supplied parameters */
-static int validateParameters(PlotCTX *p)
+static int validatePlotParameters(PlotCTX *p)
 {
+    if (!p)
+        return 1;
+
     /* Check colour scheme */
     if (p->output != OUTPUT_TERMINAL && p->colour.depth == BIT_DEPTH_ASCII)
     {
@@ -526,31 +515,62 @@ static int validateParameters(PlotCTX *p)
     }
     
     /* Check real and imaginary range */
-    if (!precision)
+    switch (p->precision)
     {
-        if (creal(p->maximum.c) < creal(p->minimum.c))
-        {
-            fprintf(stderr, "%s: Invalid range - maximum real value is smaller than the minimum\n", programName);
+        #ifdef MP_PREC
+        int ret;
+        #endif
+
+        case STD_PRECISION:
+            if (creal(p->maximum.c) < creal(p->minimum.c))
+            {
+                fprintf(stderr, "%s: Invalid range - maximum real value is smaller than the minimum\n", programName);
+                return 1;
+            }
+            else if (cimag(p->maximum.c) < cimag(p->minimum.c))
+            {
+                fprintf(stderr, "%s: Invalid range - maximum imaginary value is smaller than the minimum\n",
+                        programName);
+                return 1;
+            }
+
+            break;
+        case EXT_PRECISION:
+            if (creall(p->maximum.lc) < creall(p->minimum.lc))
+            {
+                fprintf(stderr, "%s: Invalid range - maximum real value is smaller than the minimum\n", programName);
+                return 1;
+            }
+            else if (cimagl(p->maximum.lc) < cimagl(p->minimum.lc))
+            {
+                fprintf(stderr, "%s: Invalid range - maximum imaginary value is smaller than the minimum\n",
+                        programName);
+                return 1;
+            }
+
+            break;
+        
+        #ifdef MP_PREC
+        case MUL_PRECISION:
+            ret = mpc_cmp(p->maximum.mpc, p->minimum.mpc);
+
+            if (MPC_INEX_RE(ret) < 0)
+            {
+                fprintf(stderr, "%s: Invalid range - maximum real value is smaller than the minimum\n", programName);
+                return 1;
+            }
+            else if (MPC_INEX_IM(ret) < 0)
+            {
+                fprintf(stderr, "%s: Invalid range - maximum imaginary value is smaller than the minimum\n",
+                        programName);
+                return 1;
+            }
+
+            break;
+        #endif
+
+        default:
             return 1;
-        }
-        else if (cimag(p->maximum.c) < cimag(p->minimum.c))
-        {
-            fprintf(stderr, "%s: Invalid range - maximum imaginary value is smaller than the minimum\n", programName);
-            return 1;
-        }
-    }
-    else
-    {
-        if (creall(p->maximum.lc) < creall(p->minimum.lc))
-        {
-            fprintf(stderr, "%s: Invalid range - maximum real value is smaller than the minimum\n", programName);
-            return 1;
-        }
-        else if (cimagl(p->maximum.lc) < cimagl(p->minimum.lc))
-        {
-            fprintf(stderr, "%s: Invalid range - maximum imaginary value is smaller than the minimum\n", programName);
-            return 1;
-        }
     }
 
     /* 
