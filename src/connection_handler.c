@@ -1,7 +1,8 @@
-#include "connection_handler.h"
-
-#include "array.h"
-#include "request_handler.h"
+#include <errno.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -13,53 +14,58 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include <errno.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include "connection_handler.h"
+
+#include "array.h"
+#include "request_handler.h"
 
 
-static int getHighestFD(int *fd, int n);
+static int getHighestFD(const int *fd, int n);
 
 
-NetworkCTX * createNetworkCTX(void)
+/* Allocate NetworkCTX object */
+NetworkCTX * createNetworkCTX(int n)
 {
-    return malloc(sizeof(NetworkCTX));
-}
+    NetworkCTX *ctx = malloc(sizeof(*ctx));
 
-
-int initialiseNetworkCTX(NetworkCTX *ctx, int n)
-{
-    if (!ctx || ctx->slaves)
-        return 1;
-
+    if (!ctx)
+        return NULL;
+    
     ctx->n = (n < 0) ? 0 : n;
     ctx->slaves = malloc((size_t) ctx->n * sizeof(*(ctx->slaves)));
 
     if (!ctx->slaves)
-        return 1;
+    {
+        free(ctx);
+        return NULL;
+    }
 
     for (int i = 0; i < ctx->n; ++i)
         ctx->slaves[i] = -1;
 
-    return 0;
+    return ctx;
 }
 
 
+/* Free NetworkCTX objects */
 void freeNetworkCTX(NetworkCTX *ctx)
 {
     if (ctx)
     {
-        free(ctx->slaves);
+        if (ctx->slaves)
+            free(ctx->slaves);
+
         free(ctx);
     }
 }
 
 
-int initialiseNetworkConnection(NetworkCTX *network, PlotCTX *p)
+/* Bind sockets where relevant for distributed computing, and generate necessary
+ * network objects
+ */
+int initialiseNetworkConnection(NetworkCTX *network, PlotCTX **p)
 {
-    const time_t CONNECTION_TIMEOUT = 10;
+    const time_t CONNECTION_TIMEOUT = 30;
 
     switch (network->mode)
     {
@@ -72,7 +78,7 @@ int initialiseNetworkConnection(NetworkCTX *network, PlotCTX *p)
             if (acceptConnections(network, CONNECTION_TIMEOUT) < network->n)
                 return 1;
 
-            if (initialiseSlaves(network, p))
+            if (initialiseSlaves(network, *p))
                 return 1;
             
             break;
@@ -99,8 +105,7 @@ int initialiseMaster(NetworkCTX *network)
     if (network->s < 0)
         return 1;
 
-    /* 
-     * SOL_SOCKET = set option at socket API level
+    /* SOL_SOCKET = set option at socket API level
      * SO_REUSEADDR = Allow reuse of local address
      */
 	if (setsockopt(network->s, SOL_SOCKET, SO_REUSEADDR, (const void *) &SOCK_OPT, (socklen_t) sizeof(SOCK_OPT)))
@@ -219,8 +224,8 @@ int initialiseSlaves(NetworkCTX *network, PlotCTX *p)
 }
 
 
-/* Initialise machine as slave - connect to a master */
-int initialiseSlave(NetworkCTX *network, PlotCTX *p)
+/* Initialise machine as slave - connect to a master and read parameters */
+int initialiseSlave(NetworkCTX *network, PlotCTX **p)
 {
     network->s = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -233,7 +238,7 @@ int initialiseSlave(NetworkCTX *network, PlotCTX *p)
 		return 1;
 	}
 
-    if (readParameters(network->s, p))
+    if (readParameters(p, network->s))
     {
         close(network->s);
         return 1;
@@ -244,7 +249,7 @@ int initialiseSlave(NetworkCTX *network, PlotCTX *p)
 
 
 /* Listener */
-int listener(NetworkCTX *network, Block *block)
+int listener(NetworkCTX *network, const Block *block)
 {
     /* Sets of socket file descriptors */
     fd_set set, setTemp;
@@ -353,8 +358,8 @@ int listener(NetworkCTX *network, Block *block)
                 long rowNum = strtol(request, NULL, 10);
                 char *a = block->ctx->array->array;
                 size_t rowSize = (block->ctx->array->params->colour.depth == BIT_DEPTH_ASCII)
-                                    ? block->ctx->array->params->width * sizeof(char)
-                                    : block->ctx->array->params->width * block->ctx->array->params->colour.depth / 8;
+                                 ? block->ctx->array->params->width * sizeof(char)
+                                 : block->ctx->array->params->width * block->ctx->array->params->colour.depth / 8;
 
                 memcpy(a + ((size_t) rowNum * rowSize), request + 6, rowSize);
                 ++wroteRows;
@@ -370,7 +375,7 @@ int listener(NetworkCTX *network, Block *block)
 
 
 /* Calculate the highest FD in set */
-static int getHighestFD(int *fd, int n)
+static int getHighestFD(const int *fd, int n)
 {
     int highestFD = -1;
 
