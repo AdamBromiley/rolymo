@@ -1,20 +1,22 @@
-#include "image.h"
-
-#include <pthread.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include <pthread.h>
 #include <unistd.h>
 
 #include "libgroot/include/log.h"
 #include "percy/include/parser.h"
+
+#include "image.h"
 
 #include "array.h"
 #include "connection_handler.h"
 #include "ext_precision.h"
 #include "function.h"
 #include "parameters.h"
+#include "program_ctx.h"
 #include "request_handler.h"
 
 
@@ -34,15 +36,15 @@ static void blockToImage(const Block *block);
 
 
 /* Create image file and write header */
-int initialiseImage(PlotCTX *p, const char *filepath)
+int initialiseImage(PlotCTX *p)
 {
-    logMessage(DEBUG, "Opening image file \'%s\'", filepath);
+    logMessage(DEBUG, "Opening image file \'%s\'", p->plotFilepath);
 
-    p->file = fopen(filepath, "wb");
+    p->file = fopen(p->plotFilepath, "wb");
 
     if (!p->file)
     {
-        logMessage(ERROR, "File \'%s\' could not be opened", filepath);
+        logMessage(ERROR, "File \'%s\' could not be opened", p->plotFilepath);
         return 1;
     }
 
@@ -84,7 +86,7 @@ int initialiseImage(PlotCTX *p, const char *filepath)
 
 
 /* Initialise plot array, run function, then write to file */
-int imageOutput(PlotCTX *p, size_t mem, unsigned int threadCount)
+int imageOutput(PlotCTX *p, ProgramCTX *ctx)
 {
     /* Pointer to fractal generation function */
     void * (*genFractal)(void *);
@@ -97,7 +99,7 @@ int imageOutput(PlotCTX *p, size_t mem, unsigned int threadCount)
     Thread *threads;
     Thread *thread;
 
-    switch (precision)
+    switch (p->precision)
     {
         case STD_PRECISION:
             genFractal = generateFractal;
@@ -123,7 +125,7 @@ int imageOutput(PlotCTX *p, size_t mem, unsigned int threadCount)
         return 1;
 
     /* Allocate memory to the array in manageable blocks */
-    block = mallocArray(array, mem);
+    block = mallocArray(array, ctx->mem);
 
     if (!block)
     {
@@ -131,11 +133,10 @@ int imageOutput(PlotCTX *p, size_t mem, unsigned int threadCount)
         return 1;
     }
 
-    /* 
-     * Create a list of processing threads.
-     * The most optimised solution is one thread per processing core.
+    /* Create a list of processing threads. The most optimised solution is one
+     * thread per processing core.
      */
-    threads = createThreads(block, threadCount);
+    threads = createThreads(block, ctx->threads);
 
     if (!threads)
     {
@@ -144,8 +145,7 @@ int imageOutput(PlotCTX *p, size_t mem, unsigned int threadCount)
         return 1;
     }
 
-    /*
-     * Because image dimensions can lead to billions of pixels, the plot array
+    /* Because image dimensions can lead to billions of pixels, the plot array
      * may not be able to be stored in one whole memory chunk. Therefore, as per
      * the preceding functions, a block size is determined. A block is a section
      * of N rows of the image array that allow threads will perform on at once.
@@ -223,7 +223,7 @@ int imageOutput(PlotCTX *p, size_t mem, unsigned int threadCount)
 
 
 /* Initialise plot array, run function, then write to file */
-int imageOutputMaster(PlotCTX *p, NetworkCTX *network, size_t mem)
+int imageOutputMaster(PlotCTX *p, NetworkCTX *network, ProgramCTX *ctx)
 {
     /* Array blocks */
     ArrayCTX *array;
@@ -236,7 +236,7 @@ int imageOutputMaster(PlotCTX *p, NetworkCTX *network, size_t mem)
         return 1;
 
     /* Allocate memory to the array in manageable blocks */
-    block = mallocArray(array, mem);
+    block = mallocArray(array, ctx->mem);
 
     if (!block)
     {
@@ -244,8 +244,7 @@ int imageOutputMaster(PlotCTX *p, NetworkCTX *network, size_t mem)
         return 1;
     }
 
-    /*
-     * Because image dimensions can lead to billions of pixels, the plot array
+    /* Because image dimensions can lead to billions of pixels, the plot array
      * may not be able to be stored in one whole memory chunk. Therefore, as per
      * the preceding functions, a block size is determined. A block is a section
      * of N rows of the image array that allow threads will perform on at once.
@@ -292,7 +291,7 @@ int imageOutputMaster(PlotCTX *p, NetworkCTX *network, size_t mem)
 
 
 /* Initialise plot array, run function, then write to file */
-int imageRowOutput(PlotCTX *p, NetworkCTX *network, unsigned int threadCount)
+int imageRowOutput(PlotCTX *p, NetworkCTX *network, ProgramCTX *ctx)
 {
     /* Pointer to fractal row generation function */
     void * (*genFractalRow)(void *);
@@ -310,7 +309,7 @@ int imageRowOutput(PlotCTX *p, NetworkCTX *network, unsigned int threadCount)
 
     char *writeBuffer;
 
-    switch (precision)
+    switch (p->precision)
     {
         case STD_PRECISION:
             genFractalRow = generateFractalRow;
@@ -349,11 +348,10 @@ int imageRowOutput(PlotCTX *p, NetworkCTX *network, unsigned int threadCount)
 
     row.array = array;
 
-    /* 
-     * Create a list of processing threads.
-     * The most optimised solution is one thread per processing core.
+    /* Create a list of processing threads. The most optimised solution is one
+     * thread per processing core.
      */
-    threads = createSlaveThreads(&row, threadCount);
+    threads = createSlaveThreads(&row, ctx->threads);
 
     if (!threads)
     {
@@ -370,18 +368,6 @@ int imageRowOutput(PlotCTX *p, NetworkCTX *network, unsigned int threadCount)
         freeSlaveThreads(threads);
         return 1;
     }
-
-    /*
-     * Because image dimensions can lead to billions of pixels, the plot array
-     * may not be able to be stored in one whole memory chunk. Therefore, as per
-     * the preceding functions, a block size is determined. A block is a section
-     * of N rows of the image array that allow threads will perform on at once.
-     * Once all threads have finished, the block gets written to the image file
-     * and the cycle continues. The array may not divide evenly into blocks, so
-     * the reminader rows are calculated prior and stored in the block context
-     * structure
-     */
-    
 
     while (1)
     {
@@ -566,6 +552,4 @@ static void blockToImage(const Block *block)
     }
 
     logMessage(INFO, "Block successfully wrote to file");
-
-    return;
 }
