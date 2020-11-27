@@ -1,5 +1,12 @@
 # Changelog
 
+## 2020-11-27
+### Added
+- Distributed computing supported with `-g`, `-G`, and `-p`
+- Specify number of bits used in the MPFR/MPC floating-point significands with `--precision`
+### Changed
+- `--log` merely enables file logging with the default path. Use `--log-file` to specify the path
+
 ## 2020-07-14
 ### Added
 - ASCII art output with `-t`
