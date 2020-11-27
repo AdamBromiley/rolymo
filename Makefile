@@ -75,8 +75,7 @@ SUBMAKE = $(LDIR)/libgroot $(LDIR)/percy
 CC = gcc
 
 # Compiler optimisation options
-#COPT = -flto -Ofast -march=native
-COPT =
+COPT = -flto -Ofast -march=native
 
 # Compiler options
 CFLAGS = $(IDIRS) $(COPT) -g -std=c99 -pedantic \
@@ -90,8 +89,7 @@ CFLAGS = $(IDIRS) $(COPT) -g -std=c99 -pedantic \
 LD = gcc
 
 # Linker optimisation options
-#LDOPT = -flto -Ofast
-LDOPT =
+LDOPT = -flto -Ofast
 
 # Linker options
 LDFLAGS = $(LPATHS) -Wl,$(RPATHS) $(LDLIBS) $(LDOPT) -pthread
