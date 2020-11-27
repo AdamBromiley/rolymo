@@ -30,6 +30,7 @@ const ColourSchemeType TERMINAL_COLOUR_SCHEME_DEFAULT = COLOUR_SCHEME_TYPE_ASCII
 /* Default parameters for Julia set plot */
 const PlotCTX JULIA_PARAMETERS_DEFAULT =
 {
+    .precision = STD_PRECISION,
     .type = PLOT_JULIA,
     .minimum.c = -2.0 - 2.0 * I,
     .maximum.c = 2.0 + 2.0 * I,
@@ -43,6 +44,7 @@ const PlotCTX JULIA_PARAMETERS_DEFAULT =
 /* Default parameters for Julia set plot (extended-precision) */
 const PlotCTX JULIA_PARAMETERS_DEFAULT_EXT =
 {
+    .precision = EXT_PRECISION,
     .type = PLOT_JULIA,
     .minimum.lc = -2.0L - 2.0L * I,
     .maximum.lc = 2.0L + 2.0L * I,
@@ -57,6 +59,7 @@ const PlotCTX JULIA_PARAMETERS_DEFAULT_EXT =
 /* Default parameters for Julia set plot (multiple-precision) */
 const PlotCTX JULIA_PARAMETERS_DEFAULT_MP =
 {
+    .precision = MUL_PRECISION,
     .type = PLOT_JULIA,
     .iterations = 100,
     .output = OUTPUT_PNM,
@@ -69,6 +72,7 @@ const PlotCTX JULIA_PARAMETERS_DEFAULT_MP =
 /* Default parameters for Mandelbrot set plot */
 const PlotCTX MANDELBROT_PARAMETERS_DEFAULT =
 {
+    .precision = STD_PRECISION,
     .type = PLOT_MANDELBROT,
     .minimum.c = -2.0 - 1.25 * I,
     .maximum.c = 0.75 + 1.25 * I,
@@ -82,6 +86,7 @@ const PlotCTX MANDELBROT_PARAMETERS_DEFAULT =
 /* Default parameters for Mandelbrot set plot (extended-precision) */
 const PlotCTX MANDELBROT_PARAMETERS_DEFAULT_EXT =
 {
+    .precision = EXT_PRECISION,
     .type = PLOT_MANDELBROT,
     .minimum.lc = -2.0L - 1.25L * I,
     .maximum.lc = 0.75L + 1.25L * I,
@@ -96,6 +101,7 @@ const PlotCTX MANDELBROT_PARAMETERS_DEFAULT_EXT =
 /* Default parameters for Mandelbrot set plot (multiple-precision) */
 const PlotCTX MANDELBROT_PARAMETERS_DEFAULT_MP =
 {
+    .precision = MUL_PRECISION,
     .type = PLOT_MANDELBROT,
     .iterations = 100,
     .output = OUTPUT_PNM,
@@ -276,9 +282,6 @@ int getPlotString(char *dest, PlotType plot, size_t n)
 
 static int initialiseImageOutputParameters(PlotCTX *p)
 {
-    strncpy(p->plotFilepath, PLOT_FILEPATH_DEFAULT, sizeof(p->plotFilepath));
-    p->plotFilepath[sizeof(p->plotFilepath) - 1] = '\0';
-
     switch (p->type)
     {
         case PLOT_JULIA:
@@ -334,6 +337,9 @@ static int initialiseImageOutputParameters(PlotCTX *p)
     }
 
     p->output = OUTPUT_PNM;
+
+    strncpy(p->plotFilepath, PLOT_FILEPATH_DEFAULT, sizeof(p->plotFilepath));
+    p->plotFilepath[sizeof(p->plotFilepath) - 1] = '\0';
     
     if (initialiseColourScheme(&(p->colour), COLOUR_SCHEME_DEFAULT))
         return 1;
