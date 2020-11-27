@@ -26,8 +26,11 @@
 #endif
 
 
+const uint16_t PORT_DEFAULT = 7939;
+
+
 #ifdef MP_PREC
-static const char *GETOPT_STRING = ":A:c:g:G:i:j:l:m:M:o:p:r:s:tT:vx:Xz:";
+static const char *GETOPT_STRING = ":Ac:g:G:i:j:l:m:M:o:p:r:s:tT:vx:Xz:";
 #else
 static const char *GETOPT_STRING = ":c:g:G:i:j:l:m:M:o:p:r:s:tT:vx:Xz:";
 #endif
@@ -35,7 +38,8 @@ static const char *GETOPT_STRING = ":c:g:G:i:j:l:m:M:o:p:r:s:tT:vx:Xz:";
 static const struct option LONG_OPTIONS[] =
 {
     #ifdef MP_PREC
-    {"multiple", required_argument, NULL, 'A'},  /* Use multiple precision */
+    {"multiple", no_argument, NULL, 'A'},         /* Use multiple precision */
+    {"precision", required_argument, NULL, 'P'},  /* Specify number of bits to use for the MP significand */
     #endif
 
     {"colour", required_argument, NULL, 'c'},     /* Colour scheme of PPM image */
@@ -43,7 +47,8 @@ static const struct option LONG_OPTIONS[] =
     {"master", required_argument, NULL, 'G'},     /* Initialise as a master for distributed computation */
     {"iterations", required_argument, NULL, 'i'}, /* Maximum iteration count of function */
     {"julia", required_argument, NULL, 'j'},      /* Plot a Julia set with specified constant */
-    {"log", optional_argument, NULL, 'k'},        /* Output log to file (with optional path) */
+    {"log", no_argument, NULL, 'k'},              /* Output log to file */
+    {"log-file", required_argument, NULL, 'K'},   /* Specify filepath of log */
     {"log-level", required_argument, NULL, 'l'},  /* Minimum log level to output */
     {"min", required_argument, NULL, 'm'},        /* Range of complex numbers to plot */
     {"max", required_argument, NULL, 'M'},
@@ -151,7 +156,8 @@ PlotCTX * processPlotOptions(int argc, char **argv)
 static int parsePrecisionMode(PrecisionMode *precision, int argc, char **argv)
 {
     #ifdef MP_PREC
-    bool xFlag = false, aFlag = false;
+    unsigned long tempPrecision = 0;
+    bool AFlag = false, PFlag = false, XFlag = false;
     #endif
 
     if (!precision)
@@ -164,46 +170,38 @@ static int parsePrecisionMode(PrecisionMode *precision, int argc, char **argv)
     {
         #ifdef MP_PREC
         ParseErr argError = PARSE_SUCCESS;
-        unsigned long tempUL = 0;
         #endif
 
         switch (opt)
         {
-            case 'X':
-
-                #ifdef MP_PREC
-                if (aFlag)
-                {
-                    fprintf(stderr, "%s: -%c: Option mutually exclusive with -%c\n", programName, opt, 'A');
-                    getoptErrorMessage(OPT_NONE, NULL);
-                    return -1;
-                }
-
-                xFlag = true;
-                #endif
-
-                *precision = EXT_PRECISION;
-                break;
-
             #ifdef MP_PREC
-            case 'A':
-                if (xFlag)
+            case 'A': /* Use multiple precision */
+                AFlag = true;
+                if (XFlag)
                 {
                     fprintf(stderr, "%s: -%c: Option mutually exclusive with -%c\n", programName, opt, 'X');
                     getoptErrorMessage(OPT_NONE, NULL);
                     return -1;
                 }
 
-                aFlag = true;
                 *precision = MUL_PRECISION;
+                break;
+            case 'P': /* Specify number of bits to use for the MP significand */
+                PFlag = true;
+                if (XFlag)
+                {
+                    fprintf(stderr, "%s: -%c: Option mutually exclusive with -%c\n", programName, opt, 'X');
+                    getoptErrorMessage(OPT_NONE, NULL);
+                    return -1;
+                }
 
-                argError = uLongArg(&tempUL, optarg, (unsigned long) MP_BITS_MIN, (unsigned long) MP_BITS_MAX);
+                argError = uLongArg(&tempPrecision, optarg, (unsigned long) MP_BITS_MIN, (unsigned long) MP_BITS_MAX);
 
                 if (argError != PARSE_SUCCESS)
                 {
                     break;
                 }
-                if (tempUL < MPFR_PREC_MIN || tempUL > MPFR_PREC_MAX)
+                if (tempPrecision < MPFR_PREC_MIN || tempPrecision > MPFR_PREC_MAX)
                 {
                     mpfr_fprintf(stderr, "%s: -%c: Argument out of range, it must be between %Pu and %Pu\n",
                                  programName, opt, MPFR_PREC_MIN, MPFR_PREC_MAX);
@@ -211,11 +209,24 @@ static int parsePrecisionMode(PrecisionMode *precision, int argc, char **argv)
                     break;
                 }
 
-                mpSignificandSize = (mpfr_prec_t) tempUL;
-
                 break;
             #endif
 
+            case 'X': /* Use extended precision */
+
+                #ifdef MP_PREC
+                XFlag = true;
+                if (AFlag || PFlag)
+                {
+                    fprintf(stderr, "%s: -%c: Option mutually exclusive with -%c\n",
+                            programName, opt, (AFlag) ? 'A' : 'P');
+                    getoptErrorMessage(OPT_NONE, NULL);
+                    return -1;
+                }
+                #endif
+
+                *precision = EXT_PRECISION;
+                break;
             default:
                 break;
         }
@@ -234,6 +245,19 @@ static int parsePrecisionMode(PrecisionMode *precision, int argc, char **argv)
         #endif
     }
 
+    #ifdef MP_PREC
+    if (PFlag && !AFlag)
+    {
+        fprintf(stderr, "%s: -%c: Option must be used in conjunction with -%c\n", programName, 'P', 'A');
+        getoptErrorMessage(OPT_NONE, NULL);
+        return -1;
+    }
+    else if (PFlag)
+    {
+        mpSignificandSize = (mpfr_prec_t) tempPrecision;
+    }
+    #endif
+
     return 0;
 }
 
@@ -241,7 +265,8 @@ static int parsePrecisionMode(PrecisionMode *precision, int argc, char **argv)
 /* Parse options common to every mode of operation */
 static int parseGlobalOptions(ProgramCTX *ctx, int argc, char **argv)
 {
-    bool vFlag = false;
+    char tmpLogFilepath[sizeof(ctx->logFilepath)];
+    bool KFlag = false, vFlag = false;
 
     optind = 0;
     while ((opt = getopt_long(argc, argv, GETOPT_STRING, LONG_OPTIONS, NULL)) != -1)
@@ -253,24 +278,19 @@ static int parseGlobalOptions(ProgramCTX *ctx, int argc, char **argv)
         {
             char *endptr;
 
-            case 'k': /* Output log to file (with optional path) */
+            case 'k': /* Output log to file */
+                ctx->logToFile = true;
                 if (!vFlag)
                     setLogVerbosity(false);
-
-                if (optarg)
-                {
-                    strncpy(ctx->logFilepath, optarg, sizeof(ctx->logFilepath));
-                    ctx->logFilepath[sizeof(ctx->logFilepath) - 1] = '\0';
-                }
-
-                if (openLog(ctx->logFilepath))
-                {
-                    fprintf(stderr, "%s: -%c: Failed to open log file\n", programName, opt);
-                    argError = PARSE_ERANGE;
-                }
-
+                break;
+            case 'K': /* Specify filepath of log */
+                KFlag = true;
                 ctx->logToFile = true;
+                strncpy(tmpLogFilepath, optarg, sizeof(tmpLogFilepath));
+                tmpLogFilepath[sizeof(tmpLogFilepath) - 1] = '\0';
 
+                if (!vFlag)
+                    setLogVerbosity(false);
                 break;
             case 'l': /* Minimum log level to output */
                 argError = uLongArg(&tempUL, optarg, LOG_LEVEL_MIN, LOG_LEVEL_MAX);
@@ -317,6 +337,19 @@ static int parseGlobalOptions(ProgramCTX *ctx, int argc, char **argv)
         }
     }
 
+    if (KFlag)
+    {
+        strncpy(ctx->logFilepath, tmpLogFilepath, sizeof(ctx->logFilepath));
+        ctx->logFilepath[sizeof(ctx->logFilepath) - 1] = '\0';
+    }
+
+    if (ctx->logToFile && openLog(ctx->logFilepath))
+    {
+        fprintf(stderr, "%s: -%c: Failed to open log file\n", programName, opt);
+        getoptErrorMessage(OPT_NONE, NULL);
+        return -1;
+    }
+
     return 0;
 }
 
@@ -324,8 +357,6 @@ static int parseGlobalOptions(ProgramCTX *ctx, int argc, char **argv)
 /* Determine role in distributed network (if any) and allocate network object */
 static NetworkCTX * parseNetworkOptions(int argc, char **argv)
 {
-    const uint16_t PORT_DEFAULT = 7939;
-
     int numberOfSlaves;
     char ipAddress[IP_ADDR_STR_LEN_MAX];
 
