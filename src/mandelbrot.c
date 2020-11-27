@@ -1,5 +1,6 @@
 #include <complex.h>
 #include <float.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -12,6 +13,7 @@
 #include "percy/include/parser.h"
 
 #include "arg_ranges.h"
+#include "array.h"
 #include "connection_handler.h"
 #include "ext_precision.h"
 #include "getopt_error.h"
@@ -95,7 +97,6 @@ int main(int argc, char **argv)
 
         if (validatePlotParameters(p))
         {
-            getoptErrorMessage(OPT_NONE, NULL);
             freeProgramCTX(ctx);
             freeNetworkCTX(network);
             freePlotCTX(p);
@@ -188,7 +189,7 @@ static int usage(void)
     char colourScheme[COLOUR_STR_LEN_MAX];
     char logLevel[LOG_LEVEL_STR_LEN_MAX];
 
-    printf("Usage: %s [LOG PARAMETERS...] [OUTPUT PARAMETERS...] [-j CONSTANT] [PLOT PARAMETERS...]\n", programName);
+    printf("Usage: %s [OPTION]...\n", programName);
     printf("       %s --help\n\n", programName);
     printf("A Mandelbrot and Julia set plotter.\n\n");
     printf("Mandatory arguments to long options are mandatory for short options too.\n");
@@ -196,8 +197,8 @@ static int usage(void)
 
     getColourString(colourScheme, COLOUR_SCHEME_DEFAULT, sizeof(colourScheme));
 
-    printf("  -c SCHEME, --colour=SCHEME    Specify colour palette to use (default = %s)\n", colourScheme);
-    printf("                                  SCHEME may be:\n");
+    printf("  -c SCHEME, --colour=SCHEME    Specify colour palette to use (default = %s)\n"
+           "                                  SCHEME may be:\n", colourScheme);
 
     /* Output all valid colour schemes */
     for (unsigned int i = (unsigned int) COLOUR_SCHEME_MIN; i <= (unsigned int) COLOUR_SCHEME_MAX; ++i)
@@ -208,29 +209,30 @@ static int usage(void)
         printf("                                    %-2u = %s\n", i, colourScheme);
     }
 
-    printf("                                  Black and white schemes are 1-bit\n");
-    printf("                                  Greyscale schemes are 8-bit\n");
-    printf("                                  Coloured schemes are full 24-bit\n\n");
+    printf("                                  Black and white schemes are 1-bit\n"
+           "                                  Greyscale schemes are 8-bit\n"
+           "                                  Coloured schemes are full 24-bit\n");
     printf("  -o FILE                       Output file name (default = \'%s\')\n", PLOT_FILEPATH_DEFAULT);
-    printf("  -r WIDTH,  --width=WIDTH      The width of the image file in pixels\n");
-    printf("                                  If using a 1-bit colour scheme, WIDTH must be a multiple of %u to allow "
-           "for\n                                  bit-width pixels\n", (unsigned int) CHAR_BIT);
+    printf("  -r WIDTH,  --width=WIDTH      The width of the image file in pixels\n"
+           "                                  If using a 1-bit colour scheme, WIDTH must be a multiple of %u to allow "
+           "for\n"
+           "                                  bit-width pixels\n", (unsigned int) CHAR_BIT);
     printf("  -s HEIGHT, --height=HEIGHT    The height of the image file in pixels\n");
     printf("  -t                            Output to stdout (or, with -o, text file) using ASCII characters as "
            "shading\n");
     printf("Distributed computing setup:\n");
     printf("  -g ADDR,   --slave=ADDR       Have computer work for a master at the respective IP address\n");
     printf("  -G COUNT,  --master=COUNT     Setup computer as a network master, expecting COUNT slaves to connect\n");
-    printf("  -p PORT                       Communicate over the given port (default = 7939)\n"); /* TODO: Remove hard-coded port num default */
+    printf("  -p PORT                       Communicate over the given port (default = %" PRIu16 ")\n", PORT_DEFAULT);
     printf("Plot type:\n");
     printf("  -j CONST,  --julia=CONST      Plot Julia set with specified constant parameter\n");
     printf("Plot parameters:\n");
-    printf("  -m MIN,    --min=MIN          Minimum value to plot\n");
-    printf("  -M MAX,    --max=MAX          Maximum value to plot\n");
     printf("  -i NMAX,   --iterations=NMAX  The maximum number of function iterations before a number is deemed to be "
-           "within the set\n");
-    printf("                                  A larger maximum leads to a preciser plot but increases computation "
-                                             "time\n\n");
+           "within the set\n"
+           "                                  A larger maximum leads to a preciser plot but increases computation "
+           "time\n");
+    printf("  -m MIN,    --min=MIN          Minimum value to plot\n");
+    printf("  -M MAX,    --max=MAX          Maximum value to plot\n\n");
     printf("  Default parameters (standard-precision):\n");
     printf("    Julia Set:\n");
     printf("      MIN        = %.*g + %.*gi\n",
@@ -255,24 +257,27 @@ static int usage(void)
     printf("Optimisation:\n");
 
     #ifdef MP_PREC
-    printf("  -A PREC, --multiple=PREC      Enable multiple-precision mode, specifying number of bits to use for the"
-           "significand of\n                                the floating point (default = %zu bits)\n",
-           (size_t) MP_BITS_DEFAULT);
-    printf("                                  MPFR floating-points will be used for calculations\n");
-    printf("                                  The precision is better than \'-X\', but will be considerably slower\n");
+    printf("  -A,        --multiple         Enable multiple-precision mode (default = %zu bits significand)\n"
+           "                                  MPFR floating-points will be used for calculations\n"
+           "                                  The precision is better than \'-X\', but will be considerably slower\n",
+           (size_t) MP_SIGNIFICAND_SIZE_DEFAULT);
+    printf("             --precision=PREC   Specify number of bits to use for the MPFR significand (default = %zu bits)"
+           "\n", (size_t) MP_SIGNIFICAND_SIZE_DEFAULT);
     #endif
 
     printf("  -T COUNT,  --threads=COUNT    Use COUNT number of processing threads (default = processor count)\n");
-    printf("  -X,        --extended         Extend precision (%zu bits, compared to standard-precision %zu bits)\n",
+    printf("  -X,        --extended         Extend precision (%zu bits, compared to standard-precision %zu bits)\n"
+           "                                  The extended floating-point type will be used for calculations\n"
+           "                                  This will increase precision at high zoom but may be slower\n",
            (size_t) LDBL_MANT_DIG, (size_t) DBL_MANT_DIG);
-    printf("                                  The extended floating-point type will be used for calculations\n");
-    printf("                                  This will increase precision at high zoom but may be slower\n");
-    printf("  -z MEM,    --memory=MEM       Limit memory usage to MEM megabytes (default = 80%% of free RAM)\n");
+    printf("  -z MEM,    --memory=MEM       Limit memory usage to MEM megabytes (default = %u%% of free RAM)\n",
+           FREE_MEMORY_ALLOCATION);
     printf("Log settings:\n");
-    printf("             --log[=FILE]       Output log to file, with optional file path argument\n");
-    printf("                                  Optionally, specify path other than default (\'%s\')\n",
-           LOG_FILEPATH_DEFAULT);
-    printf("                                  Option may be used with \'-v\'\n");
+    printf("             --log              Output log to file\n"
+           "                                  Without \'--log-file\', file defaults to %s\n"
+           "                                  Option may be used with \'-v\'\n", LOG_FILEPATH_DEFAULT);
+    printf("             --log-file=FILE    Specify filepath of log file (default = %s)\n"
+           "                                  Option may be used with \'-v\'\n", LOG_FILEPATH_DEFAULT);
 
     /* Get default logging level */
     if (getLogLevelString(logLevel, LOG_LEVEL_DEFAULT, sizeof(logLevel)))
@@ -281,8 +286,8 @@ static int usage(void)
         logLevel[sizeof(logLevel) - 1] = '\0';
     }
 
-    printf("  -l LEVEL,  --log-level=LEVEL  Only log messages more severe than LEVEL (default = %s)\n", logLevel);
-    printf("                                  LEVEL may be:\n");
+    printf("  -l LEVEL,  --log-level=LEVEL  Only log messages more severe than LEVEL (default = %s)\n"
+           "                                  LEVEL may be:\n", logLevel);
 
     /* Output all valid logging levels */
     for (unsigned int i = (unsigned int) LOG_LEVEL_MIN; i <= (unsigned int) LOG_LEVEL_MAX; ++i)
@@ -301,7 +306,14 @@ static int usage(void)
     printf("  %s\n", programName);
     printf("  %s -j \"0.1 - 0.2e-2i\" -o \"juliaset.pnm\"\n", programName);
     printf("  %s -t\n", programName);
-    printf("  %s -i 200 --width=5500 --height=5000 --colour=9\n\n", programName);
+    printf("  %s -i 200 --width=5500 --height=5000 --colour=9\n", programName);
+    printf("  %s -g 192.168.1.31 -p 1337\n", programName);
+
+    #ifdef MP_PREC
+    printf("  %s -G 5 -p 1337 -A --precision=128 -r 33000 -s 30000 -x -1.749957,300\n", programName);
+    #endif
+
+    putchar('\n');
 
     return EXIT_SUCCESS;
 }
@@ -511,6 +523,7 @@ static int validatePlotParameters(PlotCTX *p)
     if (p->output != OUTPUT_TERMINAL && p->colour.depth == BIT_DEPTH_ASCII)
     {
         fprintf(stderr, "%s: Invalid colour scheme for output type\n", programName);
+        getoptErrorMessage(OPT_NONE, NULL);
         return 1;
     }
     
@@ -525,12 +538,14 @@ static int validatePlotParameters(PlotCTX *p)
             if (creal(p->maximum.c) < creal(p->minimum.c))
             {
                 fprintf(stderr, "%s: Invalid range - maximum real value is smaller than the minimum\n", programName);
+                getoptErrorMessage(OPT_NONE, NULL);
                 return 1;
             }
             else if (cimag(p->maximum.c) < cimag(p->minimum.c))
             {
                 fprintf(stderr, "%s: Invalid range - maximum imaginary value is smaller than the minimum\n",
                         programName);
+                getoptErrorMessage(OPT_NONE, NULL);
                 return 1;
             }
 
@@ -539,12 +554,14 @@ static int validatePlotParameters(PlotCTX *p)
             if (creall(p->maximum.lc) < creall(p->minimum.lc))
             {
                 fprintf(stderr, "%s: Invalid range - maximum real value is smaller than the minimum\n", programName);
+                getoptErrorMessage(OPT_NONE, NULL);
                 return 1;
             }
             else if (cimagl(p->maximum.lc) < cimagl(p->minimum.lc))
             {
                 fprintf(stderr, "%s: Invalid range - maximum imaginary value is smaller than the minimum\n",
                         programName);
+                getoptErrorMessage(OPT_NONE, NULL);
                 return 1;
             }
 
@@ -557,12 +574,14 @@ static int validatePlotParameters(PlotCTX *p)
             if (MPC_INEX_RE(ret) < 0)
             {
                 fprintf(stderr, "%s: Invalid range - maximum real value is smaller than the minimum\n", programName);
+                getoptErrorMessage(OPT_NONE, NULL);
                 return 1;
             }
             else if (MPC_INEX_IM(ret) < 0)
             {
                 fprintf(stderr, "%s: Invalid range - maximum imaginary value is smaller than the minimum\n",
                         programName);
+                getoptErrorMessage(OPT_NONE, NULL);
                 return 1;
             }
 

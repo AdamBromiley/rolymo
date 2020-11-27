@@ -28,7 +28,7 @@ Run the program with `./mandelbrot`. By default, without any command-line argume
 Help can be provided with `./mandelbrot --help`.
 
 ```
-Usage: ./mandelbrot [LOG PARAMETERS...] [OUTPUT PARAMETERS...] [-j CONSTANT] [PLOT PARAMETERS...]
+Usage: ./mandelbrot [OPTION]...
        ./mandelbrot --help
 
 A Mandelbrot and Julia set plotter.
@@ -50,20 +50,23 @@ Output parameters:
                                   Black and white schemes are 1-bit
                                   Greyscale schemes are 8-bit
                                   Coloured schemes are full 24-bit
-
   -o FILE                       Output file name (default = 'var/mandelbrot.pnm')
   -r WIDTH,  --width=WIDTH      The width of the image file in pixels
-                                  If using a 1-bit colour scheme, WIDTH must be a multiple of 8 to allow  for
+                                  If using a 1-bit colour scheme, WIDTH must be a multiple of 8 to allow for
                                   bit-width pixels
   -s HEIGHT, --height=HEIGHT    The height of the image file in pixels
   -t                            Output to stdout (or, with -o, text file) using ASCII characters as shading
+Distributed computing setup:
+  -g ADDR,   --slave=ADDR       Have computer work for a master at the respective IP address
+  -G COUNT,  --master=COUNT     Setup computer as a network master, expecting COUNT slaves to connect
+  -p PORT                       Communicate over the given port (default = 7939)
 Plot type:
-  -j CONSTANT                   Plot Julia set with specified constant parameter
+  -j CONST,  --julia=CONST      Plot Julia set with specified constant parameter
 Plot parameters:
-  -m MIN,    --min=MIN          Minimum value to plot
-  -M MAX,    --max=MAX          Maximum value to plot
   -i NMAX,   --iterations=NMAX  The maximum number of function iterations before a number is deemed to be within the set
                                   A larger maximum leads to a preciser plot but increases computation time
+  -m MIN,    --min=MIN          Minimum value to plot
+  -M MAX,    --max=MAX          Maximum value to plot
 
   Default parameters (standard-precision):
     Julia Set:
@@ -81,18 +84,20 @@ Plot parameters:
       HEIGHT     = 500
 
 Optimisation:
-  -A [PREC], --multiple[=PREC] Enable multiple-precision mode
-                                  Specify optional number of precision bits (default = 128 bits)
+  -A,        --multiple         Enable multiple-precision mode (default = 128 bits significand)
                                   MPFR floating-points will be used for calculations
-                                  Precision better than '-X', but will be considerably slower
+                                  The precision is better than '-X', but will be considerably slower
+             --precision=PREC   Specify number of bits to use for the MPFR significand (default = 128 bits)
   -T COUNT,  --threads=COUNT    Use COUNT number of processing threads (default = processor count)
   -X,        --extended         Extend precision (64 bits, compared to standard-precision 53 bits)
                                   The extended floating-point type will be used for calculations
                                   This will increase precision at high zoom but may be slower
   -z MEM,    --memory=MEM       Limit memory usage to MEM megabytes (default = 80% of free RAM)
 Log settings:
-             --log[=FILE]       Output log to file, with optional file path argument
-                                  Optionally, specify path other than default ('var/mandelbrot.log')
+             --log              Output log to file
+                                  Without '--log-file', file defaults to var/mandelbrot.log
+                                  Option may be used with '-v'
+             --log-file=FILE    Specify filepath of log file (default = var/mandelbrot.log)
                                   Option may be used with '-v'
   -l LEVEL,  --log-level=LEVEL  Only log messages more severe than LEVEL (default = INFO)
                                   LEVEL may be:
@@ -112,6 +117,8 @@ Examples:
   ./mandelbrot -j "0.1 - 0.2e-2i" -o "juliaset.pnm"
   ./mandelbrot -t
   ./mandelbrot -i 200 --width=5500 --height=5000 --colour=9
+  ./mandelbrot -g 192.168.1.31 -p 1337
+  ./mandelbrot -G 5 -p 1337 -A --precision=128 -r 33000 -s 30000 -x -1.749957,300
 
 ```
 
