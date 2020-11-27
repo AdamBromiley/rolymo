@@ -11,6 +11,10 @@
 #include "parameters.h"
 
 
+/* Percentage of free physical memory that can be allocated by the program */
+const unsigned int FREE_MEMORY_ALLOCATION = 80;
+
+
 /* Create array metadata structure */
 ArrayCTX * createArrayCTX(PlotCTX *p)
 {
@@ -29,8 +33,6 @@ ArrayCTX * createArrayCTX(PlotCTX *p)
 /* To prevent memory overcommitment, the array must be divided into blocks */
 Block * mallocArray(ArrayCTX *array, size_t bytes)
 {
-    /* Percentage of free physical memory that can be allocated by the program */
-    const unsigned int FREE_MEMORY_ALLOCATION = 80;
     /* Maximum number of blocks the array should be divided into */
     const unsigned int BLOCK_COUNT_MAX = 64;
 

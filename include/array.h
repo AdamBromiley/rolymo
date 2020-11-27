@@ -57,6 +57,9 @@ typedef struct SlaveThread
 } SlaveThread;
 
 
+extern const unsigned int FREE_MEMORY_ALLOCATION;
+
+
 ArrayCTX * createArrayCTX(PlotCTX *p);
 Block * mallocArray(ArrayCTX *array, size_t bytes);
 Thread * createThreads(Block *block, unsigned int n);
