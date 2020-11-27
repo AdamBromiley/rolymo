@@ -77,8 +77,6 @@ void initialiseArgRangesMP(void)
 
     mpc_set_ldc(C_MIN_MP, C_MIN_MP_, MP_COMPLEX_RND);
     mpc_set_ldc(C_MAX_MP, C_MAX_MP_, MP_COMPLEX_RND);
-
-    return;
 }
 
 /* Free multiple-precision argument ranges */
@@ -86,7 +84,5 @@ void freeArgRangesMP(void)
 {
     mpc_clear(C_MIN_MP);
     mpc_clear(C_MAX_MP);
-
-    return;
 }
 #endif
