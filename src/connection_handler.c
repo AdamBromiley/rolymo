@@ -80,7 +80,7 @@ int initialiseNetworkConnection(NetworkCTX *network, PlotCTX **p)
 
             if (initialiseSlaves(network, *p))
                 return 1;
-            
+
             break;
         case LAN_SLAVE:
             if (initialiseSlave(network, p))

@@ -108,9 +108,11 @@ int main(int argc, char **argv)
     /* Will allocate memory of p. Requires freePlotCTX(p) later */
     if (initialiseNetworkConnection(network, &p))
     {
-        freePlotCTX(p);
         freeProgramCTX(ctx);
-        freePlotCTX(p);
+
+        if (network->mode != LAN_SLAVE)
+            freePlotCTX(p);
+
         closeLog();
         return EXIT_FAILURE;
     }

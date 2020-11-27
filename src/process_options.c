@@ -366,7 +366,7 @@ static NetworkCTX * parseNetworkOptions(int argc, char **argv)
     struct sockaddr_in addr =
     {
         .sin_family = AF_INET,
-        .sin_port = PORT_DEFAULT,
+        .sin_port = htons(PORT_DEFAULT),
     };
 
     optind = 0;
