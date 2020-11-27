@@ -15,6 +15,8 @@ const PrecisionMode PREC_MODE_MAX = EXT_PRECISION;
 #else
 const PrecisionMode PREC_MODE_MAX = MUL_PRECISION;
 
+const mpfr_prec_t MP_SIGNIFICAND_SIZE_DEFAULT = 128;
+
 /* Rounding characteristic of MPC and MPFR operations (round towards nearest) */
 const mpc_rnd_t MP_COMPLEX_RND = MPC_RNDNN;
 const mpfr_rnd_t MP_REAL_RND = MPFR_RNDN;
@@ -22,7 +24,7 @@ const mpfr_rnd_t MP_IMAG_RND = MPFR_RNDN;
 
 
 /* Number of bits for the significand of multiple-precision numbers */
-mpfr_prec_t mpSignificandSize = 128;
+mpfr_prec_t mpSignificandSize = MP_SIGNIFICAND_SIZE_DEFAULT;
 #endif
 
 

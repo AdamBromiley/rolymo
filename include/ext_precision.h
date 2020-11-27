@@ -38,6 +38,8 @@ extern const PrecisionMode PREC_MODE_MIN;
 extern const PrecisionMode PREC_MODE_MAX;
 
 #ifdef MP_PREC
+extern const mpfr_prec_t MP_SIGNIFICAND_SIZE_DEFAULT;
+
 extern const mpc_rnd_t MP_COMPLEX_RND;
 extern const mpfr_rnd_t MP_REAL_RND;
 extern const mpfr_rnd_t MP_IMAG_RND;
