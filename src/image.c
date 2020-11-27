@@ -336,7 +336,7 @@ int imageRowOutput(PlotCTX *p, NetworkCTX *network, ProgramCTX *ctx)
 
     rowSize = (p->colour.depth == BIT_DEPTH_ASCII)
               ? p->width * sizeof(char)
-              : p->width * p->colour.depth / 8;
+              : p->width * p->colour.depth / 8.0;
 
     array->array = malloc(rowSize);
 
