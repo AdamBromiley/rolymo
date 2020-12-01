@@ -2,6 +2,7 @@
 #define CONNECTION_HANDLER_H
 
 
+#include <stddef.h>
 #include <stdint.h>
 #include <time.h>
 
@@ -26,6 +27,9 @@ typedef struct NetworkCTX
     int n;
     int *slaves;
 } NetworkCTX;
+
+
+extern const size_t RESPONSE_IMAGE_DATA_OFFSET;
 
 
 NetworkCTX * createNetworkCTX(int n);
