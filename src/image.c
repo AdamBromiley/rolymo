@@ -280,6 +280,20 @@ int imageOutputMaster(PlotCTX *p, NetworkCTX *network, ProgramCTX *ctx)
 
         blockToImage(block);
     }
+    
+    
+    logMessage(INFO, "Closing connections with slaves");
+
+    for (int i = 0; i < network->n; ++i)
+    {
+        int s = network->slaves[i];
+
+        if (s < 0)
+            continue;
+
+        close(s);
+        network->slaves[i] = -1;
+    }
 
     logMessage(DEBUG, "Freeing memory");
 
@@ -360,7 +374,7 @@ int imageRowOutput(PlotCTX *p, NetworkCTX *network, ProgramCTX *ctx)
     }
 
     /* For row array plus row number at beginning */
-    writeBuffer = malloc(rowSize + 6);
+    writeBuffer = malloc(rowSize + RESPONSE_IMAGE_DATA_OFFSET);
 
     if (!writeBuffer)
     {
@@ -376,13 +390,13 @@ int imageRowOutput(PlotCTX *p, NetworkCTX *network, ProgramCTX *ctx)
 
         uintmax_t tempUIntMax = 0;
 
-        ssize_t ret = writeSocket("", network->s, 1);
+        ssize_t ret = writeSocket(">", network->s, sizeof(">"));
 
         if (ret == 0)
         {
             break;
         }
-        else if (ret < 0 || ret != 1)
+        else if (ret < 0 || ret != 2)
         {
             logMessage(ERROR, "Could not write to socket connection");
             close(network->s);
@@ -392,6 +406,7 @@ int imageRowOutput(PlotCTX *p, NetworkCTX *network, ProgramCTX *ctx)
             return 1;
         }
 
+        memset(readBuffer, '\0', sizeof(readBuffer));
         ret = readSocket(readBuffer, network->s, sizeof(readBuffer));
 
         if (ret == 0)
@@ -407,10 +422,18 @@ int imageRowOutput(PlotCTX *p, NetworkCTX *network, ProgramCTX *ctx)
             return 1;
         }
 
-        stringToUIntMax(&tempUIntMax, readBuffer, 0, p->height, &endptr, BASE_DEC);
-        row.row = (size_t) tempUIntMax;
+        readBuffer[sizeof(readBuffer)] = '\0';
 
-        memset(readBuffer, '\0', sizeof(readBuffer));
+        if (stringToUIntMax(&tempUIntMax, readBuffer, 0, p->height - 1, &endptr, BASE_DEC) != PARSE_SUCCESS)
+        {
+            logMessage(ERROR, "Error reading from socket connection");
+            free(writeBuffer);
+            freeArrayCTX(array);
+            freeSlaveThreads(threads);
+            return 1;
+        }
+
+        row.row = (size_t) tempUIntMax;
 
         logMessage(INFO, "Working on row %zu", row.row);
 
@@ -423,6 +446,7 @@ int imageRowOutput(PlotCTX *p, NetworkCTX *network, ProgramCTX *ctx)
             if (pthread_create(&(thread->pid), NULL, genFractalRow, thread))
             {
                 logMessage(ERROR, "Thread could not be created");
+                close(network->s);
                 free(writeBuffer);
                 freeArrayCTX(array);
                 freeSlaveThreads(threads);
@@ -440,6 +464,7 @@ int imageRowOutput(PlotCTX *p, NetworkCTX *network, ProgramCTX *ctx)
             if (pthread_join(thread->pid, NULL))
             {
                 logMessage(ERROR, "Thread %u could not be harvested", thread->tid);
+                close(network->s);
                 free(writeBuffer);
                 freeArrayCTX(array);
                 freeSlaveThreads(threads);
@@ -451,41 +476,46 @@ int imageRowOutput(PlotCTX *p, NetworkCTX *network, ProgramCTX *ctx)
 
         logMessage(DEBUG, "All threads successfully destroyed");
 
+        memset(writeBuffer, '\0', rowSize + RESPONSE_IMAGE_DATA_OFFSET);
         sprintf(writeBuffer, "%zu", row.row);
-        memcpy(writeBuffer + 6, array->array, rowSize);
+        memcpy(writeBuffer + RESPONSE_IMAGE_DATA_OFFSET, array->array, rowSize);
 
-        ret = writeSocket(writeBuffer, network->s, rowSize + 6);
-        memset(writeBuffer, '\0', rowSize + 6);
+        ret = writeSocket(writeBuffer, network->s, rowSize + RESPONSE_IMAGE_DATA_OFFSET);
 
         if (ret == 0)
         {
             break;
         }
-        else if (ret < 0 || (size_t) ret != rowSize + 6)
+        else if (ret < 0 || (size_t) ret != rowSize + RESPONSE_IMAGE_DATA_OFFSET)
         {
             logMessage(ERROR, "Could not write to socket connection");
+            close(network->s);
             free(writeBuffer);
             freeArrayCTX(array);
             freeSlaveThreads(threads);
             return 1;
         }
 
-        ret = readSocket(readBuffer, network->s, sizeof(readBuffer));
         memset(readBuffer, '\0', sizeof(readBuffer));
+        ret = readSocket(readBuffer, network->s, sizeof(readBuffer));
+        readBuffer[sizeof(readBuffer) - 1] = '\0';
 
         if (ret == 0)
         {
             break;
         }
-        else if (ret < 0)
+        else if (ret < 0 || strcmp(">", readBuffer))
         {
             logMessage(ERROR, "Error reading from socket connection");
+            close(network->s);
             free(writeBuffer);
             freeArrayCTX(array);
             freeSlaveThreads(threads);
             return 1;
         }
     }
+
+    close(network->s);
 
     logMessage(DEBUG, "Freeing memory");
     free(writeBuffer);

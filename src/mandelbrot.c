@@ -105,6 +105,8 @@ int main(int argc, char **argv)
         }
     }
 
+    logMessage(INFO, "Initialising network");
+
     /* Will allocate memory of p. Requires freePlotCTX(p) later */
     if (initialiseNetworkConnection(network, &p))
     {
@@ -116,6 +118,8 @@ int main(int argc, char **argv)
         closeLog();
         return EXIT_FAILURE;
     }
+
+    logMessage(INFO, "Network initialised");
 
     plotParameters(p);
 

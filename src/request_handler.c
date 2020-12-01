@@ -10,6 +10,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
+#include "libgroot/include/log.h"
 #include "percy/include/parser.h"
 
 #include "request_handler.h"
@@ -53,12 +54,21 @@ ssize_t writeSocket(const void *src, int s, size_t n)
 
         if (ret < 0)
         {
-            if (errno == EINTR) /* Message too large to be sent at once */
+            if (errno == EINTR)
+            {
+                /* Write call interrupted - try again */
                 continue;
+            }
             else if (errno == ECONNRESET) /* Connection closed */
+            {
+                logMessage(INFO, "Connection with peer closed");
                 return 0;
+            }
             else
+            {
+                logMessage(ERROR, "Could not write to connection");
                 return -1;
+            }
         }
 
         sentBytes += ret;
@@ -83,17 +93,27 @@ ssize_t readSocket(void *dest, int s, size_t n)
         if (readBytes == 0)
         {
             /* Shutdown request */
+            logMessage(INFO, "Connection with peer closed");
             return 0;
         }
         else if (readBytes < 0)
         {
-            /* Forced shutdown request */
-            if (errno == ECONNRESET)
+            if (errno == EINTR)
+            {
+                /* Read call interrupted - try again */
+                continue;
+            }
+            else if (errno == ECONNRESET)
+            {
+                /* Connection closed */
+                logMessage(INFO, "Connection with peer closed");
                 return 0;
-            
-            /* If not interrupted */
-            if (errno != EINTR)
+            }
+            else
+            {
+                logMessage(ERROR, "Could not read from connection");
                 return -1;
+            }
         }
     }
     while (readBytes < 0 && errno == EINTR);
@@ -351,40 +371,53 @@ int readParameters(PlotCTX **p, int s)
     PrecisionMode precision;
 
     memset(buffer, '\0', sizeof(buffer));
+
+    logMessage(DEBUG, "Reading precision mode");
     
     bytes = readSocket(buffer, s, sizeof(buffer));
 
     if (bytes <= 0)
         return (bytes == 0) ? -2 : -1;
 
+    logMessage(DEBUG, "Deserialising precision mode");
+
     #ifndef MP_PREC
     if (deserialisePrecision(&precision, buffer))
-        return -1;
     #else
     if (deserialisePrecision(&precision, &mpSignificandSize, buffer))
-        return -1;
     #endif
+    {
+        logMessage(ERROR, "Could not deserialise precision mode");
+        return -1;
+    }
+    
+    memset(buffer, '\0', sizeof(buffer));
+
+    logMessage(DEBUG, "Reading plot parameters");
+
+    bytes = readSocket(buffer, s, sizeof(buffer));
+
+    if (bytes <= 0)
+        return (bytes == 0) ? -2 : -1;
+
+    logMessage(DEBUG, "Creating plot parameters structure");
 
     *p = createPlotCTX(precision);
 
     if (!*p)
-        return -1;
-    
-    memset(buffer, '\0', sizeof(buffer));
-
-    bytes = readSocket(buffer, s, sizeof(buffer));
-
-    if (bytes <= 0)
     {
-        freePlotCTX(*p);
-        return (bytes == 0) ? -2 : -1;
+        logMessage(ERROR, "Could not create plot parameters structure");
+        return -1;
     }
+
+    logMessage(DEBUG, "Deserialising plot parameters");
 
     switch((*p)->precision)
     {
         case STD_PRECISION:
             if (deserialisePlotCTX(*p, buffer))
             {
+                logMessage(ERROR, "Could not deserialise plot parameters");
                 freePlotCTX(*p);
                 return -1;
             }
@@ -392,6 +425,7 @@ int readParameters(PlotCTX **p, int s)
         case EXT_PRECISION:
             if (deserialisePlotCTXExt(*p, buffer))
             {
+                logMessage(ERROR, "Could not deserialise plot parameters");
                 freePlotCTX(*p);
                 return -1;
             }
@@ -401,6 +435,7 @@ int readParameters(PlotCTX **p, int s)
         case MUL_PRECISION:
             if (deserialisePlotCTXMP(*p, buffer))
             {
+                logMessage(ERROR, "Could not deserialise plot parameters");
                 freePlotCTX(*p);
                 return -1;
             }
@@ -408,6 +443,7 @@ int readParameters(PlotCTX **p, int s)
         #endif
 
         default:
+            logMessage(ERROR, "Unknown precision mode");
             freePlotCTX(*p);
             return -1;
     }
@@ -424,6 +460,8 @@ int sendParameters(int s, const PlotCTX *p)
 
     memset(buffer, '\0', sizeof(buffer));
 
+    logMessage(DEBUG, "Serialising precision mode");
+
     #ifndef MP_PREC
     ret = serialisePrecision(buffer, sizeof(buffer), p->precision);
     #else
@@ -432,16 +470,32 @@ int sendParameters(int s, const PlotCTX *p)
 
     /* If truncated or error */
     if (ret < 0 || (size_t) ret >= sizeof(buffer))
+    {
+        logMessage(ERROR, "Could not serialise precision mode");
         return -1;
+    }
+
+    logMessage(DEBUG, "Sending precision mode");
 
     bytes = writeSocket(buffer, s, strlen(buffer) + 1);
 
     if (bytes == 0)
+    {
         return -2;
-    else if (bytes < 0 || (size_t) bytes != strlen(buffer) + 1)
+    }
+    else if (bytes < 0)
+    {
         return -1;
+    }
+    else if ((size_t) bytes != strlen(buffer) + 1)
+    {
+        logMessage(ERROR, "Could not write full request to connection");
+        return -1;
+    }
 
     memset(buffer, '\0', sizeof(buffer));
+
+    logMessage(DEBUG, "Serialising plot parameters");
 
     switch(p->precision)
     {
@@ -459,18 +513,33 @@ int sendParameters(int s, const PlotCTX *p)
         #endif
 
         default:
+            logMessage(ERROR, "Invalid precision mode");
             return -1;
     }
 
     if (ret < 0 || (size_t) ret >= sizeof(buffer))
+    {
+        logMessage(ERROR, "Could not serialise plot context structure");
         return -1;
+    }
+
+    logMessage(DEBUG, "Sending plot parameters");
 
     bytes = writeSocket(buffer, s, strlen(buffer) + 1);
     
     if (bytes == 0)
+    {
         return -2;
-    else if (bytes < 0 || (size_t) bytes != strlen(buffer) + 1)
+    }
+    else if (bytes < 0)
+    {
         return -1;
+    }
+    else if ((size_t) bytes != strlen(buffer) + 1)
+    {
+        logMessage(ERROR, "Could not write full request to connection");
+        return -1;
+    }
     
     return 0;
 }
