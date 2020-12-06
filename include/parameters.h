@@ -35,7 +35,7 @@ typedef struct PlotCTX
     PlotType type;
     ExtComplex minimum, maximum, c;
     unsigned long iterations;
-    enum OutputType output;
+    OutputType output;
     char plotFilepath[PLOT_FILEPATH_LEN_MAX];
     FILE *file;
     size_t width, height;
