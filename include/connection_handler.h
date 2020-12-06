@@ -29,9 +29,6 @@ typedef struct NetworkCTX
 } NetworkCTX;
 
 
-extern const size_t RESPONSE_IMAGE_DATA_OFFSET;
-
-
 NetworkCTX * createNetworkCTX(int n);
 void freeNetworkCTX(NetworkCTX *ctx);
 
