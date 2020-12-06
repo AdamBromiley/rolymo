@@ -21,6 +21,9 @@ int initialiseProgramCTX(ProgramCTX *ctx)
 
     ctx->logToFile = false;
 
+    ctx->mem = 0;
+    ctx->threads = 0;
+
     return 0;
 }
 
