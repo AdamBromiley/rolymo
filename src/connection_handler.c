@@ -38,16 +38,16 @@ NetworkCTX * createNetworkCTX(int n)
         return NULL;
     
     ctx->n = (n < 0) ? 0 : n;
-    ctx->slaves = malloc((size_t) ctx->n * sizeof(*(ctx->slaves)));
+    ctx->workers = malloc((size_t) ctx->n * sizeof(*(ctx->workers)));
 
-    if (!ctx->slaves)
+    if (!ctx->workers)
     {
         free(ctx);
         return NULL;
     }
 
     for (int i = 0; i < ctx->n; ++i)
-        ctx->slaves[i] = -1;
+        ctx->workers[i] = -1;
 
     return ctx;
 }
@@ -58,8 +58,8 @@ void freeNetworkCTX(NetworkCTX *ctx)
 {
     if (ctx)
     {
-        if (ctx->slaves)
-            free(ctx->slaves);
+        if (ctx->workers)
+            free(ctx->workers);
 
         free(ctx);
     }
@@ -86,23 +86,23 @@ int initialiseNetworkConnection(NetworkCTX *network, PlotCTX **p)
                 return 1;
             
             logMessage(INFO, "Master socket initialised");
-            logMessage(INFO, "Awaiting slave connection requests");
+            logMessage(INFO, "Awaiting worker connection requests");
 
             if (acceptConnections(network, CONNECTION_TIMEOUT) < network->n)
                 return 1;
 
-            logMessage(INFO, "All slaves connected to master");
-            logMessage(INFO, "Initiating slave machines");
+            logMessage(INFO, "All workers connected to master");
+            logMessage(INFO, "Initiating worker machines");
 
-            if (initialiseSlaves(network, *p))
+            if (initialiseWorkers(network, *p))
                 return 1;
 
-            logMessage(INFO, "Slave machines initiated");
+            logMessage(INFO, "Worker machines initiated");
             break;
-        case LAN_SLAVE:
-            logMessage(INFO, "Initialising as slave machine");
+        case LAN_WORKER:
+            logMessage(INFO, "Initialising as worker machine");
 
-            if (initialiseSlave(network, p))
+            if (initialiseWorker(network, p))
                 return 1;
             break;
         default:
@@ -114,7 +114,7 @@ int initialiseNetworkConnection(NetworkCTX *network, PlotCTX **p)
 }
 
 
-/* Initialise machine as master - listen for slave connection requests */
+/* Initialise machine as master - listen for worker connection requests */
 int initialiseMaster(NetworkCTX *network)
 {
     const int SOCK_OPT = 1;
@@ -188,7 +188,7 @@ int acceptConnections(NetworkCTX *network, time_t timeout)
     for (i = 0; i < network->n; ++i)
     {
         int activeFD;
-        int slave;
+        int worker;
 
         struct timeval t =
         {
@@ -215,14 +215,14 @@ int acceptConnections(NetworkCTX *network, time_t timeout)
         
         logMessage(DEBUG, "Accepting connection request");
 
-        slave = acceptConnectionReq(network);
+        worker = acceptConnectionReq(network);
 
-        if (slave >= 0)
+        if (worker >= 0)
         {
             logMessage(DEBUG, "Connection request accepted");
-            network->slaves[i] = slave;
+            network->workers[i] = worker;
         }
-        else if (slave == -2)
+        else if (worker == -2)
         {
             break;
         }
@@ -262,40 +262,40 @@ int acceptConnectionReq(NetworkCTX *network)
 }
 
 
-/* Prepare slave machines */
-int initialiseSlaves(NetworkCTX *network, PlotCTX *p)
+/* Prepare worker machines */
+int initialiseWorkers(NetworkCTX *network, PlotCTX *p)
 {
     for (int i = 0; i < network->n; ++i)
     {
         int ret;
 
-        if (network->slaves[i] == -1)
+        if (network->workers[i] == -1)
             continue;
 
-        logMessage(DEBUG, "Sending parameters to slave %d", i);
+        logMessage(DEBUG, "Sending parameters to worker %d", i);
 
-        ret = sendParameters(network->slaves[i], p);
+        ret = sendParameters(network->workers[i], p);
 
         if (ret == -2)
         {
             logMessage(INFO, "Closing connection with %d", i);
-            close(network->slaves[i]);
-            network->slaves[i] = -1;
+            close(network->workers[i]);
+            network->workers[i] = -1;
         }
         else if (ret != 0)
         {
             return 1;
         }
 
-        logMessage(DEBUG, "Parameters successfully sent to slave %d", i);
+        logMessage(DEBUG, "Parameters successfully sent to worker %d", i);
     }
 
 	return 0;
 }
 
 
-/* Initialise machine as slave - connect to a master and read parameters */
-int initialiseSlave(NetworkCTX *network, PlotCTX **p)
+/* Initialise machine as worker - connect to a master and read parameters */
+int initialiseWorker(NetworkCTX *network, PlotCTX **p)
 {
     logMessage(DEBUG, "Creating socket");
 
@@ -337,10 +337,10 @@ int listener(NetworkCTX *network, const Block *block)
     fd_set set, setTemp;
 
     /* Stores the highest file descriptor in fd_set */
-    int highestFD = getHighestFD(network->slaves, network->n);
+    int highestFD = getHighestFD(network->workers, network->n);
 
     /* Lists of socket file descriptors */
-    int *slavesTemp = malloc((size_t) network->n * sizeof(*(network->slaves)));
+    int *workersTemp = malloc((size_t) network->n * sizeof(*(network->workers)));
 
     size_t rows = (block->remainder) ? block->remainderRows : block->rows;
 
@@ -348,7 +348,7 @@ int listener(NetworkCTX *network, const Block *block)
     size_t allocatedRows = block->id * block->rows;
     size_t wroteRows = 0;
 
-    if (!slavesTemp)
+    if (!workersTemp)
         return 1;
 
     /* Clear set */
@@ -356,10 +356,10 @@ int listener(NetworkCTX *network, const Block *block)
 
     for (int i = 0; i < network->n; ++i)
     {
-        if (network->slaves[i] == -1)
+        if (network->workers[i] == -1)
             continue;
         
-        FD_SET(network->slaves[i], &set);
+        FD_SET(network->workers[i], &set);
     }
 
     while (1)
@@ -368,14 +368,14 @@ int listener(NetworkCTX *network, const Block *block)
 
         if (highestFD == -1)
         {
-            logMessage(ERROR, "Premature disconnect from all slave machines");
-            free(slavesTemp);
+            logMessage(ERROR, "Premature disconnect from all worker machines");
+            free(workersTemp);
             return 1;
         }
 
         /* Initialise working set and array */
         memcpy(&setTemp, &set, sizeof(set));
-        memcpy(slavesTemp, network->slaves, (size_t) network->n * sizeof(*(network->slaves)));
+        memcpy(workersTemp, network->workers, (size_t) network->n * sizeof(*(network->workers)));
 
         /* Wait for a socket to become active. On return, the set is modified to
          * only contain the active sockets (hence the reinitialisation at the
@@ -386,7 +386,7 @@ int listener(NetworkCTX *network, const Block *block)
         if (activeSockCount <= 0)
         {
             logMessage(ERROR, "Failed to poll sockets");
-            free(slavesTemp);
+            free(workersTemp);
             return 1;
         }
 
@@ -396,7 +396,7 @@ int listener(NetworkCTX *network, const Block *block)
 
             char buffer[NETWORK_BUFFER_SIZE] = {'\0'};
 
-            int activeSock = slavesTemp[i];
+            int activeSock = workersTemp[i];
 
             if (!FD_ISSET(activeSock, &setTemp))
                 continue;
@@ -426,7 +426,7 @@ int listener(NetworkCTX *network, const Block *block)
                 {
                     memset(buffer, '\0', sizeof(buffer));
                     snprintf(buffer, sizeof(buffer), "%zu", allocatedRows++);
-                    logMessage(DEBUG, "Allocating row %s to slave on socket %d", buffer, activeSock);
+                    logMessage(DEBUG, "Allocating row %s to worker on socket %d", buffer, activeSock);
 
                     /* Client issued shutdown or error */
                     if (writeSocket(buffer, activeSock, sizeof(buffer)) <= 0)
@@ -488,7 +488,7 @@ int listener(NetworkCTX *network, const Block *block)
                         if (++wroteRows >= rows)
                         {
                             logMessage(INFO, "All rows wrote to image");
-                            free(slavesTemp);
+                            free(workersTemp);
                             return 0;
                         }
                     }
@@ -502,17 +502,17 @@ int listener(NetworkCTX *network, const Block *block)
 /* Close socket connection and modify fd_set and NetworkCTX socket array */
 static void closeSocket(fd_set *set, int *highestFD, NetworkCTX *network, int i)
 {
-    int s = network->slaves[i];
+    int s = network->workers[i];
 
     logMessage(INFO, "Closing connection with socket %d", s);
 
     close(s);
     FD_CLR(s, set);
-    network->slaves[i] = -1;
+    network->workers[i] = -1;
 
     /* Recalculate highest FD in set (if needed) */
     if (s == *highestFD)
-        *highestFD = getHighestFD(network->slaves, network->n);
+        *highestFD = getHighestFD(network->workers, network->n);
 }
 
 

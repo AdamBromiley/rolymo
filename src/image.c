@@ -276,17 +276,17 @@ int imageOutputMaster(PlotCTX *p, NetworkCTX *network, ProgramCTX *ctx)
 
     freeBlock(block);
 
-    logMessage(INFO, "Closing connections with slaves");
+    logMessage(INFO, "Closing connections with workers");
 
     for (int i = 0; i < network->n; ++i)
     {
-        int s = network->slaves[i];
+        int s = network->workers[i];
 
         if (s < 0)
             continue;
 
         close(s);
-        network->slaves[i] = -1;
+        network->workers[i] = -1;
     }
 
     return 0;

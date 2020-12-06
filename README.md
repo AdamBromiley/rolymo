@@ -57,8 +57,8 @@ Output parameters:
   -s HEIGHT, --height=HEIGHT    The height of the image file in pixels
   -t                            Output to stdout (or, with -o, text file) using ASCII characters as shading
 Distributed computing setup:
-  -g ADDR,   --slave=ADDR       Have computer work for a master at the respective IP address
-  -G COUNT,  --master=COUNT     Setup computer as a network master, expecting COUNT slaves to connect
+  -g ADDR,   --worker=ADDR       Have computer work for a master at the respective IP address
+  -G COUNT,  --master=COUNT     Setup computer as a network master, expecting COUNT workers to connect
   -p PORT                       Communicate over the given port (default = 7939)
 Plot type:
   -j CONST,  --julia=CONST      Plot Julia set with specified constant parameter

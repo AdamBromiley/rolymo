@@ -43,7 +43,7 @@ static const struct option LONG_OPTIONS[] =
     #endif
 
     {"colour", required_argument, NULL, 'c'},     /* Colour scheme of PPM image */
-    {"slave", required_argument, NULL, 'g'},      /* Initialise as a slave for distributed computation */
+    {"worker", required_argument, NULL, 'g'},     /* Initialise as a worker for distributed computation */
     {"master", required_argument, NULL, 'G'},     /* Initialise as a master for distributed computation */
     {"iterations", required_argument, NULL, 'i'}, /* Maximum iteration count of function */
     {"julia", required_argument, NULL, 'j'},      /* Plot a Julia set with specified constant */
@@ -357,7 +357,7 @@ static int parseGlobalOptions(ProgramCTX *ctx, int argc, char **argv)
 /* Determine role in distributed network (if any) and allocate network object */
 static NetworkCTX * parseNetworkOptions(int argc, char **argv)
 {
-    int numberOfSlaves;
+    int numberOfWorkers;
     char ipAddress[IP_ADDR_STR_LEN_MAX];
 
     NetworkCTX *network = NULL;
@@ -377,7 +377,7 @@ static NetworkCTX * parseNetworkOptions(int argc, char **argv)
 
         switch (opt)
         {
-            case 'g': /* Initialise as a slave for distributed computation */
+            case 'g': /* Initialise as a worker for distributed computation */
                 if (mode != LAN_NONE)
                 {
                     fprintf(stderr, "%s: -%c: Option mutually exclusive with -%c\n", programName, opt, 'G');
@@ -400,7 +400,7 @@ static NetworkCTX * parseNetworkOptions(int argc, char **argv)
 		            return NULL;
                 }
 
-                mode = LAN_SLAVE;
+                mode = LAN_WORKER;
                 break;
             case 'G': /* Initialise as a master for distributed computation */
                 if (mode != LAN_NONE)
@@ -410,8 +410,8 @@ static NetworkCTX * parseNetworkOptions(int argc, char **argv)
                     return NULL;
                 }
 
-                argError = uLongArg(&tempUL, optarg, (unsigned int) SLAVES_MIN, (unsigned int) SLAVES_MAX);                    
-                numberOfSlaves = (int) tempUL;
+                argError = uLongArg(&tempUL, optarg, (unsigned int) WORKERS_MIN, (unsigned int) WORKERS_MAX);                    
+                numberOfWorkers = (int) tempUL;
 
                 addr.sin_addr.s_addr = htonl(INADDR_ANY);
                 mode = LAN_MASTER;
@@ -437,7 +437,7 @@ static NetworkCTX * parseNetworkOptions(int argc, char **argv)
     }
 
     if (mode == LAN_MASTER)
-        network = createNetworkCTX(numberOfSlaves);
+        network = createNetworkCTX(numberOfWorkers);
     else
         network = createNetworkCTX(0);
 

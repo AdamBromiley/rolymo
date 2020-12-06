@@ -94,7 +94,7 @@ int main(int argc, char **argv)
     /* Output settings */
     programParameters(ctx);
 
-    if (network->mode != LAN_SLAVE)
+    if (network->mode != LAN_WORKER)
     {
         /* Will allocate memory of p. Requires freePlotCTX(p) later */
         p = processPlotOptions(argc, argv);
@@ -116,7 +116,7 @@ int main(int argc, char **argv)
     {
         freeProgramCTX(ctx);
 
-        if (network->mode != LAN_SLAVE)
+        if (network->mode != LAN_WORKER)
             freePlotCTX(p);
         
         freeNetworkCTX(network);
@@ -129,7 +129,7 @@ int main(int argc, char **argv)
     plotParameters(p);
 
     /* Open image file and write header (if PNM) */
-    if (p->output != OUTPUT_TERMINAL && network->mode != LAN_SLAVE)
+    if (p->output != OUTPUT_TERMINAL && network->mode != LAN_WORKER)
     {
         if (initialiseImage(p))
         { 
@@ -150,7 +150,7 @@ int main(int argc, char **argv)
         case LAN_MASTER:
             ret = imageOutputMaster(p, network, ctx);
             break;
-        case LAN_SLAVE:
+        case LAN_WORKER:
             ret = imageRowOutput(p, network, ctx);
             break;
         default:
@@ -169,7 +169,7 @@ int main(int argc, char **argv)
     }
 
     /* Close file */
-    if (p->output != OUTPUT_TERMINAL && network->mode != LAN_SLAVE && closeImage(p))
+    if (p->output != OUTPUT_TERMINAL && network->mode != LAN_WORKER && closeImage(p))
     {
         freeNetworkCTX(network);
         freePlotCTX(p);
@@ -236,8 +236,8 @@ static int usage(void)
     printf("  -t                            Output to stdout (or, with -o, text file) using ASCII characters as "
            "shading\n");
     printf("Distributed computing setup:\n");
-    printf("  -g ADDR,   --slave=ADDR       Have computer work for a master at the respective IP address\n");
-    printf("  -G COUNT,  --master=COUNT     Setup computer as a network master, expecting COUNT slaves to connect\n");
+    printf("  -g ADDR,   --worker=ADDR      Have computer work for a master at the respective IP address\n");
+    printf("  -G COUNT,  --master=COUNT     Setup computer as a network master, expecting COUNT workers to connect\n");
     printf("  -p PORT                       Communicate over the given port (default = %" PRIu16 ")\n", PORT_DEFAULT);
     printf("Plot type:\n");
     printf("  -j CONST,  --julia=CONST      Plot Julia set with specified constant parameter\n");

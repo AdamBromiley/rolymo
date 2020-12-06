@@ -43,8 +43,8 @@ extern const size_t HEIGHT_MAX;
 extern const uint16_t PORT_MIN;
 extern const uint16_t PORT_MAX;
 
-extern const int SLAVES_MIN;
-extern const int SLAVES_MAX;
+extern const int WORKERS_MIN;
+extern const int WORKERS_MAX;
 
 #ifdef MP_PREC
 const mpfr_prec_t MP_BITS_DEFAULT;

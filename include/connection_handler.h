@@ -15,7 +15,7 @@ typedef enum LANStatus
 {
     LAN_NONE,
     LAN_MASTER,
-    LAN_SLAVE
+    LAN_WORKER
 } LANStatus;
 
 
@@ -25,7 +25,7 @@ typedef struct NetworkCTX
     struct sockaddr_in addr;
     int s;
     int n;
-    int *slaves;
+    int *workers;
 } NetworkCTX;
 
 
@@ -35,8 +35,8 @@ void freeNetworkCTX(NetworkCTX *ctx);
 int initialiseNetworkConnection(NetworkCTX *network, PlotCTX **p);
 
 int initialiseMaster(NetworkCTX *network);
-int initialiseSlave(NetworkCTX *network, PlotCTX **p);
-int initialiseSlaves(NetworkCTX *network, PlotCTX *p);
+int initialiseWorker(NetworkCTX *network, PlotCTX **p);
+int initialiseWorkers(NetworkCTX *network, PlotCTX *p);
 
 int acceptConnectionReq(NetworkCTX *network);
 int acceptConnections(NetworkCTX *network, time_t timeout);
