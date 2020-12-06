@@ -78,7 +78,7 @@ CC = gcc
 COPT = -flto -Ofast -march=native
 
 # Compiler options
-CFLAGS = $(IDIRS) $(COPT) -g -std=c99 -pedantic \
+CFLAGS = $(IDIRS) $(COPT) -D"_POSIX_C_SOURCE=200809L" -g -std=c99 -pedantic \
 	-Wall -Wextra -Wcast-align -Wcast-qual -Wdisabled-optimization -Wformat=2 \
 	-Winit-self -Wlogical-op -Wmissing-declarations -Wmissing-include-dirs \
 	-Wredundant-decls -Wshadow -Wsign-conversion -Wstrict-overflow=5 \
