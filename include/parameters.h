@@ -59,7 +59,10 @@ extern const PlotCTX JULIA_PARAMETERS_DEFAULT_MP;
 
 extern const PlotCTX MANDELBROT_PARAMETERS_DEFAULT;
 extern const PlotCTX MANDELBROT_PARAMETERS_DEFAULT_EXT;
+
+#ifdef MP_PREC
 extern const PlotCTX MANDELBROT_PARAMETERS_DEFAULT_MP;
+#endif
 
 
 PlotCTX * createPlotCTX(PrecisionMode precision);
