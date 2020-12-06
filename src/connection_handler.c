@@ -25,10 +25,7 @@
 #include "request_handler.h"
 
 
-/* Offset in slave response where image data starts (before is row number) */
-const size_t RESPONSE_IMAGE_DATA_OFFSET = 6;
-
-
+static void closeSocket(fd_set *set, int *highestFD, NetworkCTX *network, int i);
 static int getHighestFD(const int *fd, int n);
 
 
@@ -145,6 +142,7 @@ int initialiseMaster(NetworkCTX *network)
 	}
 
     /* Set socket to be nonblocking */
+    /*
     logMessage(DEBUG, "Changing socket mode to nonblocking");
 
 	if (ioctl(network->s, FIONBIO, (const void *) &SOCK_OPT) < 0)
@@ -152,7 +150,7 @@ int initialiseMaster(NetworkCTX *network)
         logMessage(DEBUG, "Socket mode could not be changed");
 		close(network->s);
 		return 1;
-	}
+	}*/
 
     logMessage(DEBUG, "Binding %s:%" PRIu16 " to socket",
                inet_ntoa(network->addr.sin_addr),
@@ -314,7 +312,7 @@ int initialiseSlave(NetworkCTX *network, PlotCTX **p)
                ntohs(network->addr.sin_port));
 
 	if (connect(network->s, (struct sockaddr *) &network->addr, (socklen_t) sizeof(network->addr)))
-	{
+    {
         logMessage(ERROR, "Unable to connect to master");
         close(network->s);
 		return 1;
@@ -344,8 +342,10 @@ int listener(NetworkCTX *network, const Block *block)
     /* Lists of socket file descriptors */
     int *slavesTemp = malloc((size_t) network->n * sizeof(*(network->slaves)));
 
-    size_t rows = block->rows;
-    size_t allocatedRows = 0;
+    size_t rows = (block->remainder) ? block->remainderRows : block->rows;
+
+    /* Start the row counting from the top of the block */
+    size_t allocatedRows = block->id * block->rows;
     size_t wroteRows = 0;
 
     if (!slavesTemp)
@@ -367,7 +367,11 @@ int listener(NetworkCTX *network, const Block *block)
         int activeSockCount;
 
         if (highestFD == -1)
-            return 0;
+        {
+            logMessage(ERROR, "Premature disconnect from all slave machines");
+            free(slavesTemp);
+            return 1;
+        }
 
         /* Initialise working set and array */
         memcpy(&setTemp, &set, sizeof(set));
@@ -380,14 +384,17 @@ int listener(NetworkCTX *network, const Block *block)
         activeSockCount = select(highestFD + 1, &setTemp, NULL, NULL, NULL);
 
         if (activeSockCount <= 0)
+        {
+            logMessage(ERROR, "Failed to poll sockets");
+            free(slavesTemp);
             return 1;
+        }
 
         for (int i = 0; i < network->n && activeSockCount > 0; ++i)
         {
-            char request[READ_BUFFER_SIZE] = {0};
-            char sendBuffer[10] = {0};
-
             ssize_t readBytes;
+
+            char buffer[NETWORK_BUFFER_SIZE] = {'\0'};
 
             int activeSock = slavesTemp[i];
 
@@ -398,107 +405,114 @@ int listener(NetworkCTX *network, const Block *block)
             activeSockCount--;
             
             /* Read request into buffer */
-            readBytes = readSocket(request, activeSock, sizeof(request));
+            readBytes = readSocket(buffer, activeSock, sizeof(buffer));
 
             /* Client issued shutdown or error */
             if (readBytes <= 0)
             {
-                /* Close socket */
-                logMessage(INFO, "Closing connection with socket %d", activeSock);
-                close(activeSock);
-                FD_CLR(activeSock, &set);
-                network->slaves[i] = -1;
-
-                /* Recalculate highest FD in set (if needed) */
-                if (activeSock == highestFD)
-                    highestFD = getHighestFD(network->slaves, network->n);
+                closeSocket(&set, &highestFD, network, i);
+                continue;
             }
-            else if (readBytes == 2)
+            else if (readBytes != sizeof(buffer))
             {
-                request[sizeof(request) - 1] = '\0';
+                continue;
+            }
 
-                if (strcmp(">", request))
+            buffer[sizeof(buffer) - 1] = '\0';
+
+            if (!strcmp(buffer, "REQ"))
+            {
+                if (allocatedRows < rows)
                 {
-                    logMessage(WARNING, "Invalid request from slave on socket %d", activeSock);
-                    continue;
-                }
-                else if (allocatedRows < rows)
-                {
-                    snprintf(sendBuffer, sizeof(sendBuffer), "%zu", allocatedRows++);
-                    logMessage(INFO, "Allocating row %s to slave on socket %d", sendBuffer, activeSock);
+                    memset(buffer, '\0', sizeof(buffer));
+                    snprintf(buffer, sizeof(buffer), "%zu", allocatedRows++);
+                    logMessage(DEBUG, "Allocating row %s to slave on socket %d", buffer, activeSock);
 
                     /* Client issued shutdown or error */
-                    if (writeSocket(sendBuffer, activeSock, strlen(sendBuffer) + 1) <= 0)
-                    {
-                        /* Close socket */
-                        logMessage(INFO, "Closing connection with socket %d", activeSock);
-                        close(activeSock);
-                        FD_CLR(activeSock, &set);
-                        network->slaves[i] = -1;
-
-                        /* Recalculate highest FD in set (if needed) */
-                        if (activeSock == highestFD)
-                            highestFD = getHighestFD(network->slaves, network->n);
-                    }
+                    if (writeSocket(buffer, activeSock, sizeof(buffer)) <= 0)
+                        closeSocket(&set, &highestFD, network, i);
                 }
                 else
                 {
-                    /* Close socket */
-                    logMessage(INFO, "Closing connection with socket %d", activeSock);
-                    close(activeSock);
-                    FD_CLR(activeSock, &set);
-                    network->slaves[i] = -1;
-
-                    /* Recalculate highest FD in set (if needed) */
-                    if (activeSock == highestFD)
-                        highestFD = getHighestFD(network->slaves, network->n);
+                    closeSocket(&set, &highestFD, network, i);
                 }
             }
             else
             {
-                uintmax_t tempUIntMax = 0;
                 char *endptr;
-                size_t rowNum;
-                char *a = block->ctx->array->array;
-                size_t rowSize = (block->ctx->array->params->colour.depth == BIT_DEPTH_ASCII)
-                                 ? block->ctx->array->params->width * sizeof(char)
-                                 : block->ctx->array->params->width * block->ctx->array->params->colour.depth / 8;
+                uintmax_t tempUIntMax = 0;
 
-                request[RESPONSE_IMAGE_DATA_OFFSET - 1] = '\0';
-                request[sizeof(request) - 1] = '\0';
-
-                if (stringToUIntMax(&tempUIntMax, request, 0, block->rows - 1, &endptr, BASE_DEC) != PARSE_SUCCESS)
+                if (stringToUIntMax(&tempUIntMax, buffer, 0, block->rows - 1, &endptr, BASE_DEC) != PARSE_SUCCESS)
                 {
-                    logMessage(WARNING, "Invalid row number \'%s\' on socket %d", activeSock);
+                    logMessage(WARNING, "Invalid row number received on socket %d", activeSock);
+                    
+                    if (sendError(activeSock))
+                        closeSocket(&set, &highestFD, network, i);
                 }
                 else
                 {
-                    rowNum = (size_t) tempUIntMax;
-                    logMessage(INFO, "Writing row %zu to array", rowNum);
-                    memcpy(a + rowNum * rowSize, request + RESPONSE_IMAGE_DATA_OFFSET, rowSize);
+                    size_t rowNum = (size_t) tempUIntMax;
+                    size_t rowSize = block->rowSize;
 
-                    if (++wroteRows == block->rows)
-                        return 0;
-                }
+                    char *tempRow = malloc(rowSize);
 
-                snprintf(sendBuffer, sizeof(sendBuffer), ">");
+                    if (!tempRow)
+                        continue;
 
-                /* Client issued shutdown or error */
-                if (writeSocket(sendBuffer, activeSock, strlen(sendBuffer) + 1) <= 0)
-                {
-                    /* Close socket */
-                    logMessage(INFO, "Closing connection with socket %d", activeSock);
-                    close(activeSock);
-                    FD_CLR(activeSock, &set);
-                    network->slaves[i] = -1;
+                    /* Read request into buffer */
+                    memset(tempRow, '\0', rowSize);
+                    readBytes = readSocket(tempRow, activeSock, rowSize);
 
-                    /* Recalculate highest FD in set (if needed) */
-                    if (activeSock == highestFD)
-                        highestFD = getHighestFD(network->slaves, network->n);
+                    /* Client issued shutdown or error */
+                    if (readBytes <= 0)
+                    {
+                        closeSocket(&set, &highestFD, network, i);
+                        free(tempRow);
+                    }
+                    else if ((size_t) readBytes != rowSize)
+                    {
+                        logMessage(WARNING, "Row size does not correspond to request on socket %d", activeSock);
+                        sendError(activeSock);
+                        free(tempRow);
+                    }
+                    else
+                    {                        
+                        memcpy(block->array + rowNum * rowSize, tempRow, rowSize);
+                        free(tempRow);
+
+                        logMessage(INFO, "Row %zu from socket %d wrote to array", rowNum, activeSock);
+
+                        if (sendAcknowledgement(activeSock))
+                            closeSocket(&set, &highestFD, network, i);
+
+                        if (++wroteRows >= rows)
+                        {
+                            logMessage(INFO, "All rows wrote to image");
+                            free(slavesTemp);
+                            return 0;
+                        }
+                    }
                 }
             }
         }
     }
+}
+
+
+/* Close socket connection and modify fd_set and NetworkCTX socket array */
+static void closeSocket(fd_set *set, int *highestFD, NetworkCTX *network, int i)
+{
+    int s = network->slaves[i];
+
+    logMessage(INFO, "Closing connection with socket %d", s);
+
+    close(s);
+    FD_CLR(s, set);
+    network->slaves[i] = -1;
+
+    /* Recalculate highest FD in set (if needed) */
+    if (s == *highestFD)
+        *highestFD = getHighestFD(network->slaves, network->n);
 }
 
 

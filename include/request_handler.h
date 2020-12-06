@@ -14,8 +14,14 @@
 #endif
 
 
-#define READ_BUFFER_SIZE 32768
-#define WRITE_BUFFER_SIZE 32768
+#define PARAMETERS_BUFFER_SIZE 4096
+
+#define NETWORK_BUFFER_SIZE 16
+
+
+extern const char *ROW_REQUEST;
+extern const char *ACK_RESPONSE;
+extern const char *ERR_RESPONSE;
 
 
 ssize_t writeSocket(const void *src, int s, size_t n);
@@ -47,8 +53,14 @@ int deserialisePlotCTXExt(PlotCTX *p, char *src);
 int deserialisePlotCTXMP(PlotCTX *p, char *src);
 #endif
 
+int sendAcknowledgement(int s);
+int sendError(int s);
+
 int readParameters(PlotCTX **p, int s);
 int sendParameters(int s, const PlotCTX *p);
+
+int requestRowNumber(size_t *n, int s, const PlotCTX *p);
+int sendRowData(int s, size_t rowNum, void *row, size_t n);
 
 
 #endif

@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 
@@ -39,18 +40,25 @@
 #endif
 
 
+const char *ROW_REQUEST = "REQ";
+const char *ACK_RESPONSE = "ACK";
+const char *ERR_RESPONSE = "ERR";
+
+
+static int sendRowNumber(int s, size_t n);
+
+
 ssize_t writeSocket(const void *src, int s, size_t n)
 {
-    ssize_t sentBytes = 0;
-
-    const char *srctmp = src;
+    size_t sentBytes = 0;
 
     do
     {
         ssize_t ret;
+        const char *srctmp = src;
 
         errno = 0;
-        ret = send(s, srctmp + sentBytes, n, 0);
+        ret = send(s, srctmp + sentBytes, n - sentBytes, 0);
 
         if (ret < 0)
         {
@@ -71,54 +79,55 @@ ssize_t writeSocket(const void *src, int s, size_t n)
             }
         }
 
-        sentBytes += ret;
-        n -= (size_t) ret;
+        sentBytes += (size_t) ret;
     }
-    while (n > 0);
+    while (sentBytes < n);
 
-    return sentBytes;
+    return (sentBytes > SSIZE_MAX) ? SSIZE_MAX : (ssize_t) sentBytes;
 }
 
 
-/* Read input stream on socket */
+/* Read exactly n bytes of the input stream on a socket */
 ssize_t readSocket(void *dest, int s, size_t n)
 {
-    ssize_t readBytes;
+    size_t offset = 0;
 
+    /* Repeating the recv() call allows for all n bytes to be read */
     do
     {
+        ssize_t readBytes;
+        char *tmpDest = dest;
+
         errno = 0;
-        readBytes = recv(s, dest, n, 0);
+        readBytes = recv(s, tmpDest + offset, n - offset, 0);
 
         if (readBytes == 0)
         {
             /* Shutdown request */
             logMessage(INFO, "Connection with peer closed");
-            return 0;
+            return (ssize_t) offset;
         }
         else if (readBytes < 0)
         {
-            if (errno == EINTR)
-            {
-                /* Read call interrupted - try again */
-                continue;
-            }
-            else if (errno == ECONNRESET)
+            if (errno == ECONNRESET)
             {
                 /* Connection closed */
                 logMessage(INFO, "Connection with peer closed");
-                return 0;
+                return (ssize_t) offset;
             }
-            else
+            else if (errno != EINTR)
             {
+                /* If recv() was not interrupted */
                 logMessage(ERROR, "Could not read from connection");
                 return -1;
             }
         }
-    }
-    while (readBytes < 0 && errno == EINTR);
 
-    return readBytes;
+        offset += (size_t) readBytes;
+    }
+    while (offset < n);
+
+    return (offset > SSIZE_MAX) ? SSIZE_MAX : (ssize_t) offset;
 }
 
 
@@ -284,6 +293,9 @@ int deserialisePlotCTX(PlotCTX *p, char *src)
     p->width = tempWidth;
     p->height = tempHeight;
 
+    p->output = OUTPUT_NONE;
+    p->file = NULL;
+
     if (initialiseColourScheme(&p->colour, tempColourScheme))
         return 1;
 
@@ -318,6 +330,9 @@ int deserialisePlotCTXExt(PlotCTX *p, char *src)
     p->type = tempPlotType;
     p->width = tempWidth;
     p->height = tempHeight;
+
+    p->output = OUTPUT_NONE;
+    p->file = NULL;
 
     if (initialiseColourScheme(&p->colour, tempColourScheme))
         return 1;
@@ -355,6 +370,9 @@ int deserialisePlotCTXMP(PlotCTX *p, char *src)
     p->width = tempWidth;
     p->height = tempHeight;
 
+    p->output = OUTPUT_NONE;
+    p->file = NULL;
+
     if (initialiseColourScheme(&p->colour, tempColourScheme))
         return 1;
 
@@ -363,20 +381,74 @@ int deserialisePlotCTXMP(PlotCTX *p, char *src)
 #endif
 
 
+int sendAcknowledgement(int s)
+{
+    ssize_t bytes;
+    char buffer[NETWORK_BUFFER_SIZE] = {'\0'};
+
+    strncpy(buffer, ACK_RESPONSE, sizeof(buffer));
+    buffer[sizeof(buffer) - 1] = '\0';
+
+    bytes = writeSocket(buffer, s, sizeof(buffer));
+
+    if (bytes == 0)
+    {
+        return -2;
+    }
+    else if (bytes < 0)
+    {
+        return -1;
+    }
+    else if ((size_t) bytes != sizeof(buffer))
+    {
+        logMessage(ERROR, "Could not write full request to connection");
+        return -1;
+    }
+
+    return 0;
+}
+
+
+int sendError(int s)
+{
+    ssize_t bytes;
+    char buffer[NETWORK_BUFFER_SIZE] = {'\0'};
+
+    strncpy(buffer, ERR_RESPONSE, sizeof(buffer));
+    buffer[sizeof(buffer) - 1] = '\0';
+
+    bytes = writeSocket(buffer, s, sizeof(buffer));
+
+    if (bytes == 0)
+    {
+        return -2;
+    }
+    else if (bytes < 0)
+    {
+        return -1;
+    }
+    else if ((size_t) bytes != sizeof(buffer))
+    {
+        logMessage(ERROR, "Could not write full request to connection");
+        return -1;
+    }
+
+    return 0;
+}
+
+
 int readParameters(PlotCTX **p, int s)
 {
     ssize_t bytes;
-    char buffer[READ_BUFFER_SIZE];
+    char buffer[PARAMETERS_BUFFER_SIZE] = {'\0'};
 
     PrecisionMode precision;
-
-    memset(buffer, '\0', sizeof(buffer));
 
     logMessage(DEBUG, "Reading precision mode");
     
     bytes = readSocket(buffer, s, sizeof(buffer));
 
-    if (bytes <= 0)
+    if (bytes <= 0 || (size_t) bytes != sizeof(buffer))
         return (bytes == 0) ? -2 : -1;
 
     logMessage(DEBUG, "Deserialising precision mode");
@@ -390,14 +462,14 @@ int readParameters(PlotCTX **p, int s)
         logMessage(ERROR, "Could not deserialise precision mode");
         return -1;
     }
-    
-    memset(buffer, '\0', sizeof(buffer));
 
     logMessage(DEBUG, "Reading plot parameters");
 
+    memset(buffer, '\0', sizeof(buffer));
+
     bytes = readSocket(buffer, s, sizeof(buffer));
 
-    if (bytes <= 0)
+    if (bytes <= 0 || (size_t) bytes != sizeof(buffer))
         return (bytes == 0) ? -2 : -1;
 
     logMessage(DEBUG, "Creating plot parameters structure");
@@ -456,9 +528,7 @@ int sendParameters(int s, const PlotCTX *p)
 {
     int ret;
     ssize_t bytes;
-    char buffer[WRITE_BUFFER_SIZE];
-
-    memset(buffer, '\0', sizeof(buffer));
+    char buffer[PARAMETERS_BUFFER_SIZE] = {'\0'};
 
     logMessage(DEBUG, "Serialising precision mode");
 
@@ -477,7 +547,7 @@ int sendParameters(int s, const PlotCTX *p)
 
     logMessage(DEBUG, "Sending precision mode");
 
-    bytes = writeSocket(buffer, s, strlen(buffer) + 1);
+    bytes = writeSocket(buffer, s, sizeof(buffer));
 
     if (bytes == 0)
     {
@@ -487,15 +557,15 @@ int sendParameters(int s, const PlotCTX *p)
     {
         return -1;
     }
-    else if ((size_t) bytes != strlen(buffer) + 1)
+    else if ((size_t) bytes != sizeof(buffer))
     {
         logMessage(ERROR, "Could not write full request to connection");
         return -1;
     }
 
-    memset(buffer, '\0', sizeof(buffer));
-
     logMessage(DEBUG, "Serialising plot parameters");
+
+    memset(buffer, '\0', sizeof(buffer));
 
     switch(p->precision)
     {
@@ -525,7 +595,7 @@ int sendParameters(int s, const PlotCTX *p)
 
     logMessage(DEBUG, "Sending plot parameters");
 
-    bytes = writeSocket(buffer, s, strlen(buffer) + 1);
+    bytes = writeSocket(buffer, s, sizeof(buffer));
     
     if (bytes == 0)
     {
@@ -535,11 +605,134 @@ int sendParameters(int s, const PlotCTX *p)
     {
         return -1;
     }
-    else if ((size_t) bytes != strlen(buffer) + 1)
+    else if ((size_t) bytes != sizeof(buffer))
     {
         logMessage(ERROR, "Could not write full request to connection");
         return -1;
     }
     
+    return 0;
+}
+
+
+int requestRowNumber(size_t *n, int s, const PlotCTX *p)
+{
+    ssize_t ret;
+
+    char buffer[NETWORK_BUFFER_SIZE] = {'\0'};
+
+    uintmax_t tempUIntMax = 0;
+    char *endptr;
+
+    /* Send request to master for a new row number */
+    strncpy(buffer, ROW_REQUEST, sizeof(buffer));
+    buffer[sizeof(buffer) - 1] = '\0';
+
+    ret = writeSocket(buffer, s, sizeof(buffer));
+
+    if (ret == 0)
+    {
+        return -2;
+    }
+    else if (ret < 0 || (size_t) ret != sizeof(buffer))
+    {
+        logMessage(ERROR, "Could not write to socket connection");
+        return -1;
+    }
+
+    /* Read and parse response from master */
+    memset(buffer, '\0', sizeof(buffer));
+    ret = readSocket(buffer, s, sizeof(buffer));
+
+    if (ret == 0)
+    {
+        return -2;
+    }
+    else if (ret < 0 || (size_t) ret != sizeof(buffer))
+    {
+        logMessage(ERROR, "Error reading from socket connection");
+        return -1;
+    }
+
+    buffer[sizeof(buffer) - 1] = '\0';
+
+    if (stringToUIntMax(&tempUIntMax, buffer, 0, p->height - 1, &endptr, BASE_DEC) != PARSE_SUCCESS)
+    {
+        logMessage(ERROR, "Error parsing row number \'%s\'", buffer);
+        return -3;
+    }
+
+    *n = (size_t) tempUIntMax;
+
+    return 0;
+}
+
+
+int sendRowData(int s, size_t rowNum, void *row, size_t n)
+{
+    ssize_t bytes;
+    char buffer[NETWORK_BUFFER_SIZE] = {'\0'};
+
+    int ret = sendRowNumber(s, rowNum);
+
+    if (ret)
+        return ret;
+
+    bytes = writeSocket(row, s, n);
+
+    if (bytes == 0)
+    {
+        return -2;
+    }
+    else if (bytes < 0 || (size_t) bytes != n)
+    {
+        logMessage(ERROR, "Could not write to socket connection");
+        return -1;
+    }
+
+    /* Read acknowledgement from master */
+    bytes = readSocket(buffer, s, sizeof(buffer));
+
+    if (bytes == 0)
+    {
+        return -2;
+    }
+    else if (bytes < 0 || (size_t) bytes != sizeof(buffer))
+    {
+        logMessage(ERROR, "Error reading from socket connection");
+        return -1;
+    }
+
+    buffer[sizeof(buffer) - 1] = '\0';
+
+    if (strcmp(buffer, ACK_RESPONSE))
+    {
+        logMessage(ERROR, "Invalid acknowledgement from master");
+        return -3;
+    }
+
+    return 0;
+}
+
+
+static int sendRowNumber(int s, size_t n)
+{
+    ssize_t ret;
+    char buffer[NETWORK_BUFFER_SIZE] = {'\0'};
+
+    snprintf(buffer, sizeof(buffer), "%zu", n);
+
+    ret = writeSocket(buffer, s, sizeof(buffer));
+
+    if (ret == 0)
+    {
+        return -2;
+    }
+    else if (ret < 0 || (size_t) ret != sizeof(buffer))
+    {
+        logMessage(ERROR, "Could not write to socket connection");
+        return -1;
+    }
+
     return 0;
 }
