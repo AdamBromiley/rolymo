@@ -40,17 +40,17 @@ static void juliaMP(unsigned long *n, mpc_t z, mpfr_t norm, mpc_t c, unsigned lo
 
 void * generateFractalRow(void *threadInfo)
 {
-    SlaveThread *t = threadInfo;
+    Thread *t = threadInfo;
 
     /*
      * Because the loop may run for millions of iterations, all relevant struct
      * members are cached before use.
      */
 
-    unsigned int tCount = t->ctx->count;
+    unsigned int tCount = t->tCount;
 
     /* Plot parameters */
-    PlotCTX *p = t->row->array->params;
+    PlotCTX *p = t->block->parameters;
 
     /* Julia set constant */
     complex constant = p->c.c;
@@ -72,11 +72,9 @@ void * generateFractalRow(void *threadInfo)
 
     /* Row array */
     size_t columns = p->width;
-    size_t nmemb = (colourDepth <= CHAR_BIT || colourDepth == BIT_DEPTH_ASCII)
-                   ? sizeof(char)
-                   : colourDepth / CHAR_BIT;
+    size_t nmemb = t->block->memSize;
 
-    char *px = (char *) t->row->array->array + t->tid * nmemb;
+    char *px = t->block->array + t->tid * nmemb;
 
     logMessage(DEBUG, "Thread %u: Generating row plot", t->tid);
 
@@ -84,7 +82,7 @@ void * generateFractalRow(void *threadInfo)
     int bitOffset;
 
     /* Set complex value to start of the row */
-    complex c = reMin + pxWidth * t->tid + (imMax - t->row->row * pxHeight) * I;
+    complex c = reMin + pxWidth * t->tid + (imMax - t->block->id * pxHeight) * I;
 
     /* Iterate over the row - offset by thread ID to ensure each thread gets a unique column */
     for (size_t x = t->tid; x < columns; x += tCount, c += pxWidth * tCount)
@@ -128,17 +126,17 @@ void * generateFractalRow(void *threadInfo)
 
 void * generateFractalRowExt(void *threadInfo)
 {
-    SlaveThread *t = threadInfo;
+    Thread *t = threadInfo;
 
     /*
      * Because the loop may run for millions of iterations, all relevant struct
      * members are cached before use.
      */
 
-    unsigned int tCount = t->ctx->count;
+    unsigned int tCount = t->tCount;
 
     /* Plot parameters */
-    PlotCTX *p = t->row->array->params;
+    PlotCTX *p = t->block->parameters;
 
     /* Julia set constant */
     long double complex constant = p->c.lc;
@@ -160,11 +158,9 @@ void * generateFractalRowExt(void *threadInfo)
 
     /* Row array */
     size_t columns = p->width;
-    size_t nmemb = (colourDepth <= CHAR_BIT || colourDepth == BIT_DEPTH_ASCII)
-                   ? sizeof(char)
-                   : colourDepth / CHAR_BIT;
+    size_t nmemb = t->block->memSize;
 
-    char *px = (char *) t->row->array->array + t->tid * nmemb;
+    char *px = t->block->array + t->tid * nmemb;
 
     logMessage(DEBUG, "Thread %u: Generating row plot", t->tid);
 
@@ -172,7 +168,7 @@ void * generateFractalRowExt(void *threadInfo)
     int bitOffset;
 
     /* Set complex value to start of the row */
-    long double complex c = reMin + pxWidth * t->tid + (imMax - t->row->row * pxHeight) * I;
+    long double complex c = reMin + pxWidth * t->tid + (imMax - t->block->id * pxHeight) * I;
 
     /* Iterate over the row - offset by thread ID to ensure each thread gets a unique column */
     for (size_t x = t->tid; x < columns; x += tCount, c += pxWidth * tCount)
@@ -217,17 +213,17 @@ void * generateFractalRowExt(void *threadInfo)
 #ifdef MP_PREC
 void * generateFractalRowMP(void *threadInfo)
 {
-    SlaveThread *t = threadInfo;
+    Thread *t = threadInfo;
 
     /*
      * Because the loop may run for millions of iterations, all relevant struct
      * members are cached before use.
      */
 
-    unsigned int tCount = t->ctx->count;
+    unsigned int tCount = t->tCount;
 
     /* Plot parameters */
-    PlotCTX *p = t->row->array->params;
+    PlotCTX *p = t->block->parameters;
 
     /* Julia set constant */
     mpc_t constant;
@@ -291,11 +287,9 @@ void * generateFractalRowMP(void *threadInfo)
 
     /* Row array */
     size_t columns = p->width;
-    size_t nmemb = (colourDepth <= CHAR_BIT || colourDepth == BIT_DEPTH_ASCII)
-                   ? sizeof(char)
-                   : colourDepth / CHAR_BIT;
+    size_t nmemb = t->block->memSize;
 
-    char *px = (char *) t->row->array->array + t->tid * nmemb;
+    char *px = t->block->array + t->tid * nmemb;
 
     /* Real offset into the row */
     mpfr_t real;
@@ -307,7 +301,7 @@ void * generateFractalRowMP(void *threadInfo)
     /* Imaginary value of the row */
     mpfr_t imag;
     mpfr_init2(imag, mpSignificandSize);
-    mpfr_set_uj(imag, (uintmax_t) t->row->row, MP_IMAG_RND);
+    mpfr_set_uj(imag, (uintmax_t) t->block->id, MP_IMAG_RND);
 
     mpfr_mul(imag, imag, pxHeight, MP_IMAG_RND);
     mpfr_sub(imag, imMax, imag, MP_IMAG_RND);
@@ -391,10 +385,10 @@ void * generateFractal(void *threadInfo)
      * members are cached before use.
      */
 
-    unsigned int tCount = t->ctx->count;
+    unsigned int tCount = t->tCount;
 
     /* Plot parameters */
-    PlotCTX *p = t->block->ctx->array->params;
+    PlotCTX *p = t->block->parameters;
 
     /* Julia set constant */
     complex constant = p->c.c;
@@ -416,17 +410,15 @@ void * generateFractal(void *threadInfo)
 
     /* Image array */
     char *px;
-    char *array = (char *) t->block->ctx->array->array;
-    size_t rows = t->block->rows;
+    char *array = t->block->array;
+    size_t rows = (t->block->remainder) ? t->block->remainderRows : t->block->rows;
     size_t columns = p->width;
-    size_t nmemb = (colourDepth <= CHAR_BIT || colourDepth == BIT_DEPTH_ASCII)
-                   ? sizeof(char)
-                   : colourDepth / CHAR_BIT;
+    size_t nmemb = t->block->memSize;
 
-    size_t rowSize = columns * nmemb;
+    size_t rowSize = t->block->rowSize;
 
     /* Offset of block from start ('top-left') of image array */
-    size_t blockOffset = t->block->id * rows;
+    size_t blockOffset = t->block->id * t->block->rows;
     double rowOffset = imMax - blockOffset * pxHeight;
 
     logMessage(INFO, "Thread %u: Generating plot", t->tid);
@@ -435,21 +427,13 @@ void * generateFractal(void *threadInfo)
     for (size_t y = t->tid; y < rows; y += tCount)
     {
         /* Number of bits into current byte (if bit depth < CHAR_BIT) */
-        int bitOffset;
+        int bitOffset = 0;
 
         /* Set complex value to start of the row */
         complex c = reMin + (rowOffset - y * pxHeight) * I;
 
         /* Set pixel pointer to start of the row */
-        if (colourDepth >= CHAR_BIT || colourDepth == BIT_DEPTH_ASCII)
-        {
-            px = array + y * rowSize;
-        }
-        else
-        {
-            bitOffset = 0;
-            px = array + y * rowSize / CHAR_BIT;
-        }
+        px = array + y * rowSize;
 
         /* Iterate over the row */
         for (size_t x = 0; x < columns; ++x, c += pxWidth)
@@ -501,10 +485,10 @@ void * generateFractalExt(void *threadInfo)
      * members are cached before use.
      */
 
-    unsigned int tCount = t->ctx->count;
+    unsigned int tCount = t->tCount;
 
     /* Plot parameters */
-    PlotCTX *p = t->block->ctx->array->params;
+    PlotCTX *p = t->block->parameters;
 
     /* Julia set constant */
     long double complex constant = p->c.lc;
@@ -526,16 +510,14 @@ void * generateFractalExt(void *threadInfo)
 
     /* Image array */
     char *px;
-    char *array = (char *) t->block->ctx->array->array;
-    size_t rows = t->block->rows;
+    char *array = t->block->array;
+    size_t rows = (t->block->remainder) ? t->block->remainderRows : t->block->rows;
     size_t columns = p->width;
-    size_t nmemb = (colourDepth <= CHAR_BIT || colourDepth == BIT_DEPTH_ASCII)
-                   ? sizeof(char)
-                   : colourDepth / CHAR_BIT;
-    size_t rowSize = columns * nmemb;
+    size_t nmemb = t->block->memSize;
+    size_t rowSize = t->block->rowSize;
 
     /* Offset of block from start ('top-left') of image array */
-    size_t blockOffset = t->block->id * rows;
+    size_t blockOffset = t->block->id * t->block->rows;
     long double rowOffset = imMax - blockOffset * pxHeight;
 
     logMessage(INFO, "Thread %u: Generating plot", t->tid);
@@ -544,21 +526,13 @@ void * generateFractalExt(void *threadInfo)
     for (size_t y = t->tid; y < rows; y += tCount)
     {
         /* Number of bits into current byte (if bit depth < CHAR_BIT) */
-        int bitOffset;
+        int bitOffset = 0;
 
         /* Set complex value to start of the row */
         long double complex c = reMin + (rowOffset - y * pxHeight) * I;
 
         /* Set pixel pointer to start of the row */
-        if (colourDepth >= CHAR_BIT || colourDepth == BIT_DEPTH_ASCII)
-        {
-            px = array + y * rowSize;
-        }
-        else
-        {
-            bitOffset = 0;
-            px = array + y * rowSize / CHAR_BIT;
-        }
+        px = array + y * rowSize;
 
         /* Iterate over the row */
         for (size_t x = 0; x < columns; ++x, c += pxWidth)
@@ -611,10 +585,10 @@ void * generateFractalMP(void *threadInfo)
      * members are cached before use.
      */
 
-    unsigned int tCount = t->ctx->count;
+    unsigned int tCount = t->tCount;
 
     /* Plot parameters */
-    PlotCTX *p = t->block->ctx->array->params;
+    PlotCTX *p = t->block->parameters;
 
     /* Julia set constant */
     mpc_t constant;
@@ -638,14 +612,12 @@ void * generateFractalMP(void *threadInfo)
 
     /* Image array */
     char *px;
-    char *array = (char *) t->block->ctx->array->array;
-    size_t rows = t->block->rows;
+    char *array = t->block->array;
+    size_t rows = (t->block->remainder) ? t->block->remainderRows : t->block->rows;
     size_t columns = p->width;
-    size_t nmemb = (colourDepth <= CHAR_BIT || colourDepth == BIT_DEPTH_ASCII)
-                   ? sizeof(char)
-                   : colourDepth / CHAR_BIT;
+    size_t nmemb = t->block->memSize;
 
-    size_t rowSize = columns * nmemb;
+    size_t rowSize = t->block->rowSize;
 
     /* Width value */
     mpfr_t pxWidth;
@@ -692,7 +664,7 @@ void * generateFractalMP(void *threadInfo)
     mpfr_init2(blockOffset, mpSignificandSize);
     mpfr_init2(rowOffset, mpSignificandSize);
 
-    mpfr_set_uj(blockOffset, (uintmax_t) (t->block->id * rows + t->tid), MP_IMAG_RND);
+    mpfr_set_uj(blockOffset, (uintmax_t) (t->block->id * t->block->rows + t->tid), MP_IMAG_RND);
     mpfr_mul(blockOffset, blockOffset, pxHeight, MP_IMAG_RND);
     mpfr_sub(rowOffset, imMax, blockOffset, MP_IMAG_RND);
 
@@ -715,21 +687,13 @@ void * generateFractalMP(void *threadInfo)
     for (size_t y = t->tid; y < rows; y += tCount)
     {
         /* Number of bits into current byte (if bit depth < CHAR_BIT) */
-        int bitOffset;
+        int bitOffset = 0;
 
         /* Set complex value to start of the row */
         mpc_set_fr_fr(c, reMin, rowOffset, MP_COMPLEX_RND);
 
         /* Set pixel pointer to start of the row */
-        if (colourDepth >= CHAR_BIT || colourDepth == BIT_DEPTH_ASCII)
-        {
-            px = array + y * rowSize;
-        }
-        else
-        {
-            bitOffset = 0;
-            px = array + y * rowSize / CHAR_BIT;
-        }
+        px = array + y * rowSize;
 
         /* Iterate over the row */
         for (size_t x = 0; x < columns; ++x, mpc_add_fr(c, c, pxWidth, MP_REAL_RND))

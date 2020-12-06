@@ -1,4 +1,5 @@
 #include <limits.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
 
@@ -15,153 +16,74 @@
 const unsigned int FREE_MEMORY_ALLOCATION = 80;
 
 
+static int allocateImageBlock(Block *block, size_t mem);
+
+static size_t getFreeMemory(void);
+static unsigned int getThreadCount(void);
+
+
 /* Create array metadata structure */
-ArrayCTX * createArrayCTX(PlotCTX *p)
+Block * createBlock(void)
 {
-    ArrayCTX *ctx = malloc(sizeof(*ctx));
+    Block *block = malloc(sizeof(Block));
 
-    if (!ctx)
-        return NULL;
-
-    ctx->array = NULL;
-    ctx->params = p;
-
-    return ctx;
+    if (block)
+        block->array = NULL;
+    
+    return block;
 }
 
 
-/* To prevent memory overcommitment, the array must be divided into blocks */
-Block * mallocArray(ArrayCTX *array, size_t bytes)
+int initialiseBlock(Block *block, PlotCTX *p, size_t mem)
 {
-    /* Maximum number of blocks the array should be divided into */
-    const unsigned int BLOCK_COUNT_MAX = 64;
-
-    Block *block;
-    BlockCTX *ctx;
-
-    void **arrayPtr = &(array->array);
-    size_t height, width, rowSize, blockSize;
-
-    size_t freeMemory;
-    long availablePages, pageSize;
-
-    logMessage(DEBUG, "Generating image array context");
-
-    if (!(array->params))
-    {
-        logMessage(ERROR, "Pointer to plotting parameters structure not found");
-        return NULL;
-    }
-
-    ctx = malloc(sizeof(*ctx));
-
-    if (!ctx)
-    {
-        logMessage(DEBUG, "Memory allocation failed");
-        return NULL;
-    }
-
-    logMessage(DEBUG, "Context generated");
-    logMessage(DEBUG, "Getting amount of free memory");
-
-    availablePages = sysconf(_SC_AVPHYS_PAGES);
-    pageSize = sysconf(_SC_PAGE_SIZE);
-
-    if (availablePages < 1 || pageSize < 1)
-    {
-        logMessage(ERROR, "Could not get amount of free memory");
-        return NULL;
-    }
-
-    freeMemory = (size_t) pageSize * (size_t) availablePages;
-
-    logMessage(DEBUG, "%zu bytes of physical memory are free", freeMemory);
-
-    /* If caller has specified max memory usage */
-    if (bytes > 0)
-    {
-        if (bytes > freeMemory)
-        {
-            logMessage(WARNING, "Memory maximum of %zu bytes is greater than the amount of free physical memory"
-                " (%zu bytes). It is recommended to only allow allocation of physical memory for efficiency",
-                bytes, freeMemory);
-        }
-
-        freeMemory = bytes;
-        logMessage(DEBUG, "Memory allocation will be limited to %zu bytes", freeMemory);
-    }
-    else
-    {
-        logMessage(DEBUG, "Memory allocation will be limited to %u%% (%zu bytes)",
-            FREE_MEMORY_ALLOCATION, freeMemory * FREE_MEMORY_ALLOCATION / 100);
-    }
-
-    logMessage(DEBUG, "Creating image array");
-
-    height = array->params->height;
-    width = array->params->width;
-
-    rowSize = (array->params->colour.depth == BIT_DEPTH_ASCII)
-                ? width * sizeof(char)
-                : width * array->params->colour.depth / 8;
-
-    logMessage(DEBUG, "Image array is %zu bytes", height * rowSize);
-
-    /* Try to malloc the array, with each iteration decreasing the array size */
-    *arrayPtr = NULL;
-
-    for (ctx->count = 1; ctx->count <= BLOCK_COUNT_MAX; ctx->count *= 2)
-    {
-        if (ctx->count > 1)
-            logMessage(DEBUG, "Memory allocation attempt failed. Retrying...");    
-
-        ctx->rows = height / ctx->count;
-        ctx->remainder = height % ctx->count;
-        blockSize = ctx->rows * rowSize;
-
-        logMessage(DEBUG, "Splitting array into %u blocks (%zu bytes each)", ctx->count, blockSize);
-
-        if (blockSize > freeMemory * FREE_MEMORY_ALLOCATION / 100)
-            continue;
-
-        *arrayPtr = malloc(blockSize);
-
-        if (*arrayPtr)
-            break;
-    }
-
-    if (!(*arrayPtr) || blockSize == 0)
-    {
-        /* If too many malloc() calls have failed */
-        logMessage(ERROR, "Memory allocation failed");
-        free(ctx);
-        return NULL;
-    }
-
-    ctx->array = array;
-
-    logMessage(DEBUG, "Image array split into %u blocks (%zu bytes - block: %zu rows, remainder block: %zu rows)",
-        blockSize, ctx->count, ctx->rows, ctx->remainder);
-    logMessage(DEBUG, "Creating image block structure");
-
-    /* Create block structure */
-    block = malloc(sizeof(*block));
-
-    if (!block)
-    {
-        logMessage(ERROR, "Memory allocation failed");
-        free(*arrayPtr);
-        free(ctx);
-        return NULL;
-    }
+    if (!block || !p)
+        return 1;
 
     block->id = 0;
-    block->rows = ctx->rows;
-    block->ctx = ctx;
+    block->parameters = p;
+    block->remainder = false;
 
-    logMessage(DEBUG, "Block structure created");
+    block->memSize = (block->parameters->colour.depth <= CHAR_BIT || block->parameters->colour.depth == BIT_DEPTH_ASCII)
+                     ? sizeof(char)
+                     : block->parameters->colour.depth / CHAR_BIT;
 
-    return block;
+    block->rowSize = (block->parameters->colour.depth == BIT_DEPTH_ASCII)
+                     ? block->parameters->width
+                     : (block->parameters->width * block->parameters->colour.depth) / CHAR_BIT;
+
+    /* Allocate memory to the block */
+    if (allocateImageBlock(block, mem))
+        return 1;
+
+    return 0;
+}
+
+
+int initialiseBlockAsRow(Block *block, PlotCTX *p)
+{
+    if (!block || !p)
+        return 1;
+
+    block->id = 0;
+    block->parameters = p;
+    block->rows = 1;
+    block->remainderRows = 0;
+    block->remainder = false;
+
+    block->memSize = (block->parameters->colour.depth <= CHAR_BIT || block->parameters->colour.depth == BIT_DEPTH_ASCII)
+                     ? sizeof(char)
+                     : block->parameters->colour.depth / CHAR_BIT;
+
+    block->rowSize = (block->parameters->colour.depth == BIT_DEPTH_ASCII)
+                     ? block->parameters->width
+                     : (block->parameters->width * block->parameters->colour.depth) / CHAR_BIT;
+
+    block->blockSize = block->rowSize;
+    block->remainderBlockSize = 0;
+
+    block->array = malloc(block->blockSize);
+
+    return (block->array) ? 0 : 1;
 }
 
 
@@ -169,38 +91,20 @@ Block * mallocArray(ArrayCTX *array, size_t bytes)
 Thread * createThreads(Block *block, unsigned int n)
 {
     Thread *threads;
-    ThreadCTX *ctx;
 
-    logMessage(DEBUG, "Creating thread array");
-
-    ctx = malloc(sizeof(*ctx));
-
-    if (!ctx)
-    {
-        logMessage(ERROR, "Memory allocation failed");
-        return NULL;
-    }
-
+    /* Get number of processors if user has not set a thread count limit */
     if (n < 1)
     {
-        long result = sysconf(_SC_NPROCESSORS_ONLN);
+        n = getThreadCount();
 
-        if (result < 1)
+        if (n < 1)
         {
-            result = 1;
-            logMessage(WARNING, "Could not get number of online processors - limiting to %ld thread(s)",
-                result);
+            n = 1;
+            logMessage(WARNING, "Could not get number of online processors - limiting to %u thread(s)", n);
         }
-        else if (result > UINT_MAX)
-        {
-            result = UINT_MAX;
-        }
-
-        n = (unsigned int) result;
     }
-    
-    /* Set thread count */
-    ctx->count = n;
+
+    logMessage(DEBUG, "Creating thread array");
 
     threads = malloc(n * sizeof(*threads));
     
@@ -214,8 +118,8 @@ Thread * createThreads(Block *block, unsigned int n)
     {
         /* Consecutive IDs allow threads to work on different array rows */
         threads[i].tid = i;
+        threads[i].tCount = n;
         threads[i].block = block;
-        threads[i].ctx = ctx;
     }
 
     logMessage(DEBUG, "Thread array generated");
@@ -224,86 +128,16 @@ Thread * createThreads(Block *block, unsigned int n)
 }
 
 
-/* Generate a list of threads */
-SlaveThread * createSlaveThreads(RowCTX *row, unsigned int n)
-{
-    SlaveThread *threads;
-    ThreadCTX *ctx;
-
-    logMessage(DEBUG, "Creating thread array");
-
-    ctx = malloc(sizeof(*ctx));
-
-    if (!ctx)
-    {
-        logMessage(ERROR, "Memory allocation failed");
-        return NULL;
-    }
-
-    if (n < 1)
-    {
-        long result = sysconf(_SC_NPROCESSORS_ONLN);
-
-        if (result < 1)
-        {
-            result = 1;
-            logMessage(WARNING, "Could not get number of online processors - limiting to %ld thread(s)",
-                result);
-        }
-        else if (result > UINT_MAX)
-        {
-            result = UINT_MAX;
-        }
-
-        n = (unsigned int) result;
-    }
-    
-    /* Set thread count */
-    ctx->count = n;
-
-    threads = malloc(n * sizeof(*threads));
-    
-    if (!threads)
-    {
-        logMessage(ERROR, "Memory allocation failed");
-        return NULL;
-    }
-    
-    for (unsigned int i = 0; i < n; ++i)
-    {
-        /* Consecutive IDs allow threads to work on different array columns */
-        threads[i].tid = i;
-        threads[i].row = row;
-        threads[i].ctx = ctx;
-    }
-
-    logMessage(DEBUG, "Thread array generated");
-
-    return threads;
-}
-
-
-/* Free ArrayCTX struct */
-void freeArrayCTX(ArrayCTX *ctx)
-{
-    if (ctx)
-    {
-        if (ctx->array)
-            free(ctx->array);
-        
-        free(ctx);
-        logMessage(DEBUG, "Array context freed");
-    }
-}
-
-
-/* Free Block and nested BlockCTX structs */
+/* Free Block object */
 void freeBlock(Block *block)
 {
     if (block)
     {
-        if (block->ctx)
-            free(block->ctx);
+        if (block->array)
+        {
+            free(block->array);
+            block->array = NULL;
+        }
 
         free(block);
         logMessage(DEBUG, "Block structure freed");
@@ -311,29 +145,137 @@ void freeBlock(Block *block)
 }
 
 
-/* Free thread list and nested ThreadCTX struct */
+/* Free thread list */
 void freeThreads(Thread *threads)
 {
     if (threads)
     {
-        if (threads->ctx)
-            free(threads->ctx);
-
         free(threads);
         logMessage(DEBUG, "Thread array freed");
     }
 }
 
 
-/* Free thread list and nested ThreadCTX struct */
-void freeSlaveThreads(SlaveThread *threads)
+/* To prevent memory overcommitment, the array must be divided into blocks */
+static int allocateImageBlock(Block *block, size_t mem)
 {
-    if (threads)
-    {
-        if (threads->ctx)
-            free(threads->ctx);
+    /* Maximum number of blocks the array should be divided into */
+    const unsigned int BLOCK_COUNT_MAX = 64;
 
-        free(threads);
-        logMessage(DEBUG, "Slave thread array freed");
+    size_t freeMemory;
+
+    logMessage(DEBUG, "Getting amount of free memory");
+
+    freeMemory = getFreeMemory();
+
+    if (!freeMemory)
+    {
+        logMessage(ERROR, "Failed to calculate amount of free memory");
+        return 1;
     }
+
+    logMessage(DEBUG, "%zu bytes of physical memory is free", freeMemory);
+
+    /* If caller has specified max memory usage */
+    if (mem > 0)
+    {
+        if (mem > freeMemory)
+        {
+            logMessage(WARNING, "Memory maximum of %zu bytes is greater than the amount of free physical memory (%zu"
+                       " bytes). It is recommended to only allow allocation of physical memory for efficiency",
+                       mem, freeMemory);
+        }
+
+        freeMemory = mem;
+        logMessage(DEBUG, "Memory allocation will be limited to %zu bytes", freeMemory);
+    }
+    else
+    {
+        freeMemory = freeMemory * (FREE_MEMORY_ALLOCATION / 100.0);
+        logMessage(DEBUG, "Memory allocation will be limited to %u%% of free physical memory (%zu bytes)",
+                   FREE_MEMORY_ALLOCATION, freeMemory);
+    }
+
+    block->blockSize = block->parameters->height * block->rowSize;
+
+    logMessage(DEBUG, "Full image is %zu bytes", block->blockSize);
+
+    /* Try to malloc the array, with each iteration decreasing the array size */
+    for (block->bCount = 1; block->bCount <= BLOCK_COUNT_MAX; ++(block->bCount))
+    {
+        block->rows = block->parameters->height / block->bCount;
+        block->remainderRows = block->parameters->height % block->bCount;
+
+        /* To fix the issue where the remainder block may be larger than the
+         * regular ones
+         */
+        if (block->remainderRows > block->rows)
+            continue;
+
+        block->blockSize = block->rows * block->rowSize;
+        block->remainderBlockSize = block->remainderRows * block->rowSize;
+
+        if (block->blockSize <= freeMemory)
+        {
+            logMessage(DEBUG, "Splitting array into %u blocks (%zu bytes each)", block->bCount, block->blockSize);
+
+            block->array = malloc(block->blockSize);
+
+            if (block->array)
+                break;
+            
+            if (block->bCount != BLOCK_COUNT_MAX)
+                logMessage(DEBUG, "Memory allocation attempt failed. Retrying...");
+        }
+    }
+
+    if (!block->array || block->blockSize == 0)
+    {
+        /* If too many malloc() calls have failed */
+        logMessage(ERROR, "Memory allocation failed");
+
+        if (block->array)
+            free(block->array);
+
+        return 1;
+    }
+
+    logMessage(DEBUG, "Image array split into %u blocks (%zu bytes - block: %zu rows, remainder block: %zu rows)",
+               block->bCount, block->blockSize, block->rows, block->remainderRows);
+    
+    return 0;
+}
+
+
+/* Calculate amount of free physical memory on the system */
+static size_t getFreeMemory(void)
+{
+    long availablePages = sysconf(_SC_AVPHYS_PAGES);
+    long pageSize = sysconf(_SC_PAGE_SIZE);
+
+    if (availablePages < 1 || pageSize < 1)
+        return 0;
+
+    return (size_t) pageSize * (size_t) availablePages;
+}
+
+
+/* Get number of online processors on the system (hence number of threads to
+ * use)
+ */
+static unsigned int getThreadCount(void)
+{
+    long procs = sysconf(_SC_NPROCESSORS_ONLN);
+
+    if (procs < 1)
+    {
+        procs = 1;
+        logMessage(WARNING, "Could not get number of online processors - limiting to %ld thread(s)", procs);
+    }
+    else if (procs > UINT_MAX)
+    {
+        procs = UINT_MAX;
+    }
+
+    return (unsigned int) procs;
 }

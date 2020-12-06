@@ -2,6 +2,7 @@
 #define ARRAY_H
 
 
+#include <stdbool.h>
 #include <stddef.h>
 
 #include <pthread.h>
@@ -9,66 +10,40 @@
 #include "parameters.h"
 
 
-typedef struct ArrayCTX
-{
-    void *array;
-    PlotCTX *params;
-} ArrayCTX;
-
-typedef struct RowCTX
-{
-    size_t row;
-    ArrayCTX *array;
-} RowCTX;
-
-typedef struct BlockCTX
-{
-    unsigned int count;
-    size_t rows, remainder;
-    ArrayCTX *array;
-} BlockCTX;
-
 typedef struct Block
 {
-    unsigned int id;
-    size_t rows;
-    BlockCTX *ctx;
+    size_t id;                 /* ID of block (also used as row number) */
+    unsigned int bCount;       /* Number of blocks in image */
+    PlotCTX *parameters;       /* Image parameters */
+    size_t rows;               /* Number of rows in each block */
+    size_t remainderRows;      /* Number of rows in the remainder block */
+    bool remainder;            /* Whether a remainder block or not */
+    size_t memSize;            /* Size of each array element */
+    size_t rowSize;            /* Size of each row */
+    size_t blockSize;          /* Size of full-size block */
+    size_t remainderBlockSize; /* Size of remainder block */
+    char *array;               /* Full-size block array */
 } Block;
-
-typedef struct ThreadCTX
-{
-    unsigned int count;
-} ThreadCTX;
 
 typedef struct Thread
 {
     pthread_t pid;
     unsigned int tid;
+    unsigned int tCount;
     Block *block;
-    ThreadCTX *ctx;
 } Thread;
-
-typedef struct SlaveThread
-{
-    pthread_t pid;
-    unsigned int tid;
-    RowCTX *row;
-    ThreadCTX *ctx;
-} SlaveThread;
 
 
 extern const unsigned int FREE_MEMORY_ALLOCATION;
 
 
-ArrayCTX * createArrayCTX(PlotCTX *p);
-Block * mallocArray(ArrayCTX *array, size_t bytes);
+Block * createBlock(void);
+int initialiseBlock(Block *block, PlotCTX *p, size_t mem);
+int initialiseBlockAsRow(Block *block, PlotCTX *p);
 Thread * createThreads(Block *block, unsigned int n);
-SlaveThread * createSlaveThreads(RowCTX *row, unsigned int n);
 
-void freeArrayCTX(ArrayCTX *ctx);
 void freeBlock(Block *block);
 void freeThreads(Thread *threads);
-void freeSlaveThreads(SlaveThread *threads);
 
 
 #endif
