@@ -2,6 +2,7 @@
 #include <float.h>
 #include <inttypes.h>
 #include <limits.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -60,6 +61,9 @@ int main(int argc, char **argv)
     ProgramCTX *ctx = NULL;
     NetworkCTX *network = NULL;
 
+    /* Ignore SIGPIPE signals (appears on clients if master crashes) */
+    signal(SIGPIPE, SIG_IGN);
+
     programName = argv[0];
 
     /* Setup logging library */
@@ -114,7 +118,8 @@ int main(int argc, char **argv)
 
         if (network->mode != LAN_SLAVE)
             freePlotCTX(p);
-
+        
+        freeNetworkCTX(network);
         closeLog();
         return EXIT_FAILURE;
     }
@@ -129,6 +134,7 @@ int main(int argc, char **argv)
         if (initialiseImage(p))
         { 
             freePlotCTX(p);
+            freeNetworkCTX(network);
             freeProgramCTX(ctx);
             closeLog();
             return EXIT_FAILURE;
@@ -157,6 +163,7 @@ int main(int argc, char **argv)
     if (ret)
     {
         freePlotCTX(p);
+        freeNetworkCTX(network);
         closeLog();
         return EXIT_FAILURE;
     }
@@ -164,11 +171,13 @@ int main(int argc, char **argv)
     /* Close file */
     if (p->output != OUTPUT_TERMINAL && network->mode != LAN_SLAVE && closeImage(p))
     {
+        freeNetworkCTX(network);
         freePlotCTX(p);
         closeLog();
         return EXIT_FAILURE;
     }
 
+    freeNetworkCTX(network);
     freePlotCTX(p);
 
     /* Close log file */
