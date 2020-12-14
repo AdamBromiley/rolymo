@@ -20,6 +20,7 @@
 
 
 extern const char *ROW_REQUEST;
+extern const char *ROW_RESPONSE;
 extern const char *ACK_RESPONSE;
 extern const char *ERR_RESPONSE;
 
@@ -60,7 +61,7 @@ int readParameters(PlotCTX **p, int s);
 int sendParameters(int s, const PlotCTX *p);
 
 int requestRowNumber(size_t *n, int s, const PlotCTX *p);
-int sendRowData(int s, size_t rowNum, void *row, size_t n);
+int sendRowData(int s, void *row, size_t n);
 
 
 #endif

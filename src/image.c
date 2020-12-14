@@ -280,13 +280,14 @@ int imageOutputMaster(PlotCTX *p, NetworkCTX *network, ProgramCTX *ctx)
 
     for (int i = 0; i < network->n; ++i)
     {
-        int s = network->workers[i];
+        int s = network->workers[i].s;
 
         if (s < 0)
             continue;
 
         close(s);
-        network->workers[i] = -1;
+        network->workers[i].s = -1;
+        freeClientReceiveBuffer(&(network->workers[i]));
     }
 
     return 0;
@@ -410,7 +411,7 @@ int imageRowOutput(PlotCTX *p, NetworkCTX *network, ProgramCTX *ctx)
 
         logMessage(DEBUG, "All threads successfully destroyed");
 
-        ret = sendRowData(network->s, block->id, block->array, block->rowSize);
+        ret = sendRowData(network->s, block->array, block->rowSize);
 
         if (ret == -3)
         {

@@ -41,11 +41,9 @@
 
 
 const char *ROW_REQUEST = "REQ";
+const char *ROW_RESPONSE = "ROW";
 const char *ACK_RESPONSE = "ACK";
 const char *ERR_RESPONSE = "ERR";
-
-
-static int sendRowNumber(int s, size_t n);
 
 
 ssize_t writeSocket(const void *src, int s, size_t n)
@@ -668,15 +666,29 @@ int requestRowNumber(size_t *n, int s, const PlotCTX *p)
 }
 
 
-int sendRowData(int s, size_t rowNum, void *row, size_t n)
+int sendRowData(int s, void *row, size_t n)
 {
     ssize_t bytes;
     char buffer[NETWORK_BUFFER_SIZE] = {'\0'};
 
-    int ret = sendRowNumber(s, rowNum);
+    strncpy(buffer, ROW_RESPONSE, sizeof(buffer));
+    buffer[sizeof(buffer) - 1] = '\0';
 
-    if (ret)
-        return ret;
+    bytes = writeSocket(buffer, s, sizeof(buffer));
+
+    if (bytes == 0)
+    {
+        return -2;
+    }
+    else if (bytes < 0)
+    {
+        return -1;
+    }
+    else if ((size_t) bytes != sizeof(buffer))
+    {
+        logMessage(ERROR, "Could not write full request to connection");
+        return -1;
+    }
 
     bytes = writeSocket(row, s, n);
 
@@ -685,50 +697,6 @@ int sendRowData(int s, size_t rowNum, void *row, size_t n)
         return -2;
     }
     else if (bytes < 0 || (size_t) bytes != n)
-    {
-        logMessage(ERROR, "Could not write to socket connection");
-        return -1;
-    }
-
-    /* Read acknowledgement from master */
-    bytes = readSocket(buffer, s, sizeof(buffer));
-
-    if (bytes == 0)
-    {
-        return -2;
-    }
-    else if (bytes < 0 || (size_t) bytes != sizeof(buffer))
-    {
-        logMessage(ERROR, "Error reading from socket connection");
-        return -1;
-    }
-
-    buffer[sizeof(buffer) - 1] = '\0';
-
-    if (strcmp(buffer, ACK_RESPONSE))
-    {
-        logMessage(ERROR, "Invalid acknowledgement from master");
-        return -3;
-    }
-
-    return 0;
-}
-
-
-static int sendRowNumber(int s, size_t n)
-{
-    ssize_t ret;
-    char buffer[NETWORK_BUFFER_SIZE] = {'\0'};
-
-    snprintf(buffer, sizeof(buffer), "%zu", n);
-
-    ret = writeSocket(buffer, s, sizeof(buffer));
-
-    if (ret == 0)
-    {
-        return -2;
-    }
-    else if (ret < 0 || (size_t) ret != sizeof(buffer))
     {
         logMessage(ERROR, "Could not write to socket connection");
         return -1;
