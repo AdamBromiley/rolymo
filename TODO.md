@@ -9,3 +9,6 @@
 - Aspect ratio specification
 - More colour schemes and fractals
 - Automatic precision extension at certain magnifications
+
+## Changes
+- Include network message type and message body in the same `send`/`recv` call
