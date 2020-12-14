@@ -1,5 +1,9 @@
 # Changelog
 
+## 2020-12-14
+### Added
+- Workers can disconnect and reconnect to the master at any time
+
 ## 2020-11-27
 ### Added
 - Distributed computing supported with `-g`, `-G`, and `-p`
