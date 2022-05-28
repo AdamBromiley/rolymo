@@ -1,5 +1,9 @@
 # Changelog
 
+## 2022-05-28
+### Added
+- Workers can request unallocation of their row by sending a ROW_REQUEST again
+
 ## 2020-12-14
 ### Added
 - Workers can disconnect and reconnect to the master at any time
