@@ -816,8 +816,6 @@ static void mandelbrotMP(unsigned long *n, mpc_t z, mpfr_t norm, mpc_t c, unsign
         mpc_add(z, z, c, MP_COMPLEX_RND);
         mpc_norm(norm, z, MP_REAL_RND);
     }
-
-    return;
 }
 #endif
 
@@ -854,7 +852,5 @@ static void juliaMP(unsigned long *n, mpc_t z, mpfr_t norm, mpc_t c, unsigned lo
         mpc_add(z, z, c, MP_COMPLEX_RND);
         mpc_norm(norm, z, MP_REAL_RND);
     }
-
-    return;
 }
 #endif

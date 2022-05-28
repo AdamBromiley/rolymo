@@ -135,8 +135,6 @@ void mapColour(void *pixel, unsigned long n, complex z, int offset, unsigned lon
         default:
             return;
     }
-
-    return;
 }
 
 
@@ -169,8 +167,6 @@ void mapColourExt(void *pixel, unsigned long n, long double complex z, int offse
         default:
             return;
     }
-
-    return;
 }
 
 
@@ -206,8 +202,6 @@ void mapColourMP(void *pixel, unsigned long n, mpfr_t norm, int offset, unsigned
         default:
             return;
     }
-
-    return;
 }
 #endif
 
@@ -351,8 +345,6 @@ static void mapColourSchemeBlackWhite(char *byte, int offset, EscapeStatus statu
         *byte |= 1 << ((CHAR_BIT - 1) - offset); 
     else if (status == ESCAPED)
         *byte &= ~(1 << ((CHAR_BIT - 1) - offset));
-
-    return;
 }
 
 
@@ -364,8 +356,6 @@ static void mapColourSchemeWhiteBlack(char *byte, int offset, EscapeStatus statu
         *byte &= ~(1 << ((CHAR_BIT - 1) - offset));
     else if (status == ESCAPED)
         *byte |= 1 << ((CHAR_BIT - 1) - offset);
-
-    return;
 }
 
 
@@ -405,8 +395,6 @@ static void mapColourSchemeRainbow(RGB *rgb, double n, EscapeStatus status)
     }
 
     hsvToRGB(rgb, &hsv);
-
-    return;
 }
 
 
@@ -426,8 +414,6 @@ static void mapColourSchemeRainbowVibrant(RGB *rgb, double n, EscapeStatus statu
     }
 
     hsvToRGB(rgb, &hsv);
-
-    return;
 }
 
 
@@ -451,8 +437,6 @@ static void mapColourSchemeRedWhite(RGB *rgb, double n, EscapeStatus status)
     }
 
     hsvToRGB(rgb, &hsv);
-
-    return;
 }
 
 
@@ -473,8 +457,6 @@ static void mapColourSchemeFire(RGB *rgb, double n, EscapeStatus status)
     }
 
     hsvToRGB(rgb, &hsv);
-
-    return;
 }
 
 
@@ -507,8 +489,6 @@ static void mapColourSchemeRedHot(RGB *rgb, double n, EscapeStatus status)
     }
 
     hsvToRGB(rgb, &hsv);
-
-    return;
 }
 
 
@@ -526,6 +506,4 @@ static void mapColourSchemeMatrix(RGB *rgb, double n, EscapeStatus status)
         hsv.v = (90.0 - fabs(fmod(n * 2.0, 180.0) - 90.0)) / 90.0;
 
     hsvToRGB(rgb, &hsv);
-
-    return;
 }
