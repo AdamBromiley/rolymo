@@ -345,10 +345,8 @@ int listener(NetworkCTX *network, const Block *block)
     {
         fd_set setTemp;
 
-        int activeSockCount;
-
-        if (highestFD == -1)
-            logMessage(WARNING, "Premature disconnect from all worker machines");
+        /* Number of active sockets */
+        int active;
 
         /* Initialise working set and array */
         memcpy(&setTemp, &set, sizeof(set));
@@ -358,9 +356,9 @@ int listener(NetworkCTX *network, const Block *block)
          * only contain the active sockets (hence the reinitialisation of sets
          * at the top of the loop)
          */
-        activeSockCount = select(highestFD + 1, &setTemp, NULL, NULL, NULL);
+        active = select(highestFD + 1, &setTemp, NULL, NULL, NULL);
 
-        if (activeSockCount <= 0)
+        if (active <= 0)
         {
             logMessage(ERROR, "Failed to poll sockets");
             free(workersTemp);
@@ -401,35 +399,33 @@ int listener(NetworkCTX *network, const Block *block)
                 }
             }
 
-            if (--activeSockCount <= 0)
+            if (--active <= 0)
                 continue;
         }
 
-        for (int i = 0; i < network->n && activeSockCount > 0; ++i)
+        for (int i = 0; i < network->n && active > 0; ++i)
         {
             ssize_t readBytes;
 
             char buffer[NETWORK_BUFFER_SIZE] = {'\0'};
 
-            int activeSock = workersTemp[i].s;
+            int s = workersTemp[i].s;
 
-            if (!FD_ISSET(activeSock, &setTemp))
+            if (!FD_ISSET(s, &setTemp))
                 continue;
 
             /* If socket is active */
-            activeSockCount--;
+            --active;
 
             /* Read request into buffer */
-            readBytes = readSocket(buffer, activeSock, sizeof(buffer));
+            readBytes = readSocket(buffer, s, sizeof(buffer));
 
             /* Client issued shutdown or error */
-            if (readBytes <= 0)
+            if (readBytes != sizeof(buffer))
             {
-                closeSocket(&set, &highestFD, network, i, rowQueue);
-                continue;
-            }
-            else if (readBytes != sizeof(buffer))
-            {
+                if (readBytes <= 0)
+                    closeSocket(&set, &highestFD, network, i, rowQueue);
+
                 continue;
             }
 
@@ -439,43 +435,58 @@ int listener(NetworkCTX *network, const Block *block)
             {
                 size_t nextRow = 0;
 
-                /* If popFromQueue fails, the queue is empty and we ignore */
+                /* If the worker requests a new row, we unallocate its
+                 * already-assigned row.
+                 * TODO: This will just reassign the worker the same row. Maybe
+                 * implement a queue, not stack?
+                 */
+                if (network->workers[i].rowAllocated)
+                {
+                    pushToQueue(rowQueue, network->workers[i].row);
+                    network->workers[i].rowAllocated = false;
+                }
+
+                /* Get next row number for the worker to work on */
                 if (!popFromQueue(&nextRow, rowQueue))
                 {
                     memset(buffer, '\0', sizeof(buffer));
                     snprintf(buffer, sizeof(buffer), "%zu", nextRow);
-                    logMessage(DEBUG, "Allocating row %s to worker on socket %d", buffer, activeSock);
+                    logMessage(DEBUG, "Allocating row %s to worker on socket %d", buffer, s);
 
-                    /* Client issued shutdown or error */
-                    if (writeSocket(buffer, activeSock, sizeof(buffer)) <= 0)
+                    if (writeSocket(buffer, s, sizeof(buffer)) <= 0)
+                        /* Client issued shutdown or error */
                         closeSocket(&set, &highestFD, network, i, rowQueue);
 
                     network->workers[i].row = nextRow;
                     network->workers[i].rowAllocated = true;
                 }
+
+                /* If popFromQueue fails, the queue is empty and we ignore */
             }
             else if (!strcmp(buffer, ROW_RESPONSE)) /* Row data */
             {
+                Client *worker = &(workersTemp[i]);
+
                 /* Read row data into buffer */
-                readBytes = readSocket(workersTemp[i].buffer + workersTemp[i].read, activeSock, workersTemp[i].n - workersTemp[i].read);
+                readBytes = readSocket(worker->buffer + worker->read, s, worker->n - worker->read);
 
                 /* Client issued shutdown or error */
                 if (readBytes <= 0)
                 {
                     closeSocket(&set, &highestFD, network, i, rowQueue);
                 }
-                else if ((size_t) readBytes == workersTemp[i].n - workersTemp[i].read)
+                else if ((size_t) readBytes == worker->n - worker->read)
                 {       
                     size_t rows = (block->remainder) ? block->remainderRows : block->rows;
 
-                    memcpy(block->array + workersTemp[i].row * workersTemp[i].n, workersTemp[i].buffer, workersTemp[i].n);
+                    memcpy(block->array + worker->row * worker->n, worker->buffer, worker->n);
 
                     network->workers[i].rowAllocated = false;
                     network->workers[i].row = 0;
                     network->workers[i].read = 0;
                     memset(network->workers[i].buffer, '\0', network->workers[i].n);
 
-                    logMessage(INFO, "Row %zu from socket %d wrote to array", workersTemp[i].row, activeSock);
+                    logMessage(INFO, "Row %zu from socket %d wrote to array", worker->row, s);
 
                     if (++wroteRows >= rows)
                     {
@@ -491,7 +502,7 @@ int listener(NetworkCTX *network, const Block *block)
             }
             else
             {
-                sendError(activeSock);
+                sendError(s);
             }
             
         }
