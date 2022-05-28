@@ -24,24 +24,13 @@
 #include "arg_ranges.h"
 #include "array.h"
 #include "request_handler.h"
+#include "stack.h"
 
 
-typedef struct Queue
-{
-    size_t size;   /* Memory size of queue */
-    size_t n;      /* Number of items in queue */
-    size_t *queue; /* Queue */
-} Queue;
-
-
-static void closeSocket(fd_set *set, int *highestFD, NetworkCTX *network, int i, Queue *rows);
+static void closeSocket(fd_set *set, int *highestFD, NetworkCTX *network, int i, Stack *rows);
 static int getHighestFD(const Client *clients, int n);
 
-static Queue * createRowQueue(const Block *block);
-static Queue * createQueue(size_t n);
-static int pushToQueue(Queue *q, size_t n);
-static int popFromQueue(size_t *n, Queue *q);
-static void freeQueue(Queue *q);
+static Stack * createRowStack(const Block *block);
 
 
 /* Allocate NetworkCTX object */
@@ -318,7 +307,7 @@ int listener(NetworkCTX *network, const Block *block)
     /* Lists of socket file descriptors */
     Client *workersTemp = malloc((size_t) network->n * sizeof(*(network->workers)));
 
-    Queue *rowQueue = createRowQueue(block);
+    Stack *rowStack = createRowStack(block);
     size_t wroteRows = 0;
 
     if (!workersTemp)
@@ -386,16 +375,16 @@ int listener(NetworkCTX *network, const Block *block)
                 if (ret == -2)
                 {
                     logMessage(INFO, "Worker shutdown connection, closing connection");
-                    closeSocket(&set, &highestFD, network, i, rowQueue);
+                    closeSocket(&set, &highestFD, network, i, rowStack);
                 }
                 else if (ret)
                 {
                     logMessage(ERROR, "Sending parameters to worker failed, closing connection");
-                    closeSocket(&set, &highestFD, network, i, rowQueue);
+                    closeSocket(&set, &highestFD, network, i, rowStack);
                 }
                 else if (createClientReceiveBuffer(&(network->workers[i]), block->rowSize))
                 {
-                    closeSocket(&set, &highestFD, network, i, rowQueue);
+                    closeSocket(&set, &highestFD, network, i, rowStack);
                 }
             }
 
@@ -424,7 +413,7 @@ int listener(NetworkCTX *network, const Block *block)
             if (readBytes != sizeof(buffer))
             {
                 if (readBytes <= 0)
-                    closeSocket(&set, &highestFD, network, i, rowQueue);
+                    closeSocket(&set, &highestFD, network, i, rowStack);
 
                 continue;
             }
@@ -442,12 +431,12 @@ int listener(NetworkCTX *network, const Block *block)
                  */
                 if (network->workers[i].rowAllocated)
                 {
-                    pushToQueue(rowQueue, network->workers[i].row);
+                    pushStack(rowStack, network->workers[i].row);
                     network->workers[i].rowAllocated = false;
                 }
 
                 /* Get next row number for the worker to work on */
-                if (!popFromQueue(&nextRow, rowQueue))
+                if (!popStack(&nextRow, rowStack))
                 {
                     memset(buffer, '\0', sizeof(buffer));
                     snprintf(buffer, sizeof(buffer), "%zu", nextRow);
@@ -455,13 +444,13 @@ int listener(NetworkCTX *network, const Block *block)
 
                     if (writeSocket(buffer, s, sizeof(buffer)) <= 0)
                         /* Client issued shutdown or error */
-                        closeSocket(&set, &highestFD, network, i, rowQueue);
+                        closeSocket(&set, &highestFD, network, i, rowStack);
 
                     network->workers[i].row = nextRow;
                     network->workers[i].rowAllocated = true;
                 }
 
-                /* If popFromQueue fails, the queue is empty and we ignore */
+                /* If popStack fails, the stack is empty and we ignore */
             }
             else if (!strcmp(buffer, ROW_RESPONSE)) /* Row data */
             {
@@ -473,7 +462,7 @@ int listener(NetworkCTX *network, const Block *block)
                 /* Client issued shutdown or error */
                 if (readBytes <= 0)
                 {
-                    closeSocket(&set, &highestFD, network, i, rowQueue);
+                    closeSocket(&set, &highestFD, network, i, rowStack);
                 }
                 else if ((size_t) readBytes == worker->n - worker->read)
                 {       
@@ -511,7 +500,7 @@ int listener(NetworkCTX *network, const Block *block)
 
 
 /* Close socket connection and modify fd_set and NetworkCTX socket array */
-static void closeSocket(fd_set *set, int *highestFD, NetworkCTX *network, int i, Queue *rows)
+static void closeSocket(fd_set *set, int *highestFD, NetworkCTX *network, int i, Stack *rows)
 {
     int s = network->workers[i].s;
 
@@ -523,7 +512,7 @@ static void closeSocket(fd_set *set, int *highestFD, NetworkCTX *network, int i,
 
     if (network->workers[i].rowAllocated)
     {
-        pushToQueue(rows, network->workers[i].row);
+        pushStack(rows, network->workers[i].row);
         network->workers[i].rowAllocated = false;
     }
     
@@ -555,82 +544,24 @@ static int getHighestFD(const Client *clients, int n)
 }
 
 
-static Queue * createRowQueue(const Block *block)
+static Stack * createRowStack(const Block *block)
 {
     size_t rows = (block->remainder) ? block->remainderRows : block->rows;
-    Queue *q = createQueue(rows);
+    Stack *s = createStack(rows);
 
     size_t blockOffset = block->id * block->rows;
 
-    if (!q)
+    if (!s)
         return NULL;
     
     for (size_t i = blockOffset; i < blockOffset + rows; ++i)
     {
-        if (pushToQueue(q, i))
+        if (pushStack(s, i))
         {
-            freeQueue(q);
+            freeStack(s);
             return NULL;
         }
     }
 
-    return q;
-}
-
-
-/* Create and allocate memory to the queue object */
-static Queue * createQueue(size_t n)
-{
-    Queue *q = malloc(sizeof(*q));
-
-    if (!q)
-        return NULL;
-
-    q->queue = malloc(n * sizeof(*(q->queue)));
-
-    if (!q->queue)
-    {
-        free(q);
-        return NULL;
-    }
-
-    q->size = n;
-    q->n = 0;
-
-    return q;
-}
-
-
-/* Add item to queue */
-static int pushToQueue(Queue *q, size_t n)
-{
-    if (q->n == q->size)
-        return 1;
-    
-    q->queue[(q->n)++] = n;
-    return 0;
-}
-
-
-/* Remove item from queue */
-static int popFromQueue(size_t *n, Queue *q)
-{
-    if (q->n == 0)
-        return 1;
-    
-    *n = q->queue[--(q->n)];
-
-    return 0;
-}
-
-
-static void freeQueue(Queue *q)
-{
-    if (q)
-    {
-        if (q->queue)
-            free(q->queue);
-        
-        free(q);
-    }
+    return s;
 }
