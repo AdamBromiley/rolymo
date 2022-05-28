@@ -133,26 +133,20 @@ void freeBlock(Block *block)
 {
     if (block)
     {
-        if (block->array)
-        {
-            free(block->array);
-            block->array = NULL;
-        }
-
-        free(block);
-        logMessage(DEBUG, "Block structure freed");
+        free(block->array);
+        block->array = NULL;
     }
+
+    free(block);
+    logMessage(DEBUG, "Block structure freed");
 }
 
 
 /* Free thread list */
 void freeThreads(Thread *threads)
 {
-    if (threads)
-    {
-        free(threads);
-        logMessage(DEBUG, "Thread array freed");
-    }
+    free(threads);
+    logMessage(DEBUG, "Thread array freed");
 }
 
 
@@ -233,10 +227,7 @@ static int allocateImageBlock(Block *block, size_t mem)
     {
         /* If too many malloc() calls have failed */
         logMessage(ERROR, "Memory allocation failed");
-
-        if (block->array)
-            free(block->array);
-
+        free(block->array);
         return 1;
     }
 

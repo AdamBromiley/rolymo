@@ -183,11 +183,9 @@ void freePlotCTX(PlotCTX *p)
             fclose(p->file);
             p->file = NULL;
         }
-
-        free(p);
     }
 
-    return;
+    free(p);
 }
 
 

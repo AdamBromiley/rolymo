@@ -30,6 +30,5 @@ int initialiseProgramCTX(ProgramCTX *ctx)
 
 void freeProgramCTX(ProgramCTX *ctx)
 {
-    if (ctx)
-        free(ctx);
+    free(ctx);
 }

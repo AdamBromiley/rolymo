@@ -52,10 +52,7 @@ int popStack(size_t *n, Stack *s)
 void freeStack(Stack *s)
 {
     if (s)
-    {
-        if (s->stack)
-            free(s->stack);
-        
-        free(s);
-    }
+        free(s->stack);
+
+    free(s);
 }

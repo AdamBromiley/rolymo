@@ -84,7 +84,7 @@ int createClientReceiveBuffer(Client *client, size_t n)
 
 void freeClientReceiveBuffer(Client *client)
 {
-    if (client && client->buffer)
+    if (client)
     {
         free(client->buffer);
         client->n = 0;
@@ -103,12 +103,12 @@ void freeNetworkCTX(NetworkCTX *ctx)
         {
             for (int i = 0; i < ctx->n; ++i)
                 freeClientReceiveBuffer(&(ctx->workers[i]));
-
-            free(ctx->workers);
         }
 
-        free(ctx);
+        free(ctx->workers);
     }
+
+    free(ctx);
 }
 
 
