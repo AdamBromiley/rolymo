@@ -413,12 +413,7 @@ int imageRowOutput(PlotCTX *p, NetworkCTX *network, ProgramCTX *ctx)
 
         ret = sendRowData(network->s, block->array, block->rowSize);
 
-        if (ret == -3)
-        {
-            /* Parsing error */
-            continue;
-        }
-        else if (ret == -2)
+        if (ret == -2)
         {
             /* Safe shutdown */
             break;
