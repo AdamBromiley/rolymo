@@ -27,8 +27,11 @@
 #include "stack.h"
 
 
+static Client createClient(void);
+static fd_set initialiseClientSet(const NetworkCTX *network, int *highestFD);
+static void initialiseWorker(NetworkCTX *network, fd_set *set, int *highestFD, const Block *block, Stack *rowStack);
 static void closeSocket(fd_set *set, int *highestFD, NetworkCTX *network, int i, Stack *rows);
-static int getHighestFD(const Client *clients, int n);
+static void getHighestFD(const fd_set *set, int *highestFD);
 
 static Stack * createRowStack(const Block *block);
 
@@ -213,7 +216,7 @@ int initialiseAsMaster(NetworkCTX *network)
 /* Accept connection request and return index in Client array */
 int acceptConnection(NetworkCTX *network)
 {
-    Client worker;
+    Client worker = createClient();
     socklen_t addrLength = sizeof(worker.addr);
 
     logMessage(INFO, "Accepting incoming connection request");
@@ -299,10 +302,8 @@ int initialiseAsWorker(NetworkCTX *network, PlotCTX **p)
 int listener(NetworkCTX *network, const Block *block)
 {
     /* Set of socket file descriptors */
-    fd_set set;
-
-    /* Stores the highest file descriptor in fd_set */
-    int highestFD = getHighestFD(network->workers, network->n);
+    int highestFD;
+    fd_set set = initialiseClientSet(network, &highestFD);
 
     /* Lists of socket file descriptors */
     Client *workersTemp = malloc((size_t) network->n * sizeof(*(network->workers)));
@@ -312,23 +313,6 @@ int listener(NetworkCTX *network, const Block *block)
 
     if (!workersTemp)
         return 1;
-
-    /* Clear set */
-    FD_ZERO(&set);
-
-    /* Add master socket to set for connection requests */
-    FD_SET(network->s, &set);
-
-    if (network->s > highestFD)
-        highestFD = network->s;
-
-    for (int i = 0; i < network->n; ++i)
-    {
-        if (network->workers[i].s == -1)
-            continue;
-
-        FD_SET(network->workers[i].s, &set);
-    }
 
     while (1)
     {
@@ -357,39 +341,8 @@ int listener(NetworkCTX *network, const Block *block)
         /* If data to be read on master socket, there is a connection request */
         if (FD_ISSET(network->s, &setTemp))
         {
-            int i = acceptConnection(network);
-
-            if (i >= 0)
-            {
-                int ret;
-
-                int s = network->workers[i].s;
-
-                FD_SET(s, &set);
-
-                if (s > highestFD)
-                    highestFD = s;
-
-                ret = sendParameters(s, block->parameters);
-
-                if (ret == -2)
-                {
-                    logMessage(INFO, "Worker shutdown connection, closing connection");
-                    closeSocket(&set, &highestFD, network, i, rowStack);
-                }
-                else if (ret)
-                {
-                    logMessage(ERROR, "Sending parameters to worker failed, closing connection");
-                    closeSocket(&set, &highestFD, network, i, rowStack);
-                }
-                else if (createClientReceiveBuffer(&(network->workers[i]), block->rowSize))
-                {
-                    closeSocket(&set, &highestFD, network, i, rowStack);
-                }
-            }
-
-            if (--active <= 0)
-                continue;
+            --active;
+            initialiseWorker(network, &set, &highestFD, block, rowStack);
         }
 
         for (int i = 0; i < network->n && active > 0; ++i)
@@ -499,6 +452,90 @@ int listener(NetworkCTX *network, const Block *block)
 }
 
 
+static Client createClient(void)
+{
+    Client client =
+    {
+        .s = -1,
+        .rowAllocated = false,
+        .row = 0,
+        .n = 0,
+        .read = 0,
+        .buffer = NULL
+    };
+
+    return client;
+}
+
+
+static fd_set initialiseClientSet(const NetworkCTX *network, int *highestFD)
+{
+    fd_set set;
+
+    /* Clear set */
+    FD_ZERO(&set);
+
+    /* Add master socket to set for connection requests */
+    FD_SET(network->s, &set);
+    *highestFD = network->s;
+
+    /* Add client sockets to set */
+    for (int i = 0; i < network->n; ++i)
+    {
+        int s = network->workers[i].s;
+
+        if (s == -1)
+            continue;
+
+        FD_SET(s, &set);
+
+        if (s > *highestFD)
+            *highestFD = s;
+    }
+
+    return set;
+}
+
+
+static void initialiseWorker(NetworkCTX *network, fd_set *set, int *highestFD, const Block *block, Stack *rowStack)
+{
+    int s;
+    int ret;
+
+    int i = acceptConnection(network);
+
+    if (i < 0)
+        return;
+
+    s = network->workers[i].s;
+
+    FD_SET(s, set);
+
+    if (s > *highestFD)
+        *highestFD = s;
+
+    ret = sendParameters(s, block->parameters);
+
+    if (ret == -2)
+    {
+        logMessage(INFO, "Worker shutdown connection, closing connection");
+        closeSocket(set, highestFD, network, i, rowStack);
+        return;
+    }
+    else if (ret)
+    {
+        logMessage(ERROR, "Sending parameters to worker failed, closing connection");
+        closeSocket(set, highestFD, network, i, rowStack);
+        return;
+    }
+    
+    if (createClientReceiveBuffer(&(network->workers[i]), block->rowSize))
+        closeSocket(set, highestFD, network, i, rowStack);
+
+    printf("network->workers[i].rowAllocated = %d\n", network->workers[i].rowAllocated);
+}
+
+
 /* Close socket connection and modify fd_set and NetworkCTX socket array */
 static void closeSocket(fd_set *set, int *highestFD, NetworkCTX *network, int i, Stack *rows)
 {
@@ -520,27 +557,15 @@ static void closeSocket(fd_set *set, int *highestFD, NetworkCTX *network, int i,
 
     /* Recalculate highest FD in set (if needed) */
     if (s == *highestFD)
-    {
-        *highestFD = getHighestFD(network->workers, network->n);
-
-        if (network->s > *highestFD)
-            *highestFD = network->s;
-    }
+        getHighestFD(set, highestFD);
 }
 
 
 /* Calculate the highest FD in set */
-static int getHighestFD(const Client *clients, int n)
+static void getHighestFD(const fd_set *set, int *highestFD)
 {
-    int highestFD = -1;
-
-    for (int i = 0; i < n; ++i)
-    {
-        if (clients[i].s > highestFD)
-            highestFD = clients[i].s;
-    }
-
-    return highestFD;
+    while (!FD_ISSET(*highestFD, set))
+        --(*highestFD);
 }
 
 
