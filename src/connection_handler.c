@@ -34,6 +34,7 @@ static void closeSocket(fd_set *set, int *highestFD, NetworkCTX *network, int i,
 static void getHighestFD(const fd_set *set, int *highestFD);
 
 static Stack * createRowStack(const Block *block);
+static void destroyRowStack(Stack *s);
 
 
 /* Allocate NetworkCTX object */
@@ -308,11 +309,18 @@ int listener(NetworkCTX *network, const Block *block)
     /* Lists of socket file descriptors */
     Client *workersTemp = malloc((size_t) network->n * sizeof(*(network->workers)));
 
-    Stack *rowStack = createRowStack(block);
+    Stack *rowStack;
     size_t wroteRows = 0;
 
     if (!workersTemp)
         return 1;
+
+    rowStack = createRowStack(block);
+    if (!rowStack)
+    {
+        free(workersTemp);
+        return 1;
+    }
 
     while (1)
     {
@@ -335,6 +343,7 @@ int listener(NetworkCTX *network, const Block *block)
         {
             logMessage(ERROR, "Failed to poll sockets");
             free(workersTemp);
+            destroyRowStack(rowStack);
             return 1;
         }
 
@@ -434,6 +443,7 @@ int listener(NetworkCTX *network, const Block *block)
                     {
                         logMessage(INFO, "All rows wrote to image");
                         free(workersTemp);
+                        destroyRowStack(rowStack);
                         return 0;
                     }
                 }
@@ -589,4 +599,10 @@ static Stack * createRowStack(const Block *block)
     }
 
     return s;
+}
+
+
+static void destroyRowStack(Stack *s)
+{
+    freeStack(s);
 }
