@@ -14,9 +14,9 @@
 #include "process_options.h"
 
 #include "arg_ranges.h"
-#include "connection_handler.h"
 #include "getopt_error.h"
 #include "image.h"
+#include "network_ctx.h"
 #include "parameters.h"
 #include "process_args.h"
 #include "program_ctx.h"

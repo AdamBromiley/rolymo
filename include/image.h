@@ -4,7 +4,7 @@
 
 #include <stddef.h>
 
-#include "connection_handler.h"
+#include "network_ctx.h"
 #include "parameters.h"
 #include "program_ctx.h"
 

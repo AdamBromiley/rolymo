@@ -20,6 +20,7 @@
 #include "getopt_error.h"
 #include "image.h"
 #include "mandelbrot_parameters.h"
+#include "network_ctx.h"
 #include "parameters.h"
 #include "process_options.h"
 #include "program_ctx.h"

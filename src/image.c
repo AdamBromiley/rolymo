@@ -15,6 +15,7 @@
 #include "connection_handler.h"
 #include "ext_precision.h"
 #include "function.h"
+#include "network_ctx.h"
 #include "parameters.h"
 #include "program_ctx.h"
 #include "request_handler.h"

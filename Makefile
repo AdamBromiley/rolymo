@@ -17,24 +17,24 @@ BIN = $(BDIR)/$(_BIN)
 # Source code
 _SRC = arg_ranges.c array.c colour.c connection_handler.c ext_precision.c \
 	   function.c getopt_error.c image.c mandelbrot.c mandelbrot_parameters.c \
-	   parameters.c process_args.c process_options.c program_ctx.c \
-	   request_handler.c stack.c
+	   network_ctx.c parameters.c process_args.c process_options.c \
+	   program_ctx.c request_handler.c stack.c
 SDIR = src
 SRC = $(patsubst %,$(SDIR)/%,$(_SRC))
 
 # Header files
 _DEPS = arg_ranges.h array.h colour.h connection_handler.h ext_precision.h \
-	    function.h getopt_error.h image.h mandelbrot_parameters.h parameters.h \
-	    process_args.h process_options.h program_ctx.h request_handler.h \
-		stack.h
+	    function.h getopt_error.h image.h mandelbrot_parameters.h \
+		network_ctx.h parameters.h process_args.h process_options.h \
+		program_ctx.h request_handler.h stack.h
 HDIR = include
 DEPS = $(patsubst %,$(HDIR)/%,$(_DEPS))
 
 # Object files
 _OBJS = arg_ranges.o array.o colour.o connection_handler.o ext_precision.o \
-	    function.o getopt_error.o image.o mandelbrot.o mandelbrot_parameters.o \
-		parameters.o process_args.o process_options.o program_ctx.o \
-		request_handler.o stack.o
+	    function.o getopt_error.o image.o mandelbrot.o \
+		mandelbrot_parameters.o network_ctx.o parameters.o process_args.o \
+		process_options.o program_ctx.o request_handler.o stack.o
 ODIR = obj
 OBJS = $(patsubst %,$(ODIR)/%,$(_OBJS))
 
