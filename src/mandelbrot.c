@@ -150,9 +150,11 @@ int main(int argc, char **argv)
             break;
         case LAN_MASTER:
             ret = imageOutputMaster(p, network, ctx);
+            closeAllConnections(network);
             break;
         case LAN_WORKER:
             ret = imageRowOutput(p, network, ctx);
+            closeConnection(network, 0);
             break;
         default:
             ret = 1;

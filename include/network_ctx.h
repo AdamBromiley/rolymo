@@ -6,6 +6,7 @@
 #include <stddef.h>
 
 #include <netinet/in.h>
+#include <poll.h>
 
 
 typedef enum LANStatus
@@ -15,31 +16,32 @@ typedef enum LANStatus
     LAN_WORKER
 } LANStatus;
 
-typedef struct Client
+typedef struct Connection
 {
-    int s;                   /* Local socket connected to client */
-    struct sockaddr_in addr; /* Address structure for client */
+    struct sockaddr_in addr; /* Address */
     bool rowAllocated;       /* True if worker has been allocated row */
     size_t row;              /* Row number allocated to the worker */
     size_t n;                /* Receive buffer allocated size */
     size_t read;             /* Bytes of data present in the buffer */
     char *buffer;            /* Receive buffer */
-} Client;
+} Connection;
 
 typedef struct NetworkCTX
 {
     LANStatus mode;          /* Whether master, worker, or standalone */
-    struct sockaddr_in addr; /* IP address connected to/listening on */
-    int s;                   /* Connected socket */
-    int n;                   /* Number of workers */
-    Client *workers;         /* Array of sockets connected to workers */
+    int max;                 /* Maximum number of connections (inc. master) */
+    int n;                   /* Number of current connections (inc. master) */
+    Connection *connections; /* Array of workers (0 is self for LAN_MASTER) */
+    struct pollfd *fds;      /* Socket file descriptor set for polling */
 } NetworkCTX;
 
 
-NetworkCTX * createNetworkCTX(int n);
+NetworkCTX * createNetworkCTX(LANStatus status, int n, struct sockaddr_in *addr);
 void freeNetworkCTX(NetworkCTX *ctx);
-int createClientReceiveBuffer(Client *client, size_t n);
-void freeClientReceiveBuffer(Client *client);
+Connection createConnection(void);
+struct pollfd createPollfd(void);
+int createClientReceiveBuffer(Connection *client, size_t n);
+void freeClientReceiveBuffer(Connection *client);
 
 
 #endif

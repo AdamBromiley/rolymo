@@ -9,6 +9,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
+#include <poll.h>
 #include <sys/ioctl.h>
 #include <sys/select.h>
 #include <sys/socket.h>
@@ -28,11 +29,10 @@
 #include "stack.h"
 
 
-static Client createClient(void);
-static fd_set initialiseClientSet(const NetworkCTX *network, int *highestFD);
-static void initialiseWorker(NetworkCTX *network, fd_set *set, int *highestFD, const Block *block, Stack *rowStack);
-static void closeSocket(fd_set *set, int *highestFD, NetworkCTX *network, int i, Stack *rows);
-static void getHighestFD(const fd_set *set, int *highestFD);
+static void initialiseWorker(NetworkCTX *network, const Block *block, Stack *rowStack);
+static void releaseWorker(NetworkCTX *network, int i, Stack *rows);
+static void unallocateRow(NetworkCTX *network, int i, Stack *rows);
+static void completeRow(NetworkCTX *network, int i);
 
 static Stack * createRowStack(const Block *block);
 static void destroyRowStack(Stack *s);
@@ -78,11 +78,13 @@ int initialiseAsMaster(NetworkCTX *network)
 {
     const int SOCK_OPT = 1;
 
+    int s;
+    Connection *c = &(network->connections[0]);
+
     logMessage(DEBUG, "Creating socket");
+    s = socket(AF_INET, SOCK_STREAM, 0);
 
-    network->s = socket(AF_INET, SOCK_STREAM, 0);
-
-    if (network->s < 0)
+    if (s < 0)
     {
         logMessage(ERROR, "Socket could not be created");
         return 1;
@@ -93,10 +95,10 @@ int initialiseAsMaster(NetworkCTX *network)
      */
     logMessage(DEBUG, "Setting socket for reuse");
 
-	if (setsockopt(network->s, SOL_SOCKET, SO_REUSEADDR, (const void *) &SOCK_OPT, (socklen_t) sizeof(SOCK_OPT)))
+	if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const void *) &SOCK_OPT, (socklen_t) sizeof(SOCK_OPT)))
 	{
         logMessage(ERROR, "Socket could not be set for reuse");
-		close(network->s);
+		close(s);
 		return 1;
 	}
 
@@ -105,50 +107,55 @@ int initialiseAsMaster(NetworkCTX *network)
     /*
     logMessage(DEBUG, "Changing socket mode to nonblocking");
 
-	if (ioctl(network->s, FIONBIO, (const void *) &SOCK_OPT) < 0)
+	if (ioctl(s, FIONBIO, (const void *) &SOCK_OPT) < 0)
 	{
         logMessage(DEBUG, "Socket mode could not be changed");
-		close(network->s);
+		close(s);
 		return 1;
 	}*/
 
     logMessage(DEBUG, "Binding %s:%" PRIu16 " to socket",
-               inet_ntoa(network->addr.sin_addr),
-               ntohs(network->addr.sin_port));
+               inet_ntoa(c->addr.sin_addr),
+               ntohs(c->addr.sin_port));
 
-    if (bind(network->s, (struct sockaddr *) &network->addr, (socklen_t) sizeof(network->addr)))
+    if (bind(s, (struct sockaddr *) &(c->addr), (socklen_t) sizeof(c->addr)))
     {
         logMessage(ERROR, "Could not bind socket");
-        close(network->s);
+        close(s);
         return 1;
     }
     
     logMessage(DEBUG, "Setting socket to listen");
 
-    if (listen(network->s, network->n))
+    if (listen(s, network->max - 1))
     {
         logMessage(ERROR, "Socket state could not be changed");
-        close(network->s);
+        close(s);
         return 1;
     }
 
+    network->fds[0].fd = s;
+    network->fds[0].events = POLLIN;
+    ++(network->n);
     return 0;
 }
 
 
-/* Accept connection request and return index in Client array */
+/* Accept connection request and return index in Connection array */
 int acceptConnection(NetworkCTX *network)
 {
-    Client worker = createClient();
-    socklen_t addrLength = sizeof(worker.addr);
+    int s;
+
+    Connection c = createConnection();
+    socklen_t addrLength = sizeof(c.addr);
 
     logMessage(INFO, "Accepting incoming connection request");
 
     errno = 0;
-    worker.s = accept(network->s, (struct sockaddr *) &(worker.addr), &addrLength);
+    s = accept(network->fds[0].fd, (struct sockaddr *) &(c.addr), &addrLength);
 
-    if (worker.s < 0)
-    {   
+    if (s < 0)
+    {
         /* If all requests have been accepted.
          * EAGAIN and EWOULDBLOCK may be equal macros, so separate conditionals
          * will silence a -Wlogical-op warning if they are
@@ -164,23 +171,28 @@ int acceptConnection(NetworkCTX *network)
     }
 
     logMessage(INFO, "Connected to worker at %s:%" PRIu16 " on socket %d",
-                        inet_ntoa(worker.addr.sin_addr),
-                        ntohs(worker.addr.sin_port),
-                        worker.s);
+               inet_ntoa(c.addr.sin_addr),
+               ntohs(c.addr.sin_port),
+               s);
 
-    for (int i = 0; i < network->n; ++i)
+    for (int i = 1; i < network->max; ++i)
     {
         /* If space for the new connection */
-        if (network->workers[i].s < 0)
+        if (network->fds[i].fd < 0)
         {
-            network->workers[i] = worker;
+            network->connections[i] = c;
+
+            network->fds[i] = createPollfd();
+            network->fds[i].fd = s;
+            network->fds[i].events = POLLIN;
+            
+            ++(network->n);
             return i;
         }
     }
 
     logMessage(WARNING, "Too many connections have already been accepted, closing connection");
-    close(worker.s);
-
+    close(s);
     return -1;
 }
 
@@ -188,107 +200,120 @@ int acceptConnection(NetworkCTX *network)
 /* Initialise machine as worker - connect to a master and read parameters */
 int initialiseAsWorker(NetworkCTX *network, PlotCTX **p)
 {
+    int s;
+    Connection *c = &(network->connections[0]);
+
     logMessage(DEBUG, "Creating socket");
+    s = socket(AF_INET, SOCK_STREAM, 0);
 
-    network->s = socket(AF_INET, SOCK_STREAM, 0);
-
-	if (network->s < 0)
+	if (s < 0)
     {
         logMessage(ERROR, "Socket could not be created");
         return 1;
     }
 
     logMessage(INFO, "Connecting to master at %s:%" PRIu16,
-               inet_ntoa(network->addr.sin_addr),
-               ntohs(network->addr.sin_port));
+               inet_ntoa(c->addr.sin_addr),
+               ntohs(c->addr.sin_port));
 
-	if (connect(network->s, (struct sockaddr *) &network->addr, (socklen_t) sizeof(network->addr)))
+	if (connect(s, (struct sockaddr *) &c->addr, (socklen_t) sizeof(c->addr)))
     {
         logMessage(ERROR, "Unable to connect to master");
-        close(network->s);
+        close(s);
 		return 1;
 	}
 
     logMessage(DEBUG, "Getting program parameters from master");
 
-    if (readParameters(p, network->s))
+    if (readParameters(p, s))
     {
-        close(network->s);
+        close(s);
         return 1;
     }
 
+    network->fds[0] = createPollfd();
+    network->fds[0].fd = s;
+    ++(network->n);
 	return 0;
+}
+
+
+void closeConnection(NetworkCTX *network, int i)
+{
+    logMessage(INFO, "Closing connection with socket %d", network->fds[i].fd);
+    close(network->fds[i].fd);
+
+    network->fds[i] = createPollfd();
+    --(network->n);
+
+    freeClientReceiveBuffer(&(network->connections[i]));
+}
+
+
+void closeAllConnections(NetworkCTX *network)
+{
+    for (int i = 1; i < network->max; ++i)
+    {
+        if (network->fds[i].fd < 0)
+            continue;
+
+        closeConnection(network, i);
+    }
+
+    closeConnection(network, 0);
 }
 
 
 /* Listener */
 int listener(NetworkCTX *network, const Block *block)
 {
-    /* Set of socket file descriptors */
-    int highestFD;
-    fd_set set = initialiseClientSet(network, &highestFD);
-
-    /* Lists of socket file descriptors */
-    Client *workersTemp = malloc((size_t) network->n * sizeof(*(network->workers)));
-
-    Stack *rowStack;
     size_t wroteRows = 0;
 
-    if (!workersTemp)
-        return 1;
-
-    rowStack = createRowStack(block);
+    Stack *rowStack = createRowStack(block);
     if (!rowStack)
-    {
-        free(workersTemp);
         return 1;
-    }
 
     while (1)
     {
-        fd_set setTemp;
-
-        /* Number of active sockets */
-        int active;
-
-        /* Initialise working set and array */
-        memcpy(&setTemp, &set, sizeof(set));
-        memcpy(workersTemp, network->workers, (size_t) network->n * sizeof(*(network->workers)));
-
         /* Wait for a socket to become active. On return, the set is modified to
          * only contain the active sockets (hence the reinitialisation of sets
          * at the top of the loop)
          */
-        active = select(highestFD + 1, &setTemp, NULL, NULL, NULL);
+        int active = poll(network->fds, (nfds_t) network->n, -1);
 
         if (active <= 0)
         {
             logMessage(ERROR, "Failed to poll sockets");
-            free(workersTemp);
             destroyRowStack(rowStack);
             return 1;
         }
 
-        /* If data to be read on master socket, there is a connection request */
-        if (FD_ISSET(network->s, &setTemp))
-        {
-            --active;
-            initialiseWorker(network, &set, &highestFD, block, rowStack);
-        }
-
-        for (int i = 0; i < network->n && active > 0; ++i)
+        for (int i = 0; i < network->max && active > 0; ++i)
         {
             ssize_t readBytes;
 
             char buffer[NETWORK_BUFFER_SIZE] = {'\0'};
+            int s = network->fds[i].fd;
 
-            int s = workersTemp[i].s;
-
-            if (!FD_ISSET(s, &setTemp))
+            if (!network->fds[i].revents || s < 0)
+            {
                 continue;
+            }
+            else if (network->fds[i].revents != POLLIN)
+            {
+                releaseWorker(network, i, rowStack);
+                continue;
+            }
 
             /* If socket is active */
             --active;
+
+            /* If data to be read on master socket, there is a connection request */
+            if (i == 0)
+            {
+                initialiseWorker(network, block, rowStack);
+                continue;
+            }
 
             /* Read request into buffer */
             readBytes = readSocket(buffer, s, sizeof(buffer));
@@ -297,7 +322,7 @@ int listener(NetworkCTX *network, const Block *block)
             if (readBytes != sizeof(buffer))
             {
                 if (readBytes <= 0)
-                    closeSocket(&set, &highestFD, network, i, rowStack);
+                    releaseWorker(network, i, rowStack);
 
                 continue;
             }
@@ -313,11 +338,7 @@ int listener(NetworkCTX *network, const Block *block)
                  * TODO: This will just reassign the worker the same row. Maybe
                  * implement a queue, not stack?
                  */
-                if (network->workers[i].rowAllocated)
-                {
-                    pushStack(rowStack, network->workers[i].row);
-                    network->workers[i].rowAllocated = false;
-                }
+                unallocateRow(network, i, rowStack);
 
                 /* Get next row number for the worker to work on */
                 if (!popStack(&nextRow, rowStack))
@@ -328,50 +349,45 @@ int listener(NetworkCTX *network, const Block *block)
 
                     if (writeSocket(buffer, s, sizeof(buffer)) <= 0)
                         /* Client issued shutdown or error */
-                        closeSocket(&set, &highestFD, network, i, rowStack);
+                        releaseWorker(network, i, rowStack);
 
-                    network->workers[i].row = nextRow;
-                    network->workers[i].rowAllocated = true;
+                    network->connections[i].row = nextRow;
+                    network->connections[i].rowAllocated = true;
                 }
 
                 /* If popStack fails, the stack is empty and we ignore */
             }
             else if (!strcmp(buffer, ROW_RESPONSE)) /* Row data */
             {
-                Client *worker = &(workersTemp[i]);
+                Connection *c = &(network->connections[i]);
 
                 /* Read row data into buffer */
-                readBytes = readSocket(worker->buffer + worker->read, s, worker->n - worker->read);
+                readBytes = readSocket(c->buffer + c->read, s, c->n - c->read);
 
                 /* Client issued shutdown or error */
                 if (readBytes <= 0)
                 {
-                    closeSocket(&set, &highestFD, network, i, rowStack);
+                    releaseWorker(network, i, rowStack);
                 }
-                else if ((size_t) readBytes == worker->n - worker->read)
+                else if ((size_t) readBytes == c->n - c->read)
                 {       
                     size_t rows = (block->remainder) ? block->remainderRows : block->rows;
 
-                    memcpy(block->array + worker->row * worker->n, worker->buffer, worker->n);
+                    memcpy(block->array + c->row * c->n, c->buffer, c->n);
 
-                    network->workers[i].rowAllocated = false;
-                    network->workers[i].row = 0;
-                    network->workers[i].read = 0;
-                    memset(network->workers[i].buffer, '\0', network->workers[i].n);
-
-                    logMessage(INFO, "Row %zu from socket %d wrote to array", worker->row, s);
+                    logMessage(INFO, "Row %zu from socket %d wrote to array", c->row, s);
+                    completeRow(network, i);
 
                     if (++wroteRows >= rows)
                     {
                         logMessage(INFO, "All rows wrote to image");
-                        free(workersTemp);
                         destroyRowStack(rowStack);
                         return 0;
                     }
                 }
                 else
                 {
-                    network->workers[i].read += (size_t) readBytes;
+                    c->read += (size_t) readBytes;
                 }
             }
             else
@@ -384,54 +400,8 @@ int listener(NetworkCTX *network, const Block *block)
 }
 
 
-static Client createClient(void)
+static void initialiseWorker(NetworkCTX *network, const Block *block, Stack *rowStack)
 {
-    Client client =
-    {
-        .s = -1,
-        .rowAllocated = false,
-        .row = 0,
-        .n = 0,
-        .read = 0,
-        .buffer = NULL
-    };
-
-    return client;
-}
-
-
-static fd_set initialiseClientSet(const NetworkCTX *network, int *highestFD)
-{
-    fd_set set;
-
-    /* Clear set */
-    FD_ZERO(&set);
-
-    /* Add master socket to set for connection requests */
-    FD_SET(network->s, &set);
-    *highestFD = network->s;
-
-    /* Add client sockets to set */
-    for (int i = 0; i < network->n; ++i)
-    {
-        int s = network->workers[i].s;
-
-        if (s == -1)
-            continue;
-
-        FD_SET(s, &set);
-
-        if (s > *highestFD)
-            *highestFD = s;
-    }
-
-    return set;
-}
-
-
-static void initialiseWorker(NetworkCTX *network, fd_set *set, int *highestFD, const Block *block, Stack *rowStack)
-{
-    int s;
     int ret;
 
     int i = acceptConnection(network);
@@ -439,65 +409,50 @@ static void initialiseWorker(NetworkCTX *network, fd_set *set, int *highestFD, c
     if (i < 0)
         return;
 
-    s = network->workers[i].s;
-
-    FD_SET(s, set);
-
-    if (s > *highestFD)
-        *highestFD = s;
-
-    ret = sendParameters(s, block->parameters);
+    ret = sendParameters(network->fds[i].fd, block->parameters);
 
     if (ret == -2)
     {
         logMessage(INFO, "Worker shutdown connection, closing connection");
-        closeSocket(set, highestFD, network, i, rowStack);
+        releaseWorker(network, i, rowStack);
         return;
     }
     else if (ret)
     {
         logMessage(ERROR, "Sending parameters to worker failed, closing connection");
-        closeSocket(set, highestFD, network, i, rowStack);
+        releaseWorker(network, i, rowStack);
         return;
     }
     
-    if (createClientReceiveBuffer(&(network->workers[i]), block->rowSize))
-        closeSocket(set, highestFD, network, i, rowStack);
-
-    printf("network->workers[i].rowAllocated = %d\n", network->workers[i].rowAllocated);
+    if (createClientReceiveBuffer(&(network->connections[i]), block->rowSize))
+        releaseWorker(network, i, rowStack);
 }
 
 
 /* Close socket connection and modify fd_set and NetworkCTX socket array */
-static void closeSocket(fd_set *set, int *highestFD, NetworkCTX *network, int i, Stack *rows)
+static void releaseWorker(NetworkCTX *network, int i, Stack *rows)
 {
-    int s = network->workers[i].s;
-
-    logMessage(INFO, "Closing connection with socket %d", s);
-
-    close(s);
-    FD_CLR(s, set);
-    network->workers[i].s = -1;
-
-    if (network->workers[i].rowAllocated)
-    {
-        pushStack(rows, network->workers[i].row);
-        network->workers[i].rowAllocated = false;
-    }
-    
-    freeClientReceiveBuffer(&(network->workers[i]));
-
-    /* Recalculate highest FD in set (if needed) */
-    if (s == *highestFD)
-        getHighestFD(set, highestFD);
+    unallocateRow(network, i, rows);
+    closeConnection(network, i);
 }
 
 
-/* Calculate the highest FD in set */
-static void getHighestFD(const fd_set *set, int *highestFD)
+static void unallocateRow(NetworkCTX *network, int i, Stack *rows)
 {
-    while (!FD_ISSET(*highestFD, set))
-        --(*highestFD);
+    if (network->connections[i].rowAllocated)
+    {
+        pushStack(rows, network->connections[i].row);
+        completeRow(network, i);
+    }
+}
+
+
+static void completeRow(NetworkCTX *network, int i)
+{
+    network->connections[i].rowAllocated = false;
+    network->connections[i].row = 0;
+    network->connections[i].read = 0;
+    memset(network->connections[i].buffer, '\0', network->connections[i].n);
 }
 
 

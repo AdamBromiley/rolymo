@@ -2,34 +2,40 @@
 #include <stddef.h>
 #include <stdlib.h>
 
+#include <poll.h>
+
 #include "network_ctx.h"
 
 
-NetworkCTX * createNetworkCTX(int n)
+NetworkCTX * createNetworkCTX(LANStatus status, int n, struct sockaddr_in *addr)
 {
     NetworkCTX *ctx = malloc(sizeof(*ctx));
 
     if (!ctx)
         return NULL;
     
-    ctx->n = (n < 0) ? 0 : n;
-    ctx->workers = malloc((size_t) ctx->n * sizeof(*(ctx->workers)));
+    ctx->mode = status;
 
-    if (!ctx->workers)
+    ctx->max = (status == LAN_MASTER) ? n + 1 : 1;
+    ctx->n = 0;
+    ctx->connections = malloc((size_t) ctx->max * sizeof(*(ctx->connections)));
+    ctx->fds = malloc((size_t) ctx->max * sizeof(*(ctx->fds)));
+
+    if (!ctx->connections || !ctx->fds)
     {
+        free(ctx->connections);
+        free(ctx->fds);
         free(ctx);
         return NULL;
     }
 
-    for (int i = 0; i < ctx->n; ++i)
+    for (int i = 0; i < ctx->max; ++i)
     {
-        ctx->workers[i].s = -1;
-        ctx->workers[i].rowAllocated = false;
-        ctx->workers[i].row = 0;
-        ctx->workers[i].n = 0;
-        ctx->workers[i].read = 0;
-        ctx->workers[i].buffer = NULL;
+        ctx->connections[i] = createConnection();
+        ctx->fds[i] = createPollfd();
     }
+
+    ctx->connections[0].addr = *addr;
 
     return ctx;
 }
@@ -39,29 +45,58 @@ void freeNetworkCTX(NetworkCTX *ctx)
 {
     if (ctx)
     {
-        if (ctx->workers)
+        if (ctx->connections)
         {
-            for (int i = 0; i < ctx->n; ++i)
-                freeClientReceiveBuffer(&(ctx->workers[i]));
+            for (int i = 0; i < ctx->max; ++i)
+                freeClientReceiveBuffer(&(ctx->connections[i]));
         }
 
-        free(ctx->workers);
+        free(ctx->connections);
+        free(ctx->fds);
     }
 
     free(ctx);
 }
 
 
-int createClientReceiveBuffer(Client *client, size_t n)
+Connection createConnection(void)
 {
-    if (client)
+    Connection c =
     {
-        client->buffer = malloc(n);
+        .rowAllocated = false,
+        .row = 0,
+        .n = 0,
+        .read = 0,
+        .buffer = NULL
+    };
 
-        if (client->buffer)
+    return c;
+}
+
+
+struct pollfd createPollfd(void)
+{
+    struct pollfd p =
+    {
+        .fd = -1,
+        .events = 0,
+        .revents = 0
+    };
+
+    return p;
+}
+
+
+int createClientReceiveBuffer(Connection *c, size_t n)
+{
+    if (c)
+    {
+        c->buffer = malloc(n);
+
+        if (c->buffer)
         {
-            client->n = n;
-            client->read = 0;
+            c->n = n;
+            c->read = 0;
             return 0;
         }
     }
@@ -70,13 +105,13 @@ int createClientReceiveBuffer(Client *client, size_t n)
 }
 
 
-void freeClientReceiveBuffer(Client *client)
+void freeClientReceiveBuffer(Connection *c)
 {
-    if (client)
+    if (c)
     {
-        free(client->buffer);
-        client->n = 0;
-        client->read = 0;
-        client->buffer = NULL;
+        free(c->buffer);
+        c->n = 0;
+        c->read = 0;
+        c->buffer = NULL;
     }
 }

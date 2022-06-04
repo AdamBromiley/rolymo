@@ -357,7 +357,7 @@ static int parseGlobalOptions(ProgramCTX *ctx, int argc, char **argv)
 /* Determine role in distributed network (if any) and allocate network object */
 static NetworkCTX * parseNetworkOptions(int argc, char **argv)
 {
-    int numberOfWorkers;
+    int numberOfWorkers = 0;
     char ipAddress[IP_ADDR_STR_LEN_MAX];
 
     NetworkCTX *network = NULL;
@@ -436,16 +436,9 @@ static NetworkCTX * parseNetworkOptions(int argc, char **argv)
         }
     }
 
-    if (mode == LAN_MASTER)
-        network = createNetworkCTX(numberOfWorkers);
-    else
-        network = createNetworkCTX(0);
-
+    network = createNetworkCTX(mode, numberOfWorkers, &addr);
     if (!network)
         return NULL;
-
-    network->mode = mode;
-    network->addr = addr;
 
     return network;
 }

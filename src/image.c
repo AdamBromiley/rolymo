@@ -277,19 +277,7 @@ int imageOutputMaster(PlotCTX *p, NetworkCTX *network, ProgramCTX *ctx)
 
     freeBlock(block);
 
-    logMessage(INFO, "Closing connections with workers");
-
-    for (int i = 0; i < network->n; ++i)
-    {
-        int s = network->workers[i].s;
-
-        if (s < 0)
-            continue;
-
-        close(s);
-        network->workers[i].s = -1;
-        freeClientReceiveBuffer(&(network->workers[i]));
-    }
+    logMessage(INFO, "Closing network connections");
 
     return 0;
 }
@@ -353,7 +341,7 @@ int imageRowOutput(PlotCTX *p, NetworkCTX *network, ProgramCTX *ctx)
 
     while (1)
     {
-        int ret = requestRowNumber(&(block->id), network->s, p);
+        int ret = requestRowNumber(&(block->id), network->fds[0].fd, p);
 
         if (ret == -3)
         {
@@ -367,7 +355,6 @@ int imageRowOutput(PlotCTX *p, NetworkCTX *network, ProgramCTX *ctx)
         }
         else if (ret)
         {
-            close(network->s);
             freeBlock(block);
             freeThreads(threads);
             return 1;  
@@ -384,7 +371,6 @@ int imageRowOutput(PlotCTX *p, NetworkCTX *network, ProgramCTX *ctx)
             if (pthread_create(&(t->pid), NULL, genFractalRow, t))
             {
                 logMessage(ERROR, "Thread could not be created");
-                close(network->s);
                 freeBlock(block);
                 freeThreads(threads);
                 return 1;
@@ -401,7 +387,6 @@ int imageRowOutput(PlotCTX *p, NetworkCTX *network, ProgramCTX *ctx)
             if (pthread_join(t->pid, NULL))
             {
                 logMessage(ERROR, "Thread %u could not be harvested", t->tid);
-                close(network->s);
                 freeBlock(block);
                 freeThreads(threads);
                 return 1;
@@ -412,7 +397,7 @@ int imageRowOutput(PlotCTX *p, NetworkCTX *network, ProgramCTX *ctx)
 
         logMessage(DEBUG, "All threads successfully destroyed");
 
-        ret = sendRowData(network->s, block->array, block->rowSize);
+        ret = sendRowData(network->fds[0].fd, block->array, block->rowSize);
 
         if (ret == -2)
         {
@@ -421,7 +406,6 @@ int imageRowOutput(PlotCTX *p, NetworkCTX *network, ProgramCTX *ctx)
         }
         else if (ret)
         {
-            close(network->s);
             freeBlock(block);
             freeThreads(threads);
             return 1;
@@ -429,11 +413,8 @@ int imageRowOutput(PlotCTX *p, NetworkCTX *network, ProgramCTX *ctx)
     }
 
     logMessage(DEBUG, "Freeing memory");
-
-    close(network->s);
     freeBlock(block);
     freeThreads(threads);
-
     return 0;
 }
 
