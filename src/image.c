@@ -341,14 +341,9 @@ int imageRowOutput(PlotCTX *p, NetworkCTX *network, ProgramCTX *ctx)
 
     while (1)
     {
-        int ret = requestRowNumber(&(block->id), network->fds[0].fd, p);
+        int ret = getRowNumber(block, network, p);
 
-        if (ret == -3)
-        {
-            /* Parsing error */
-            continue;
-        }
-        else if (ret == -2)
+        if (ret == 1)
         {
             /* Safe shutdown */
             break;
@@ -357,7 +352,7 @@ int imageRowOutput(PlotCTX *p, NetworkCTX *network, ProgramCTX *ctx)
         {
             freeBlock(block);
             freeThreads(threads);
-            return 1;  
+            return 1;
         }
 
         logMessage(INFO, "Working on row %zu", block->id);
@@ -397,7 +392,7 @@ int imageRowOutput(PlotCTX *p, NetworkCTX *network, ProgramCTX *ctx)
 
         logMessage(DEBUG, "All threads successfully destroyed");
 
-        ret = sendRowData(network->fds[0].fd, block->array, block->rowSize);
+        ret = sendRowData(network, block);
 
         if (ret == -2)
         {

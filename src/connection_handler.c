@@ -31,7 +31,8 @@
 
 static void initialiseWorker(NetworkCTX *network, const Block *block, Stack *rowStack);
 static void releaseWorker(NetworkCTX *network, int i, Stack *rows);
-static void unallocateRow(NetworkCTX *network, int i, Stack *rows);
+static void returnRow(NetworkCTX *network, int i, Stack *rows);
+static int allocateRow(NetworkCTX *network, int i, Stack *rows);
 static void completeRow(NetworkCTX *network, int i);
 
 static Stack * createRowStack(const Block *block);
@@ -102,9 +103,7 @@ int initialiseAsMaster(NetworkCTX *network)
 		return 1;
 	}
 
-    /* TODO: Sort this out */
     /* Set socket to be nonblocking */
-    /*
     logMessage(DEBUG, "Changing socket mode to nonblocking");
 
 	if (ioctl(s, FIONBIO, (const void *) &SOCK_OPT) < 0)
@@ -112,7 +111,7 @@ int initialiseAsMaster(NetworkCTX *network)
         logMessage(DEBUG, "Socket mode could not be changed");
 		close(s);
 		return 1;
-	}*/
+	}
 
     logMessage(DEBUG, "Binding %s:%" PRIu16 " to socket",
                inet_ntoa(c->addr.sin_addr),
@@ -166,7 +165,7 @@ int acceptConnection(NetworkCTX *network)
             logMessage(WARNING, "Too many connections have already been accepted");
         else
             logMessage(ERROR, "Could not accept connection request");
-        
+
         return -1;
     }
 
@@ -223,17 +222,19 @@ int initialiseAsWorker(NetworkCTX *network, PlotCTX **p)
 		return 1;
 	}
 
-    logMessage(DEBUG, "Getting program parameters from master");
-
-    if (readParameters(p, s))
-    {
-        close(s);
-        return 1;
-    }
-
     network->fds[0] = createPollfd();
     network->fds[0].fd = s;
     ++(network->n);
+
+    logMessage(DEBUG, "Getting program parameters from master");
+    if (readParameters(network, p))
+    {
+        close(s);
+        network->fds[0] = createPollfd();
+        --(network->n);
+        return 1;
+    }
+
 	return 0;
 }
 
@@ -273,6 +274,15 @@ int listener(NetworkCTX *network, const Block *block)
     if (!rowStack)
         return 1;
 
+    for (int i = 1; i < network->max; ++i)
+    {
+        if (network->fds[i].fd < 0)
+            continue;
+        
+        if (allocateRow(network, i, rowStack))
+            releaseWorker(network, i, rowStack);
+    }
+
     while (1)
     {
         /* Wait for a socket to become active. On return, the set is modified to
@@ -290,23 +300,20 @@ int listener(NetworkCTX *network, const Block *block)
 
         for (int i = 0; i < network->max && active > 0; ++i)
         {
-            ssize_t readBytes;
-
-            char buffer[NETWORK_BUFFER_SIZE] = {'\0'};
+            int ret;
             int s = network->fds[i].fd;
 
             if (!network->fds[i].revents || s < 0)
-            {
                 continue;
-            }
-            else if (network->fds[i].revents != POLLIN)
+
+            /* If socket is active */
+            --active;
+
+            if ((network->fds[i].revents & POLLIN) == 0)
             {
                 releaseWorker(network, i, rowStack);
                 continue;
             }
-
-            /* If socket is active */
-            --active;
 
             /* If data to be read on master socket, there is a connection request */
             if (i == 0)
@@ -315,86 +322,36 @@ int listener(NetworkCTX *network, const Block *block)
                 continue;
             }
 
-            /* Read request into buffer */
-            readBytes = readSocket(buffer, s, sizeof(buffer));
+            ret = nonblockingRead(network, i);
 
-            /* Client issued shutdown or error */
-            if (readBytes != sizeof(buffer))
+            if (ret)
             {
-                if (readBytes <= 0)
+                if (ret == 1)
                     releaseWorker(network, i, rowStack);
-
+                
                 continue;
             }
 
-            buffer[sizeof(buffer) - 1] = '\0';
-
-            if (!strcmp(buffer, ROW_REQUEST)) /* New row request */
-            {
-                size_t nextRow = 0;
-
-                /* If the worker requests a new row, we unallocate its
-                 * already-assigned row.
-                 * TODO: This will just reassign the worker the same row. Maybe
-                 * implement a queue, not stack?
-                 */
-                unallocateRow(network, i, rowStack);
-
-                /* Get next row number for the worker to work on */
-                if (!popStack(&nextRow, rowStack))
-                {
-                    memset(buffer, '\0', sizeof(buffer));
-                    snprintf(buffer, sizeof(buffer), "%zu", nextRow);
-                    logMessage(DEBUG, "Allocating row %s to worker on socket %d", buffer, s);
-
-                    if (writeSocket(buffer, s, sizeof(buffer)) <= 0)
-                        /* Client issued shutdown or error */
-                        releaseWorker(network, i, rowStack);
-
-                    network->connections[i].row = nextRow;
-                    network->connections[i].rowAllocated = true;
-                }
-
-                /* If popStack fails, the stack is empty and we ignore */
-            }
-            else if (!strcmp(buffer, ROW_RESPONSE)) /* Row data */
+            if (network->connections[i].read == network->connections[i].n)
             {
                 Connection *c = &(network->connections[i]);
+                size_t rows = (block->remainder) ? block->remainderRows : block->rows;
 
-                /* Read row data into buffer */
-                readBytes = readSocket(c->buffer + c->read, s, c->n - c->read);
+                memcpy(block->array + c->row * c->n, c->buffer, c->n);
 
-                /* Client issued shutdown or error */
-                if (readBytes <= 0)
+                logMessage(INFO, "Row %zu from socket %d wrote to array", c->row, s);
+                completeRow(network, i);
+
+                if (++wroteRows >= rows)
                 {
+                    logMessage(INFO, "All rows wrote to image");
+                    destroyRowStack(rowStack);
+                    return 0;
+                }
+
+                if (allocateRow(network, i, rowStack))
                     releaseWorker(network, i, rowStack);
-                }
-                else if ((size_t) readBytes == c->n - c->read)
-                {       
-                    size_t rows = (block->remainder) ? block->remainderRows : block->rows;
-
-                    memcpy(block->array + c->row * c->n, c->buffer, c->n);
-
-                    logMessage(INFO, "Row %zu from socket %d wrote to array", c->row, s);
-                    completeRow(network, i);
-
-                    if (++wroteRows >= rows)
-                    {
-                        logMessage(INFO, "All rows wrote to image");
-                        destroyRowStack(rowStack);
-                        return 0;
-                    }
-                }
-                else
-                {
-                    c->read += (size_t) readBytes;
-                }
             }
-            else
-            {
-                sendError(s);
-            }
-            
         }
     }
 }
@@ -409,9 +366,12 @@ static void initialiseWorker(NetworkCTX *network, const Block *block, Stack *row
     if (i < 0)
         return;
 
-    ret = sendParameters(network->fds[i].fd, block->parameters);
+    if (createClientReceiveBuffer(&(network->connections[i]), block->rowSize))
+        releaseWorker(network, i, rowStack);
 
-    if (ret == -2)
+    ret = sendParameters(network, i, block->parameters);
+
+    if (ret == 1)
     {
         logMessage(INFO, "Worker shutdown connection, closing connection");
         releaseWorker(network, i, rowStack);
@@ -423,36 +383,56 @@ static void initialiseWorker(NetworkCTX *network, const Block *block, Stack *row
         releaseWorker(network, i, rowStack);
         return;
     }
-    
-    if (createClientReceiveBuffer(&(network->connections[i]), block->rowSize))
+
+    if (allocateRow(network, i, rowStack))
         releaseWorker(network, i, rowStack);
+}
+
+
+static int allocateRow(NetworkCTX *network, int i, Stack *rowStack)
+{
+    size_t row;
+
+    /* Get next row number for the worker to work on */
+    if (!popStack(&row, rowStack))
+    {
+        clearClientReceiveBuffer(&(network->connections[0]));
+        snprintf(network->connections[0].buffer, network->connections[0].n, "%zu", row);
+
+        logMessage(DEBUG, "Allocating row %s to worker on socket %d", network->connections[0].buffer, network->fds[i].fd);
+
+        if (writeSocket(network->connections[0].buffer, network->fds[i].fd, network->connections[0].n) <= 0)
+            return 1;
+
+        network->connections[i].row = row;
+        network->connections[i].rowAllocated = true;
+    }
+
+    return 0;
 }
 
 
 /* Close socket connection and modify fd_set and NetworkCTX socket array */
 static void releaseWorker(NetworkCTX *network, int i, Stack *rows)
 {
-    unallocateRow(network, i, rows);
+    returnRow(network, i, rows);
+    completeRow(network, i);
     closeConnection(network, i);
 }
 
 
-static void unallocateRow(NetworkCTX *network, int i, Stack *rows)
+static void returnRow(NetworkCTX *network, int i, Stack *rows)
 {
     if (network->connections[i].rowAllocated)
-    {
         pushStack(rows, network->connections[i].row);
-        completeRow(network, i);
-    }
 }
 
 
 static void completeRow(NetworkCTX *network, int i)
 {
-    network->connections[i].rowAllocated = false;
     network->connections[i].row = 0;
-    network->connections[i].read = 0;
-    memset(network->connections[i].buffer, '\0', network->connections[i].n);
+    network->connections[i].rowAllocated = false;
+    clearClientReceiveBuffer(&(network->connections[i]));
 }
 
 
