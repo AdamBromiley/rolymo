@@ -9,6 +9,9 @@
 #include <poll.h>
 
 
+#define GENERAL_NETWORK_BUFFER_SIZE 4096
+
+
 typedef enum LANStatus
 {
     LAN_NONE,
@@ -19,7 +22,7 @@ typedef enum LANStatus
 typedef struct Connection
 {
     struct sockaddr_in addr; /* Address */
-    bool rowAllocated;       /* True if worker has been allocated row */
+    bool rowAllocated;       /* True if the worker has been allocated a row */
     size_t row;              /* Row number allocated to the worker */
     size_t n;                /* Receive buffer allocated size */
     size_t read;             /* Bytes of data present in the buffer */
@@ -41,6 +44,7 @@ void freeNetworkCTX(NetworkCTX *ctx);
 Connection createConnection(void);
 struct pollfd createPollfd(void);
 int createClientReceiveBuffer(Connection *client, size_t n);
+void clearClientReceiveBuffer(Connection *c);
 void freeClientReceiveBuffer(Connection *client);
 
 

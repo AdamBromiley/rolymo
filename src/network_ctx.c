@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <poll.h>
 
@@ -33,6 +34,15 @@ NetworkCTX * createNetworkCTX(LANStatus status, int n, struct sockaddr_in *addr)
     {
         ctx->connections[i] = createConnection();
         ctx->fds[i] = createPollfd();
+    }
+
+    /* Allocate a general-purpose network buffer for the host */
+    if (createClientReceiveBuffer(&(ctx->connections[0]), GENERAL_NETWORK_BUFFER_SIZE))
+    {
+        free(ctx->connections);
+        free(ctx->fds);
+        free(ctx);
+        return NULL;
     }
 
     ctx->connections[0].addr = *addr;
@@ -91,7 +101,7 @@ int createClientReceiveBuffer(Connection *c, size_t n)
 {
     if (c)
     {
-        c->buffer = malloc(n);
+        c->buffer = calloc(1, n);
 
         if (c->buffer)
         {
@@ -102,6 +112,13 @@ int createClientReceiveBuffer(Connection *c, size_t n)
     }
 
     return 1;
+}
+
+
+void clearClientReceiveBuffer(Connection *c)
+{
+    memset(c->buffer, '\0', c->n);
+    c->read = 0;
 }
 
 
