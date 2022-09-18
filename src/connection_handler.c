@@ -96,22 +96,22 @@ int initialiseAsMaster(NetworkCTX *network)
      */
     logMessage(DEBUG, "Setting socket for reuse");
 
-	if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const void *) &SOCK_OPT, (socklen_t) sizeof(SOCK_OPT)))
-	{
+    if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const void *) &SOCK_OPT, (socklen_t) sizeof(SOCK_OPT)))
+    {
         logMessage(ERROR, "Socket could not be set for reuse");
-		close(s);
-		return 1;
-	}
+        close(s);
+        return 1;
+    }
 
     /* Set socket to be nonblocking */
     logMessage(DEBUG, "Changing socket mode to nonblocking");
 
-	if (ioctl(s, FIONBIO, (const void *) &SOCK_OPT) < 0)
-	{
+    if (ioctl(s, FIONBIO, (const void *) &SOCK_OPT) < 0)
+    {
         logMessage(DEBUG, "Socket mode could not be changed");
-		close(s);
-		return 1;
-	}
+        close(s);
+        return 1;
+    }
 
     logMessage(DEBUG, "Binding %s:%" PRIu16 " to socket",
                inet_ntoa(c->addr.sin_addr),
@@ -205,7 +205,7 @@ int initialiseAsWorker(NetworkCTX *network, PlotCTX **p)
     logMessage(DEBUG, "Creating socket");
     s = socket(AF_INET, SOCK_STREAM, 0);
 
-	if (s < 0)
+    if (s < 0)
     {
         logMessage(ERROR, "Socket could not be created");
         return 1;
@@ -215,12 +215,12 @@ int initialiseAsWorker(NetworkCTX *network, PlotCTX **p)
                inet_ntoa(c->addr.sin_addr),
                ntohs(c->addr.sin_port));
 
-	if (connect(s, (struct sockaddr *) &c->addr, (socklen_t) sizeof(c->addr)))
+    if (connect(s, (struct sockaddr *) &c->addr, (socklen_t) sizeof(c->addr)))
     {
         logMessage(ERROR, "Unable to connect to master");
         close(s);
-		return 1;
-	}
+        return 1;
+    }
 
     network->fds[0] = createPollfd();
     network->fds[0].fd = s;
@@ -235,7 +235,7 @@ int initialiseAsWorker(NetworkCTX *network, PlotCTX **p)
         return 1;
     }
 
-	return 0;
+    return 0;
 }
 
 

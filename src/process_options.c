@@ -397,7 +397,7 @@ static NetworkCTX * parseNetworkOptions(int argc, char **argv)
                 if (inet_pton(AF_INET, ipAddress, &addr.sin_addr) != 1)
                 {
                     getoptErrorMessage(OPT_ERROR, NULL);
-		            return NULL;
+                    return NULL;
                 }
 
                 mode = LAN_WORKER;
